@@ -159,6 +159,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/2.0/sql/statements", s.protect(s.sqlExecuteStatement))
 	mux.HandleFunc("GET /api/2.0/sql/statements/{id}", s.protect(s.sqlGetStatement))
 
+	mux.HandleFunc("POST /api/2.0/mcp/sql", s.protect(s.mcpSQL))
+	mux.HandleFunc("GET /api/2.0/mcp/sql", s.protect(s.mcpSQL))
+	mux.HandleFunc("DELETE /api/2.0/mcp/sql", s.protect(s.mcpSQL))
+	mux.HandleFunc("/api/2.0/mcp/", s.protect(s.mcpRefused))
+
 	for _, ver := range []string{"2.0", "2.1"} {
 		p := "/api/" + ver + "/clusters/"
 		mux.HandleFunc("POST "+p+"create", s.protect(s.clustersCreate))
