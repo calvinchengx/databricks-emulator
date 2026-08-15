@@ -165,6 +165,25 @@ func TestSQLWarehouseForwardsDeltaDML(t *testing.T) {
 		}
 	}
 
+	threePart := "INSERT INTO e2e.s.events VALUES (5, 'erin')"
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Kind != "sql" || req.Code != threePart {
+			t.Fatalf("three-part rewritten %+v", req)
+		}
+		return spark.Result{OK: false, EValue: "TABLE_OR_VIEW_NOT_FOUND e2e.s.events"}, nil
+	}
+	var named map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": threePart,
+	}, &named)
+	errObj, _ := named["status"].(map[string]any)["error"].(map[string]any)
+	if named["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("three-part fail %+v", named)
+	}
+	if !strings.Contains(str(errObj["message"]), "e2e.s.events") {
+		t.Fatalf("three-part error %+v", named)
+	}
+
 	h.exec.Hook = func(spark.Request) (spark.Result, error) {
 		return spark.Result{OK: false, EValue: "found UPDATE at 0:6 expected something else"}, nil
 	}
@@ -172,7 +191,7 @@ func TestSQLWarehouseForwardsDeltaDML(t *testing.T) {
 	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
 		"warehouse_id": id, "statement": "UPDATE events SET name = 'zed' WHERE id = 1",
 	}, &upd)
-	errObj, _ := upd["status"].(map[string]any)["error"].(map[string]any)
+	errObj, _ = upd["status"].(map[string]any)["error"].(map[string]any)
 	if upd["status"].(map[string]any)["state"] != "FAILED" {
 		t.Fatalf("update fail %+v", upd)
 	}

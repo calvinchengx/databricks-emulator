@@ -55,7 +55,9 @@ names `dialect: spark-sql`; MCP `execute_sql`.
 + `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation
 is delta-rs on the shared volume (`_delta_log` exists, rows match, version
 advances). Standalone `UPDATE` is FAILED (`CommandNode::Update`). Sail
-`COUNT(*)` is not the witness.
+`COUNT(*)` is not the witness. A UC EXTERNAL table then names that
+`storage_location`; three-part `INSERT INTO cat.sch.tbl` is refused by
+Sail (no catalog plugin), and delta-rs confirms the rows did not change.
 
 **`e2e-uc`** — `catalogs.create` / `schemas.create` / EXTERNAL `tables.create`
 plus `tables.get`; MANAGED create and `grants.get` are 501. The sidecar is

@@ -91,7 +91,7 @@ would change the project's character.
 | Feature | Emulator | Type |
 |---|---|---|
 | SQL warehouses | Session handle, not a VM and not Photon. `POST /api/2.0/sql/statements` sends the SQL as `kind: sql` (the code **is** Spark SQL). Wire names `dialect: spark-sql`; `executedBy` says Spark SQL, not Photon. Without `DATABRICKS_SPARK_CONNECT_URL`, execute is `FAILED` naming the engine. | 🟢 Real |
-| Delta writes — Sail | Warehouse SQL `CREATE TABLE … USING delta LOCATION` + `INSERT` + `DELETE` + `MERGE INTO` on a shared volume. Sail writes; **delta-rs** reads `_delta_log` and the rows. A Sail `COUNT(*)` after DML is not a witness. Standalone `UPDATE` is forwarded and Sail answers FAILED (`CommandNode::Update`) — never a silent no-op. Photon is not this row. | 🟢 Real |
+| Delta writes — Sail | Warehouse SQL `CREATE TABLE … USING delta LOCATION` + `INSERT` + `DELETE` + `MERGE INTO` on a shared volume. Sail writes; **delta-rs** reads `_delta_log` and the rows. A Sail `COUNT(*)` after DML is not a witness. Standalone `UPDATE` is forwarded and Sail answers FAILED (`CommandNode::Update`) — never a silent no-op. A UC EXTERNAL table can point `storage_location` at those files; `INSERT INTO cat.sch.tbl` is forwarded to Sail (no invented catalog rewrite) and fails until an engine that loads UCSingleCatalog is attached. Photon is not this row. | 🟢 Real |
 | Clusters as session handle | `POST /api/2.0/clusters/create` starts a Sail session (`print(1)` via the HTTP agent) or fails naming the missing engine. Never sleeps to `RUNNING`. Autoscale and cluster libraries stay refused. | 🟢 Real |
 | Databricks Connect | After PAT/OIDC and `x-databricks-cluster-id` naming a RUNNING handle, `application/grpc` / `/spark.connect.…` is reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail `:50051`, h2c). The HTTP agent is not this backend; only that URL set is 501 naming the gRPC variable. Authorization stripped before the engine. | 🟢 Real |
 | Clusters as VMs | No hypervisor. A session handle is not a VM. | 🔴 Not implemented |
@@ -101,7 +101,7 @@ would change the project's character.
 
 | Feature | Emulator | Type |
 |---|---|---|
-| Unity Catalog CRUD | Reverse-proxy to UC OSS (`DATABRICKS_UC_URL`) after PAT/OIDC. Without a sidecar those routes are 501 naming the missing URL. MANAGED table create is refused (UC OSS only creates EXTERNAL tables at a filesystem location). | 🟢 Real |
+| Unity Catalog CRUD | Reverse-proxy to UC OSS (`DATABRICKS_UC_URL`) after PAT/OIDC. Without a sidecar those routes are 501 naming the missing URL. MANAGED table create is refused (UC OSS only creates EXTERNAL tables at a filesystem location). An EXTERNAL table may name the Sail-written Delta directory; that is metadata, not a three-part write attach. | 🟢 Real |
 | Unity Catalog grants | Enforcement, not allow-all CRUD. Not shipped until they deny. | 🔴 Not implemented |
 
 ## Clients
