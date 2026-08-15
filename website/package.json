@@ -1,0 +1,19 @@
+{
+  "name": "databricks-emulator-docs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "pnpm run sync && astro dev",
+    "build": "pnpm run sync && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.41.6",
+    "astro": "7.1.6",
+    "mermaid": "^11.16.1",
+    "sharp": "0.35.3",
+    "unist-util-visit": "^5.1.0"
+  }
+}

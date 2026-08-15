@@ -2,6 +2,7 @@
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![CI](https://github.com/calvinchengx/databricks-emulator/actions/workflows/ci.yml/badge.svg)](https://github.com/calvinchengx/databricks-emulator/actions/workflows/ci.yml)
+[![Docs](https://github.com/calvinchengx/databricks-emulator/actions/workflows/docs-site.yml/badge.svg)](https://calvinchengx.github.io/databricks-emulator/)
 
 A clean-room, local emulator of a **Databricks workspace**, built as a peer of
 [fabric-emulator](https://github.com/calvinchengx/fabric-emulator) and the rest
@@ -68,7 +69,8 @@ is refused. `make e2e-terraform` is the witness.
 
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
-See [docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).
+See the [docs site](https://calvinchengx.github.io/databricks-emulator/),
+[docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).
 
 ## Emulator family
 
