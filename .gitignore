@@ -1,0 +1,28 @@
+# Runtime state — the emulator's store, created at the repo root on first run.
+# Anchored with a leading slash: a bare `data/` matches a directory of that name
+# at ANY depth.
+/data/
+*.log
+
+# Locally built binary (`make build`, or `go build ./cmd/...`).
+# Windows appends .exe; ignoring only the bare name leaves a binary for
+# `git add -A` to pick up.
+/databricks-emulator
+/databricks-emulator.exe
+
+# Node
+node_modules/
+
+# Python
+.venv/
+__pycache__/
+
+# Local tooling
+.claude/
+.nwave/
+
+# GoReleaser build output
+/dist/
+
+# Go coverage profile
+cover.out
