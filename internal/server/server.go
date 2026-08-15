@@ -14,6 +14,7 @@ import (
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
 	"github.com/calvinchengx/databricks-emulator/internal/clock"
 	"github.com/calvinchengx/databricks-emulator/internal/config"
+	"github.com/calvinchengx/databricks-emulator/internal/entra"
 	"github.com/calvinchengx/databricks-emulator/internal/oidc"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
@@ -62,6 +63,10 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 	if exec == nil && cfg.SparkAgentURL != "" {
 		exec = spark.NewAgent(cfg.SparkAgentURL)
 	}
+	vault := akv.New(cfg.AKVTLSInsecure, nil, cfg.AKVVaultHost)
+	if cfg.EntraTokenURL != "" {
+		vault.Token = entra.NewMinter(cfg.EntraTokenURL, cfg.EntraClientID, cfg.EntraClientSecret, cfg.OIDCTLSInsecure, nil).VaultToken
+	}
 	return &Server{
 		Cfg:    cfg,
 		Store:  st,
@@ -69,7 +74,7 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		OIDC:   iss,
 		Clock:  clk,
 		Spark:  exec,
-		AKV:    akv.New(cfg.AKVTLSInsecure, nil, cfg.AKVVaultHost),
+		AKV:    vault,
 		UC:     uc.New(cfg.UCURL, cfg.UCTLSInsecure, nil),
 		Origin: origin,
 	}, nil

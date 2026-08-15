@@ -8,7 +8,7 @@ A row is 🟢 **Real** only when an unmodified client drove the call and the
 attached engine or store actually did the work. Status without a witness is
 not support. See [00-doctrine.md](00-doctrine.md).
 
-**Witnessed claims: 14.** See [witnesses.json](witnesses.json).
+**Witnessed claims: 15.** See [witnesses.json](witnesses.json).
 
 | Surface | What would make it real | Status |
 |---|---|---|
@@ -21,6 +21,7 @@ not support. See [00-doctrine.md](00-doctrine.md).
 | DBFS / Files API | Real bytes on a blob store | 🟢 Real |
 | Secrets — Databricks-backed | Persist under `data/secrets/`; GET rejected; `{{secrets}}` in job env and `spark_conf`; missing fails the run | 🟢 Real |
 | Secrets — Azure Key Vault-backed | Live read-through at use time; `put`/`delete` refused; rotate the vault secret and the next run sees it | 🟢 Real (vault attached) |
+| Secrets — vault-audience token | Entra client-credentials at `https://vault.azure.net/.default` sent on the vault GET | 🟢 Real (entra attached) |
 | SQL warehouses | Spark SQL, dialect named in the output | 🟢 Real (engine attached) |
 | Clusters as VMs | — | 🔴 refuse |
 | Clusters as session handle | Create starts a Sail session | 🟢 Real (engine attached) |

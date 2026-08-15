@@ -44,23 +44,33 @@ type Config struct {
 	UCURL string
 	// UCTLSInsecure skips TLS verification when dialing UC OSS.
 	UCTLSInsecure bool
+
+	// EntraTokenURL, when set, is the client-credentials endpoint used to
+	// mint a vault-audience token for AKV-backed secret resolve. Empty
+	// means resolve stays unauthenticated (stand-in vault / make run).
+	EntraTokenURL     string
+	EntraClientID     string
+	EntraClientSecret string
 }
 
 // FromEnvPartial reads the environment without validating.
 func FromEnvPartial() *Config {
 	issuers := splitCSV(os.Getenv("DATABRICKS_OIDC_ISSUERS"))
 	return &Config{
-		Addr:            envOr("DATABRICKS_ADDR", ":8447"),
-		DataDir:         envOr("DATABRICKS_DATA_DIR", "./data"),
-		PublicURL:       os.Getenv("DATABRICKS_PUBLIC_URL"),
-		DisableTLS:      truthy(os.Getenv("DATABRICKS_DISABLE_TLS")),
-		OIDCIssuers:     issuers,
-		OIDCTLSInsecure: truthy(os.Getenv("DATABRICKS_OIDC_TLS_INSECURE")),
-		SparkAgentURL:   os.Getenv("DATABRICKS_SPARK_CONNECT_URL"),
-		AKVVaultHost:    os.Getenv("DATABRICKS_AKV_VAULT_HOST"),
-		AKVTLSInsecure:  truthy(os.Getenv("DATABRICKS_AKV_TLS_INSECURE")),
-		UCURL:           os.Getenv("DATABRICKS_UC_URL"),
-		UCTLSInsecure:   truthy(os.Getenv("DATABRICKS_UC_TLS_INSECURE")),
+		Addr:              envOr("DATABRICKS_ADDR", ":8447"),
+		DataDir:           envOr("DATABRICKS_DATA_DIR", "./data"),
+		PublicURL:         os.Getenv("DATABRICKS_PUBLIC_URL"),
+		DisableTLS:        truthy(os.Getenv("DATABRICKS_DISABLE_TLS")),
+		OIDCIssuers:       issuers,
+		OIDCTLSInsecure:   truthy(os.Getenv("DATABRICKS_OIDC_TLS_INSECURE")),
+		SparkAgentURL:     os.Getenv("DATABRICKS_SPARK_CONNECT_URL"),
+		AKVVaultHost:      os.Getenv("DATABRICKS_AKV_VAULT_HOST"),
+		AKVTLSInsecure:    truthy(os.Getenv("DATABRICKS_AKV_TLS_INSECURE")),
+		UCURL:             os.Getenv("DATABRICKS_UC_URL"),
+		UCTLSInsecure:     truthy(os.Getenv("DATABRICKS_UC_TLS_INSECURE")),
+		EntraTokenURL:     os.Getenv("DATABRICKS_ENTRA_TOKEN_URL"),
+		EntraClientID:     os.Getenv("DATABRICKS_ENTRA_CLIENT_ID"),
+		EntraClientSecret: os.Getenv("DATABRICKS_ENTRA_CLIENT_SECRET"),
 	}
 }
 

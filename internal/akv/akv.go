@@ -25,6 +25,11 @@ type Client struct {
 	http        *http.Client
 	extraHost   string
 	extraScheme string
+	// Token, when set, mints a vault-audience bearer at use time. Empty
+	// means the request is unauthenticated — enough for a stand-in vault
+	// and for make run without entra. keyvault-emulator in family compose
+	// requires this token.
+	Token func() (string, error)
 }
 
 // AzureVaultSuffixes are the Key Vault data-plane domains across Azure's clouds.
@@ -144,6 +149,16 @@ func (c *Client) get(rawURL string) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
+	}
+	if c.Token != nil {
+		tok, err := c.Token()
+		if err != nil {
+			return nil, fmt.Errorf("vault-audience token: %w", err)
+		}
+		if tok == "" {
+			return nil, fmt.Errorf("vault-audience token: empty access_token")
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

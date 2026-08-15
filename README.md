@@ -36,7 +36,9 @@ Secret scopes are Databricks-backed by default (persisted under `data/secrets/`)
 `AZURE_KEYVAULT` scopes are a **live read-through** of a vault — set
 `DATABRICKS_AKV_VAULT_HOST` to allow keyvault-emulator. `put`/`delete` on those
 scopes are refused; rotate the vault secret and the next job run sees the new
-value. There is no sync.
+value. There is no sync. Family compose with entra sets
+`DATABRICKS_ENTRA_TOKEN_URL` so the resolve carries a vault-audience bearer;
+without it, `make run` still works against a stand-in vault.
 
 SQL warehouses are a session handle onto the same Spark agent — not a VM and
 not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names

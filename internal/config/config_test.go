@@ -16,11 +16,14 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("DATABRICKS_AKV_TLS_INSECURE", "")
 	t.Setenv("DATABRICKS_UC_URL", "")
 	t.Setenv("DATABRICKS_UC_TLS_INSECURE", "")
+	t.Setenv("DATABRICKS_ENTRA_TOKEN_URL", "")
+	t.Setenv("DATABRICKS_ENTRA_CLIENT_ID", "")
+	t.Setenv("DATABRICKS_ENTRA_CLIENT_SECRET", "")
 	c := FromEnvPartial()
 	if c.Addr != ":8447" || c.DataDir != "./data" {
 		t.Fatalf("defaults: %+v", c)
 	}
-	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure {
+	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure || c.EntraTokenURL != "" {
 		t.Fatalf("empty env leaked values: %+v", c)
 	}
 
@@ -35,6 +38,9 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("DATABRICKS_AKV_TLS_INSECURE", "true")
 	t.Setenv("DATABRICKS_UC_URL", "http://uc:8080")
 	t.Setenv("DATABRICKS_UC_TLS_INSECURE", "1")
+	t.Setenv("DATABRICKS_ENTRA_TOKEN_URL", "https://entra/t/oauth2/v2.0/token")
+	t.Setenv("DATABRICKS_ENTRA_CLIENT_ID", "app")
+	t.Setenv("DATABRICKS_ENTRA_CLIENT_SECRET", "sec")
 	c = FromEnvPartial()
 	if c.Addr != ":9" || c.DataDir != "/tmp/dbx" || c.PublicURL != "https://localhost:8447" {
 		t.Fatalf("overrides: %+v", c)
@@ -47,6 +53,9 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	}
 	if c.UCURL != "http://uc:8080" || !c.UCTLSInsecure {
 		t.Fatalf("uc: %+v", c)
+	}
+	if c.EntraTokenURL != "https://entra/t/oauth2/v2.0/token" || c.EntraClientID != "app" || c.EntraClientSecret != "sec" {
+		t.Fatalf("entra: %+v", c)
 	}
 	if len(c.OIDCIssuers) != 2 || c.OIDCIssuers[0] != "https://a/v2.0" {
 		t.Fatalf("issuers: %v", c.OIDCIssuers)
