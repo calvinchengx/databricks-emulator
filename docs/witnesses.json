@@ -5,6 +5,7 @@
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
+      "ci:e2e-cli",
       "go:TestSeededPATMeAndDevRejected"
     ]
   },
@@ -30,6 +31,7 @@
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
+      "ci:e2e-cli",
       "go:TestWorkspaceImportExportAndRefuseFormats"
     ]
   },
@@ -54,6 +56,7 @@
     "claim": "DBFS / Files API",
     "witnesses": [
       "ci:e2e-sdk",
+      "ci:e2e-cli",
       "go:TestDBFSPutGetListMoveDeleteAndTraversal"
     ]
   },
@@ -78,6 +81,7 @@
     "claim": "Secrets — Databricks persist",
     "witnesses": [
       "ci:e2e-sdk",
+      "ci:e2e-cli",
       "go:TestSecretsPersistAcrossOpen"
     ]
   },
@@ -126,6 +130,7 @@
     "claim": "SQL warehouses",
     "witnesses": [
       "ci:e2e-engine",
+      "ci:e2e-cli",
       "go:TestSQLWarehouseStatementDialectAndMutation"
     ]
   },

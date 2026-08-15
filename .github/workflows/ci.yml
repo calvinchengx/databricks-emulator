@@ -44,6 +44,18 @@ jobs:
           version: "0.12.3"
       - run: uv run --frozen --group sdk python e2e/sdk/run.py
 
+  e2e-cli:
+    name: Unmodified databricks CLI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      # Tagged to the CLI version this witness was verified against.
+      - uses: databricks/setup-cli@v1.12.1
+      - run: python3 e2e/cli/run.py
+
   e2e-terraform:
     name: Unmodified databricks/databricks
     runs-on: ubuntu-latest

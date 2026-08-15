@@ -11,6 +11,7 @@ percentage scores. Both run in CI.
 | `make test` | `go build`, `go vet`, `go test`. CI also enforces an 85% coverage floor. |
 | `make witnesses` | `scripts/check_witnesses.py` — every 🟢 row in [parity.md](parity.md) names an existing CI job or Go test in [witnesses.json](witnesses.json). |
 | `make e2e` | Unmodified `databricks-sdk==0.129.0` (`e2e/sdk/run.py`, CI job `e2e-sdk`). |
+| `make e2e-cli` | Unmodified Databricks CLI `v1.12.1` (`e2e/cli/run.py`, CI job `e2e-cli`). |
 | `make e2e-terraform` | Unmodified `databricks/databricks` provider (`e2e/terraform/run.py`, CI job `e2e-terraform`). |
 | `make e2e-engine` | Unmodified `databricks-sdk==0.129.0` and `databricks-connect==19.1` with Sail + spark-agent (`e2e/engine/run.py`, CI job `e2e-engine`). Needs Docker and uv (Python 3.12 via `.python-version`). |
 | `make e2e-delta` | Warehouse SQL writes Delta via Sail; **delta-rs** confirms the log (`e2e/delta/run.py`, CI job `e2e-delta`). Needs Docker. |
@@ -45,6 +46,13 @@ clone/commit/pull against a local git remote; cluster policy mismatch is
 400 (unknown attributes 501); secrets persist across restart;
 cluster-create **without** an engine must fail naming
 `DATABRICKS_SPARK_CONNECT_URL`.
+
+**`e2e-cli`** — `current-user me` / `token=dev`; workspace
+import/list/export; `fs` mkdir/cp/cat/ls; secrets scope + put with the value
+**withheld** from `list-secrets`; `tokens create`; warehouse create/list;
+`clusters spark-versions`; job **create** (not execution). A second opinion
+on the same REST: the CLI resolves auth and shapes requests its own way, so
+a surface the SDK accepts can still fail here.
 
 **`e2e-terraform`** — PAT / `token=dev`; notebook; workspace file; job
 **create** (not execution). That is the DAB pair.
