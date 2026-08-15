@@ -60,7 +60,7 @@ func TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants(t *test
 	defer upstream.Close()
 
 	h := newHarness(t)
-	h.srv.UC = uc.New(upstream.URL, false, upstream.Client())
+	h.srv.UC = uc.New(upstream.URL, upstream.Client())
 	pat := h.srv.Store.AdminPAT
 
 	var created map[string]any
@@ -129,7 +129,7 @@ func TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants(t *test
 
 func TestUnityCatalogUnreachableSidecarIs502(t *testing.T) {
 	h := newHarness(t)
-	h.srv.UC = uc.New("http://127.0.0.1:1", false, nil)
+	h.srv.UC = uc.New("http://127.0.0.1:1", nil)
 	if st := h.json("GET", "/api/2.1/unity-catalog/catalogs", h.srv.Store.AdminPAT, nil, nil); st != 502 {
 		t.Fatalf("unreachable %d", st)
 	}

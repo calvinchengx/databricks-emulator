@@ -6,7 +6,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -52,14 +51,11 @@ type issuerSet struct {
 	keys    map[string]*rsa.PublicKey
 }
 
-// New builds an authenticator. federated is a list of issuer URLs.
-func New(ident *store.Identity, iss *oidc.Issuer, federated []string, insecure bool, now func() int64, client *http.Client) *Authenticator {
+// New builds an authenticator. federated is a list of issuer URLs. client
+// carries the TLS trust used to fetch their JWKS — see internal/tlsclient.
+func New(ident *store.Identity, iss *oidc.Issuer, federated []string, now func() int64, client *http.Client) *Authenticator {
 	if client == nil {
-		tr := http.DefaultTransport.(*http.Transport).Clone()
-		if insecure {
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-		client = &http.Client{Transport: tr}
+		client = &http.Client{}
 	}
 	a := &Authenticator{
 		Identity: ident,
