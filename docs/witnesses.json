@@ -105,6 +105,14 @@
       "go:TestSQLWarehouseForwardsThreePartNames"
     ]
   },
+  "delta-maintenance-optimize-vacuum": {
+    "section": "Compute",
+    "claim": "Delta maintenance — OPTIMIZE / VACUUM",
+    "witnesses": [
+      "ci:e2e-delta",
+      "go:TestSQLWarehouseForwardsDeltaMaintenance"
+    ]
+  },
   "sql-warehouses": {
     "section": "Compute",
     "claim": "SQL warehouses",

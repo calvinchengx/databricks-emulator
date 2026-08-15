@@ -106,6 +106,14 @@ def confirm(host_table: Path, want_rows: list[tuple[int, str]], min_version: int
     return version
 
 
+def log_stats(host_table: Path) -> tuple[int, int]:
+    """Active data-file count from delta-rs, not a directory listing."""
+    from deltalake import DeltaTable
+
+    dt = DeltaTable(str(host_table))
+    return dt.version(), len(dt.file_uris())
+
+
 def main() -> int:
     from databricks.sdk import WorkspaceClient
 
@@ -213,12 +221,41 @@ def main() -> int:
             raise SystemExit(f"UC storage_location {got.storage_location!r} != {TABLE}")
 
         sql(w, wh.id, "INSERT INTO e2e.s.events VALUES (5, 'erin')")
-        v_uc = confirm(host_table, after_dml + [(5, "erin")], min_version=head + 1)
+        after_rows = after_dml + [(5, "erin")]
+        v_uc = confirm(host_table, after_rows, min_version=head + 1)
         if v_uc <= head:
             raise SystemExit(f"three-part INSERT did not advance the log: {head} -> {v_uc}")
+
+        # OPTIMIZE / VACUUM: Sail has no grammar for these. The family's
+        # spark-agent routes them through delta-rs (named shim). Address by
+        # path: CREATE TABLE … (cols) USING delta LOCATION is not recorded
+        # by the agent's name→location regex, and DESCRIBE DETAIL is not in
+        # Sail's grammar. ZORDER is refused rather than silently ignored.
+        target = f"delta.`{TABLE}`"
+        before_v, before_n = log_stats(host_table)
+        sql(w, wh.id, f"OPTIMIZE {target}")
+        v_opt = confirm(host_table, after_rows, min_version=0)
+        after_v, after_n = log_stats(host_table)
+        if after_v < before_v:
+            raise SystemExit("OPTIMIZE rewound the log")
+        if after_v == before_v and after_n >= before_n:
+            raise SystemExit(
+                f"OPTIMIZE left version {after_v} and {after_n} files (was {before_n})"
+            )
+
+        sql(w, wh.id, f"VACUUM {target} RETAIN 0 HOURS")
+        confirm(host_table, after_rows, min_version=0)
+
+        state, err = exec_sql(w, wh.id, f"OPTIMIZE {target} ZORDER BY name")
+        if state in {"SUCCEEDED", "SUCCESS"}:
+            raise SystemExit("ZORDER must be refused by the delta-rs path, not silently compacted")
+        if "SUCCEEDED" in err:
+            raise SystemExit(f"ZORDER failed but named success: {err}")
+
         print(
             f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
-            f"UC three-part INSERT {v_uc}"
+            f"UC three-part INSERT {v_uc}; OPTIMIZE {before_n}->{after_n} files "
+            f"v{before_v}->{v_opt}; VACUUM ok; ZORDER refused ({err})"
         )
         return 0
     finally:

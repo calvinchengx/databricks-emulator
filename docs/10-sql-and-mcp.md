@@ -53,6 +53,13 @@ with no `_delta_log` at `storage_location` is not yet a Delta table —
 the LOCATION write in the same job creates that log, then the three-part
 INSERT is the named-table witness.
 
+`OPTIMIZE` and `VACUUM` take the same warehouse path. Sail has no grammar
+for them (`found OPTIMIZE at 0:8`). The family's spark-agent routes those
+statements through **delta-rs** — a named shim, the same one fabric uses.
+The files change; Spark does not run a job. The e2e witness addresses the
+table as `OPTIMIZE delta.\`uri\`` (self-describing). `OPTIMIZE … ZORDER` /
+`WHERE` are refused rather than silently ignored.
+
 Photon is not this path. See [parity.md](parity.md).
 
 Witness: `ci:e2e-delta`.
