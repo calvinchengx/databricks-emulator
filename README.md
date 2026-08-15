@@ -43,6 +43,13 @@ not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
 `dialect: spark-sql`. `sql_task.file` jobs take the same path.
 `sql_task.query` / dashboard / alert stay refused.
 
+Clusters are a session handle onto that same engine — not a VM.
+`POST /api/2.0/clusters/create` starts a Sail session or fails naming the
+missing engine; it never sleeps to `RUNNING`. Databricks Connect is Spark
+Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_URL` after PAT/OIDC
+and a `x-databricks-cluster-id` that names a RUNNING handle. Autoscale and
+cluster libraries stay refused.
+
 Unity Catalog CRUD reverse-proxies to a [UC OSS](https://github.com/unitycatalog/unitycatalog)
 sidecar (`DATABRICKS_UC_URL`). Without one those routes are 501 naming the
 missing sidecar. MANAGED table create is refused (UC OSS only creates

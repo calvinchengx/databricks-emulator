@@ -68,7 +68,23 @@ def main() -> int:
         if data != b"dbfs-bytes":
             raise SystemExit(f"dbfs read {got!r}")
 
-        print("e2e/sdk: identity + workspace + dbfs ok")
+        versions = w.clusters.spark_versions()
+        if not versions.versions or versions.versions[0].key != "emulator-spark":
+            raise SystemExit(f"spark versions {versions!r}")
+        try:
+            w.clusters.create(
+                cluster_name="e2e",
+                spark_version="emulator-spark",
+                node_type_id="emulator.session",
+                num_workers=0,
+            )
+        except DatabricksError as exc:
+            if "DATABRICKS_SPARK_CONNECT_URL" not in str(exc):
+                raise SystemExit(f"cluster create without engine: {exc}")
+        else:
+            raise SystemExit("cluster create succeeded without an engine")
+
+        print("e2e/sdk: identity + workspace + dbfs + cluster-refuse ok")
         return 0
     finally:
         proc.terminate()

@@ -8,7 +8,7 @@ A row is 🟢 **Real** only when an unmodified client drove the call and the
 attached engine or store actually did the work. Status without a witness is
 not support. See [00-doctrine.md](00-doctrine.md).
 
-**Witnessed claims: 12.** See [witnesses.json](witnesses.json).
+**Witnessed claims: 14.** See [witnesses.json](witnesses.json).
 
 | Surface | What would make it real | Status |
 |---|---|---|
@@ -22,10 +22,11 @@ not support. See [00-doctrine.md](00-doctrine.md).
 | Secrets — Databricks-backed | Persist under `data/secrets/`; GET rejected; `{{secrets}}` in job env and `spark_conf`; missing fails the run | 🟢 Real |
 | Secrets — Azure Key Vault-backed | Live read-through at use time; `put`/`delete` refused; rotate the vault secret and the next run sees it | 🟢 Real (vault attached) |
 | SQL warehouses | Spark SQL, dialect named in the output | 🟢 Real (engine attached) |
-| Clusters as VMs | — | 🔴 refuse (session handle onto the engine, not a VM) |
+| Clusters as VMs | — | 🔴 refuse |
+| Clusters as session handle | Create starts a Sail session | 🟢 Real (engine attached) |
 | Unity Catalog CRUD | UC OSS sidecar | 🟢 Real (sidecar attached) |
 | Unity Catalog grants | Enforcement, not allow-all CRUD | 🔴 refuse (not shipped until they deny) |
-| Databricks Connect | Spark Connect | ⬜ not started |
+| Databricks Connect | Spark Connect | 🟢 Real (engine attached) |
 | Photon / DBR compatibility | — | 🔴 refuse |
 | Lakeflow / DLT | — | 🔴 refuse |
 | Model Serving / Vector Search / Dashboards | — | 🔴 refuse |

@@ -154,11 +154,27 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/2.0/sql/statements", s.protect(s.sqlExecuteStatement))
 	mux.HandleFunc("GET /api/2.0/sql/statements/{id}", s.protect(s.sqlGetStatement))
 
+	for _, ver := range []string{"2.0", "2.1"} {
+		p := "/api/" + ver + "/clusters/"
+		mux.HandleFunc("POST "+p+"create", s.protect(s.clustersCreate))
+		mux.HandleFunc("GET "+p+"get", s.protect(s.clustersGet))
+		mux.HandleFunc("GET "+p+"list", s.protect(s.clustersList))
+		mux.HandleFunc("POST "+p+"start", s.protect(s.clustersStart))
+		mux.HandleFunc("POST "+p+"delete", s.protect(s.clustersDelete))
+		mux.HandleFunc("POST "+p+"permanent-delete", s.protect(s.clustersDelete))
+		mux.HandleFunc("GET "+p+"spark-versions", s.protect(s.clustersSparkVersions))
+		mux.HandleFunc("GET "+p+"list-node-types", s.protect(s.clustersNodeTypes))
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {
 			// Serve through the mux so {wildcard} PathValue is populated.
 			mux.ServeHTTP(w, r)
+			return
+		}
+		if isSparkConnectRequest(r) {
+			s.protect(s.sparkConnect)(w, r)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
