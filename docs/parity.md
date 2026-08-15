@@ -8,6 +8,18 @@ The **catalog** is the [workspace REST API reference](https://docs.databricks.co
 the workspace host. Product pages, DBR version strings, and third-party
 OpenAPI scrapes are not a denominator.
 
+The design bet is the same one [fabric-emulator](https://github.com/calvinchengx/fabric-emulator)
+runs: **terminate the public contract here, attach a real engine, refuse what
+you cannot compute.** This process owns identity, files, secrets persist, and
+the workspace REST shim. Jobs, SQL, clusters, Connect, and UC CRUD are
+answered by a named sidecar — Sail behind the family's spark-agent, Spark
+Connect gRPC, UC OSS, keyvault-emulator — never by a toy stub or a silent
+DuckDB-as-Photon.
+
+`make run` does not start those sidecars. `make e2e-engine` / `make e2e-uc`
+do. Family compose does **not** set the Spark URLs. A missing engine fails
+naming the variable — never `SUCCESS` / `RUNNING`.
+
 The **wire** is proved by an unmodified client: `databricks-sdk`, the
 Databricks CLI, or `databricks/databricks` Terraform. A doc page that names
 an endpoint is not support. See [00-doctrine.md](00-doctrine.md).
@@ -16,22 +28,26 @@ an endpoint is not support. See [00-doctrine.md](00-doctrine.md).
 
 | | Meaning |
 |---|---|
-| 🟢 **Real** | An unmodified client drove the call and the attached engine or store did the work. Status without a witness is not support. |
-| 🔴 **refuse** | Enumerated absence. The route is 501 `NOT_IMPLEMENTED`, never a silent 200. |
+| 🟢 **Real** | The shim terminates the contract and a named store or engine did the work. An unmodified client drove the call. Status without a witness is not support. |
+| 🟡 **Emulated** | Faithful API contract + persisted state, but no engine — status is clock-derived / management-only. |
+| 🟠 **Non-default engine** | Real, but only on an engine that is *not* the default attach (Sail + spark-agent). Not a silent substitute: the row names the overlay. |
+| 🔴 **refuse** | Enumerated absence. The route is 501 `NOT_IMPLEMENTED` (or refused at create), never a silent 200. |
 
 ## Scope boundary: the workspace REST, not Databricks Runtime
 
-This ledger grades **API groups** from the workspace reference, not every
-operation inside them, and not the account-level APIs at
+This ledger grades **workspace API groups** from the reference, written in
+fabric's style: **feature → what the shim terminates → which engine
+computes**. It is not every operation inside a group, and not the
+account-level APIs at
 [docs.databricks.com/api/account](https://docs.databricks.com/api/account/).
 A green Jobs row is not every Jobs endpoint; a red Pipelines row is the
 whole Lakeflow/DLT group.
 
 The first honest slice is identity (PAT + emulator OIDC), Workspace files,
-DBFS, Jobs 2.2 Python/notebook on an attached Spark engine, secrets,
-SQL warehouses / Connect / clusters-as-session on that same engine, and
-Unity Catalog CRUD through UC OSS. Everything else from the catalog is
-enumerated below as refuse until a witness exists.
+DBFS, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Connect /
+clusters-as-session on that same engine, and Unity Catalog CRUD through UC
+OSS. Everything else from the catalog is enumerated below as refuse until a
+witness exists.
 
 This is not a Databricks Runtime. Photon, DBR version strings, full
 `dbutils` / `spark.databricks.*`, cluster VMs, and any "DBR compatible"
@@ -40,87 +56,90 @@ would change the project's character.
 
 ## Identity
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Identity — PAT | Seeded/minted PAT; unknown / `dev` is 401 | 🟢 Real |
-| Identity — emulator OIDC | Client-credentials → `Me` with no entra process | 🟢 Real |
-| Identity — federated JWT | Opt-in issuer list; unconfigured / wrong aud / expired is 401 | 🟢 Real |
+| Identity — PAT | This process seeds and mints PATs. `GET /api/2.0/preview/scim/v2/Me` after `Authorization: Bearer`. Unknown and `token=dev` are 401 — `dev` is MiniLake's trap, not a credential this seeder mints. | 🟢 Real |
+| Identity — emulator OIDC | This process's `/oidc/v1/token` client-credentials. `Me` with no entra process. | 🟢 Real |
+| Identity — federated JWT | Opt-in `DATABRICKS_OIDC_ISSUERS`. Unconfigured / wrong aud / expired / garbage → 401; a good JWT → `Me`. Entra is an issuer, not a required STS. | 🟢 Real |
 
 ## Workspace
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Workspace — SOURCE/PYTHON | Classic `/workspace/import` SOURCE/PYTHON notebook round-trip | 🟢 Real |
-| Workspace — raw files | workspace-files raw bytes, including `RAW`/`FILE` import | 🟢 Real |
-| DBFS / Files API | Real bytes on a blob store | 🟢 Real |
+| Workspace — SOURCE/PYTHON | File-backed store. Classic `/workspace/import` SOURCE/PYTHON notebook round-trip. Other formats refused by name. | 🟢 Real |
+| Workspace — raw files | workspace-files raw bytes, including `RAW`/`FILE` import. | 🟢 Real |
+| DBFS / Files API | Real bytes under `data/dbfs/`. Read length capped (1 MiB) before allocate. Traversal refused. | 🟢 Real |
 
 ## Jobs
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Jobs 2.2 — notebook / Python | Attached Spark engine executes the file | 🟢 Real (engine attached) |
-| Jobs 2.2 — JAR / dbt / DLT / sql_task.query | Refused at create | 🔴 refuse |
+| Jobs 2.2 — notebook / Python | Shim resolves workspace/DBFS file, bakes argv / notebook params / `{{secrets}}` into a Python preamble (`os.environ.update`), POSTs `{agent}/statements` with `kind: python`. Without `DATABRICKS_SPARK_CONNECT_URL`, `run-now` fails naming the engine — never `SUCCESS`. Default attach is Sail behind the family's spark-agent (`make e2e-engine`). Family compose does not set the URL. | 🟢 Real |
+| Jobs 2.2 — JAR / dbt / DLT / sql_task.query | Refused at create. `sql_task.file` takes the warehouse Spark SQL path (see SQL warehouses). No JVM overlay is shipped, so JAR is not 🟠. | 🔴 refuse |
 
 ## Secrets
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Secrets — Databricks injection | `{{secrets}}` in job env and `spark_conf`; GET rejected; missing fails the run | 🟢 Real |
-| Secrets — Databricks persist | Survive process restart under `data/secrets/` | 🟢 Real |
-| Secrets — Azure Key Vault-backed | Live read-through at use time; `put`/`delete` refused; rotate the vault secret and the next run sees it | 🟢 Real (vault attached) |
-| Secrets — vault-audience token | Entra client-credentials at `https://vault.azure.net/.default` sent on the vault GET | 🟢 Real (entra attached) |
+| Secrets — Databricks injection | Shim resolves `{{secrets/scope/key}}` in this process before the engine runs. GET of a value is 400. Missing key → run `FAILED`. The family's spark-agent drops `req.Env`, so the preamble bakes `os.environ.update`. Witness prints `SECRET=s3cret` in `get-output`. | 🟢 Real |
+| Secrets — Databricks persist | Databricks-backed scopes under `data/secrets/`. Survive process restart with the same `DATABRICKS_DATA_DIR`. | 🟢 Real |
+| Secrets — Azure Key Vault-backed | Live read-through at use time — no sync. `dns_name` must be an Azure suffix or `DATABRICKS_AKV_VAULT_HOST`. `put`/`delete` refused. Rotate the vault secret; the next run GETs it. | 🟢 Real |
+| Secrets — vault-audience token | When `DATABRICKS_ENTRA_TOKEN_URL` is set, each vault GET carries a client-credentials bearer with scope `https://vault.azure.net/.default`. Empty URL: resolve stays unauthenticated (stand-in / `make run`). | 🟢 Real |
 
 ## Compute
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| SQL warehouses | Spark SQL, dialect named in the output | 🟢 Real (engine attached) |
-| Clusters as VMs | — | 🔴 refuse |
-| Clusters as session handle | Create starts a Sail session | 🟢 Real (engine attached) |
-| Databricks Connect | Spark Connect | 🟢 Real (engine attached) |
+| SQL warehouses | Session handle, not a VM and not Photon. `POST /api/2.0/sql/statements` sends the SQL as `kind: sql` (the code **is** Spark SQL). Wire names `dialect: spark-sql`; `executedBy` says Spark SQL, not Photon. Without `DATABRICKS_SPARK_CONNECT_URL`, execute is `FAILED` naming the engine. | 🟢 Real |
+| Clusters as session handle | `POST /api/2.0/clusters/create` starts a Sail session (`print(1)` via the HTTP agent) or fails naming the missing engine. Never sleeps to `RUNNING`. Autoscale and cluster libraries stay refused. | 🟢 Real |
+| Databricks Connect | After PAT/OIDC and `x-databricks-cluster-id` naming a RUNNING handle, `application/grpc` / `/spark.connect.…` is reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail `:50051`, h2c). The HTTP agent is not this backend; only that URL set is 501 naming the gRPC variable. Authorization stripped before the engine. | 🟢 Real |
+| Clusters as VMs | No hypervisor. A session handle is not a VM. | 🔴 refuse |
+| Photon / DBR compatibility | No Photon attach exists. Sail is Spark SQL over Spark Connect. Relabeling it (or DuckDB) as Photon is the lookalike doctrine refuses. | 🔴 refuse |
 
 ## Catalog
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Unity Catalog CRUD | UC OSS sidecar | 🟢 Real (sidecar attached) |
-| Unity Catalog grants | Enforcement, not allow-all CRUD | 🔴 refuse (not shipped until they deny) |
+| Unity Catalog CRUD | Reverse-proxy to UC OSS (`DATABRICKS_UC_URL`) after PAT/OIDC. Without a sidecar those routes are 501 naming the missing URL. MANAGED table create is refused (UC OSS only creates EXTERNAL tables at a filesystem location). | 🟢 Real |
+| Unity Catalog grants | Enforcement, not allow-all CRUD. Not shipped until they deny. | 🔴 refuse |
 
 ## Clients
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| MCP — Databricks SQL | Same SQL warehouse handler, behind PAT/OIDC | 🟢 Real (engine attached) |
-| Terraform / DAB pair | Unmodified `databricks/databricks`: current_user + notebook + workspace_file + job; `token=dev` refused | 🟢 Real |
+| MCP — Databricks SQL | `POST /api/2.0/mcp/sql` JSON-RPC after PAT/OIDC. `execute_sql` / `poll_response` wrap the warehouse statements handler (same Sail attach, same `dialect: spark-sql`). Genie / AI Search / UC function MCP paths stay 501. | 🟢 Real |
+| Terraform / DAB pair | Unmodified `databricks/databricks`: current_user + notebook + workspace_file + job create. `token=dev` refused. Job *execution* is the engine row, not this one. | 🟢 Real |
 
 ## Published APIs outside this slice
 
 One row per remaining group on the [workspace REST API reference](https://docs.databricks.com/api/workspace/)
-sidebar. These are the catalog entries the first slice does not cover.
+sidebar. The emulator column is what an honest attach would have to be —
+same style as the greens — not a product-page promise.
 
-| Surface | What would make it real | Status |
+| Feature | Emulator | Type |
 |---|---|---|
-| Git Credentials / Repos | Unmodified CLI/SDK clone and commit against a real git remote | 🔴 refuse |
-| Cluster Policies / Policy Families / compliance | Enforcement, not stored-and-ignored | 🔴 refuse |
-| Command Execution | Context-id session that runs on the attached engine | 🔴 refuse |
-| Global Init Scripts | Applied to a real cluster VM — we have no VMs | 🔴 refuse |
-| Instance Pools / Instance Profiles | Real VMs / cloud instance profiles | 🔴 refuse |
-| Managed Libraries | Installed on a real cluster | 🔴 refuse |
-| MLflow Experiments / Model Registry | Tracking store + registry, not a 200 stub | 🔴 refuse |
-| Apps | Deployed app process | 🔴 refuse |
-| SCIM Groups / Users / Service Principals | Directory mutations that then deny | 🔴 refuse |
-| Permissions | Enforcement, not allow-all | 🔴 refuse |
-| SQL Alerts / Queries / Query History | Stored queries that execute on the warehouse | 🔴 refuse |
-| Unity Catalog beyond CRUD | Volumes, functions, locations, credentials, monitors — sidecar must speak them | 🔴 refuse |
-| Delta Sharing | Providers / Recipients / Shares against a real share | 🔴 refuse |
-| Marketplace | Consumer + provider listing APIs | 🔴 refuse |
-| Token management / Workspace Conf / Settings | Persist and then gate; Token create is not a seeded PAT | 🔴 refuse |
+| Git Credentials / Repos | Would need an unmodified CLI/SDK clone and commit against a real git remote. | 🔴 refuse |
+| Cluster Policies / Policy Families / compliance | Would need enforcement, not stored-and-ignored. | 🔴 refuse |
+| Command Execution | Would need a context-id session that runs on the attached Sail agent. | 🔴 refuse |
+| Global Init Scripts | Applied to a real cluster VM — we have no VMs. | 🔴 refuse |
+| Instance Pools / Instance Profiles | Real VMs / cloud instance profiles. | 🔴 refuse |
+| Managed Libraries | Installed on a real cluster VM. JARs on Sail have no classloader (fabric's JVM overlay is the 🟠 path; this repo does not ship one). | 🔴 refuse |
+| MLflow Experiments / Model Registry | Would need a tracking store + registry, not a 200 stub. | 🔴 refuse |
+| Apps | Would need a deployed app process. | 🔴 refuse |
+| SCIM Groups / Users / Service Principals | Directory mutations that then deny. | 🔴 refuse |
+| Permissions | Enforcement, not allow-all. | 🔴 refuse |
+| SQL Alerts / Queries / Query History | Stored queries that execute on the warehouse (same Sail attach as statements). | 🔴 refuse |
+| Unity Catalog beyond CRUD | Volumes, functions, locations, credentials, monitors — sidecar must speak them. | 🔴 refuse |
+| Delta Sharing | Providers / Recipients / Shares against a real share. | 🔴 refuse |
+| Marketplace | Consumer + provider listing APIs. | 🔴 refuse |
+| Token management / Workspace Conf / Settings | Persist and then gate. Token create is not a seeded PAT. | 🔴 refuse |
 | Clean Rooms | — | 🔴 refuse |
-| Database Instances / Postgres | Attached postgres, not a handle | 🔴 refuse |
+| Database Instances / Postgres | Lakebase. Would attach a real Postgres (fabric's SQL Server sidecar pattern), not a handle that reports RUNNING. | 🔴 refuse |
 | Knowledge Assistants / Supervisor Agents | — | 🔴 refuse |
 | Lakeview Embedded / AI Gateway | — | 🔴 refuse |
 | Notification Destinations | — | 🔴 refuse |
-| MCP — Genie / AI Search / UC functions | — | 🔴 refuse |
-| Photon / DBR compatibility | — | 🔴 refuse |
-| Lakeflow / DLT | Pipelines API | 🔴 refuse |
-| Model Serving / Vector Search / Dashboards | Serving endpoints, Vector Search indexes/endpoints, Lakeview | 🔴 refuse |
+| MCP — Genie / AI Search / UC functions | Other MCP mounts. SQL MCP is the green row above. | 🔴 refuse |
+| Lakeflow / DLT | Pipelines API. No open DLT engine to attach. | 🔴 refuse |
+| Model Serving | Serving endpoints. Would need a real model process, not a 200 stub. | 🔴 refuse |
+| Vector Search | Indexes / endpoints. Would need a real index engine. | 🔴 refuse |
+| Dashboards | Lakeview. No dashboard renderer is attached. | 🔴 refuse |

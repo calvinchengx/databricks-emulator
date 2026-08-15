@@ -60,7 +60,7 @@ def green_claims():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 3:
             continue
-        if cells[0] in ("Surface", "What would make it real", "Status") or set(cells[0]) <= set("-"):
+        if cells[0] in ("Feature", "Emulator", "Type", "Surface", "What would make it real", "Status") or set(cells[0]) <= set("-"):
             continue
         if "🟢" in cells[-1]:
             yield section, cells[0], key_for(cells[0])
@@ -79,7 +79,7 @@ def grade_counts() -> dict[str, int]:
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 3:
             continue
-        if cells[0] in ("Surface", "What would make it real", "Status") or set(cells[0]) <= set("-"):
+        if cells[0] in ("Feature", "Emulator", "Type", "Surface", "What would make it real", "Status") or set(cells[0]) <= set("-"):
             continue
         last = cells[-1]
         for g in counts:

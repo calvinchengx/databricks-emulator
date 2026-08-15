@@ -25,6 +25,9 @@ whatever PyPI shipped the morning CI ran.
 | `ci:<job>` | a CI job driving a real external client |
 | `go:<Test>` | a Go test: real HTTP, real store, this repo's client on both ends |
 
+Parity rows are fabric-style: feature, what the shim terminates, which engine
+computes, then 🟢 / 🟡 / 🟠 / 🔴. Only 🟢 needs a witness.
+
 `ci:` is stronger. The family evidence table counts each green claim once, by
 its strongest witness. Do not file a `ci:` on a claim the stranger did not
 drive.

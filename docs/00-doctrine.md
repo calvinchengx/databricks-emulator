@@ -53,7 +53,7 @@ engine. Clusters as VMs and Photon never.
 
 ## Reachable, if honest
 
-| Surface | Honest attach |
+| Feature | Honest attach |
 |---|---|
 | Workspace files / notebooks | File-backed store |
 | Jobs 2.2 | Python / notebook on Sail or JVM Spark |
