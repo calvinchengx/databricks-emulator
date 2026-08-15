@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
@@ -11,42 +13,23 @@ import (
 )
 
 func (s *Server) workspaceImport(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
-	var body struct {
-		Path      string `json:"path"`
-		Format    string `json:"format"`
-		Language  string `json:"language"`
-		Content   string `json:"content"`
-		Overwrite bool   `json:"overwrite"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	req, err := parseWorkspaceImport(r)
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 		return
 	}
-	format := strings.ToUpper(body.Format)
-	if format == "" {
-		format = "SOURCE"
-	}
-	lang := strings.ToUpper(body.Language)
-	if lang == "" {
-		lang = "PYTHON"
-	}
-	if format != "SOURCE" || lang != "PYTHON" {
-		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED",
-			"classic /workspace/import only accepts format=SOURCE language=PYTHON")
-		return
-	}
-	raw, err := decodeB64(body.Content)
+	storePath, objectType, lang, err := classifyImport(req.path, req.format, req.language, req.raw)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "content must be base64")
+		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", err.Error())
 		return
 	}
-	if !body.Overwrite {
-		if _, _, err := s.Store.Workspace.Get(body.Path); err == nil {
-			writeError(w, http.StatusConflict, "RESOURCE_ALREADY_EXISTS", body.Path)
+	if !req.overwrite {
+		if _, _, err := s.Store.Workspace.Get(storePath); err == nil {
+			writeError(w, http.StatusConflict, "RESOURCE_ALREADY_EXISTS", storePath)
 			return
 		}
 	}
-	if err := s.Store.Workspace.Put(body.Path, raw, store.ObjectNotebook, lang); err != nil {
+	if err := s.Store.Workspace.Put(storePath, req.raw, objectType, lang); err != nil {
 		if err == store.ErrTraversal || strings.Contains(err.Error(), "traversal") {
 			writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 			return
@@ -55,6 +38,141 @@ func (s *Server) workspaceImport(w http.ResponseWriter, r *http.Request, _ *auth
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{})
+}
+
+type workspaceImportReq struct {
+	path      string
+	format    string
+	language  string
+	overwrite bool
+	raw       []byte
+}
+
+func parseWorkspaceImport(r *http.Request) (workspaceImportReq, error) {
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			return workspaceImportReq{}, err
+		}
+		out := workspaceImportReq{
+			path:      r.FormValue("path"),
+			format:    r.FormValue("format"),
+			language:  r.FormValue("language"),
+			overwrite: truthy(r.FormValue("overwrite")),
+		}
+		if f, _, err := r.FormFile("content"); err == nil {
+			defer f.Close()
+			out.raw, err = io.ReadAll(f)
+			if err != nil {
+				return workspaceImportReq{}, err
+			}
+			return out, nil
+		}
+		if s := r.FormValue("content"); s != "" {
+			raw, err := decodeB64(s)
+			if err != nil {
+				return workspaceImportReq{}, err
+			}
+			out.raw = raw
+			return out, nil
+		}
+		return workspaceImportReq{}, errNoContent
+	}
+	var body struct {
+		Path      string `json:"path"`
+		Format    string `json:"format"`
+		Language  string `json:"language"`
+		Content   string `json:"content"`
+		Overwrite bool   `json:"overwrite"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return workspaceImportReq{}, err
+	}
+	raw, err := decodeB64(body.Content)
+	if err != nil {
+		return workspaceImportReq{}, err
+	}
+	return workspaceImportReq{
+		path:      body.Path,
+		format:    body.Format,
+		language:  body.Language,
+		overwrite: body.Overwrite,
+		raw:       raw,
+	}, nil
+}
+
+var errNoContent = io.ErrUnexpectedEOF
+
+func truthy(s string) bool {
+	switch strings.ToLower(s) {
+	case "1", "true", "yes":
+		return true
+	}
+	return false
+}
+
+func classifyImport(p, format, language string, raw []byte) (storePath, objectType, lang string, err error) {
+	format = strings.ToUpper(strings.TrimSpace(format))
+	if format == "" {
+		format = "SOURCE"
+	}
+	lang = strings.ToUpper(strings.TrimSpace(language))
+	if format == "AUTO" {
+		if isNotebookSource(raw) {
+			lang = langFromExt(p)
+			if lang != "PYTHON" {
+				return "", "", "", errClassicPythonOnly
+			}
+			return stripNotebookExt(p), store.ObjectNotebook, lang, nil
+		}
+		return p, store.ObjectFile, "", nil
+	}
+	if lang == "" {
+		lang = "PYTHON"
+	}
+	if format != "SOURCE" || lang != "PYTHON" {
+		return "", "", "", errClassicPythonOnly
+	}
+	return p, store.ObjectNotebook, lang, nil
+}
+
+var errClassicPythonOnly = errString("classic /workspace/import only accepts format=SOURCE language=PYTHON, or AUTO for a file / Python notebook")
+
+type errString string
+
+func (e errString) Error() string { return string(e) }
+
+func isNotebookSource(raw []byte) bool {
+	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	for _, line := range strings.Split(text, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		return strings.TrimSpace(line) == "# Databricks notebook source"
+	}
+	return false
+}
+
+func langFromExt(p string) string {
+	switch strings.ToLower(path.Ext(p)) {
+	case ".py":
+		return "PYTHON"
+	case ".sql":
+		return "SQL"
+	case ".scala":
+		return "SCALA"
+	case ".r":
+		return "R"
+	}
+	return ""
+}
+
+func stripNotebookExt(p string) string {
+	ext := path.Ext(p)
+	if ext == "" {
+		return p
+	}
+	return strings.TrimSuffix(p, ext)
 }
 
 func (s *Server) workspaceExport(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -66,6 +184,12 @@ func (s *Server) workspaceExport(w http.ResponseWriter, r *http.Request, _ *auth
 	}
 	if obj.ObjectType == store.ObjectDir {
 		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "cannot export a directory")
+		return
+	}
+	if truthy(query(r, "direct_download")) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

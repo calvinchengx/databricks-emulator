@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import subprocess
 import sys
@@ -29,6 +30,7 @@ def wait_health(url: str, timeout: float = 15.0) -> None:
 def main() -> int:
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.core import DatabricksError
+    from databricks.sdk.service.workspace import ImportFormat
 
     data = Path(tempfile.mkdtemp(prefix="dbx-e2e-"))
     env = os.environ.copy()
@@ -55,15 +57,15 @@ def main() -> int:
             raise SystemExit("token=dev was accepted")
 
         w.workspace.mkdirs("/Shared")
-        w.workspace.upload("/Shared/hello.py", b"print(1)\n", overwrite=True, format="AUTO")
+        w.workspace.upload("/Shared/hello.py", b"print(1)\n", overwrite=True, format=ImportFormat.AUTO)
         exported = w.workspace.download("/Shared/hello.py").read()
         if b"print(1)" not in exported:
-            # SDK download may wrap; fall back to export
-            pass
+            raise SystemExit(f"workspace download {exported!r}")
 
-        w.dbfs.put("/tmp/e2e.txt", b"dbfs-bytes", overwrite=True)
+        w.dbfs.put("/tmp/e2e.txt", contents=base64.b64encode(b"dbfs-bytes").decode(), overwrite=True)
         got = w.dbfs.read("/tmp/e2e.txt")
-        if b"dbfs-bytes" not in got:
+        data = base64.b64decode(got.data or "")
+        if data != b"dbfs-bytes":
             raise SystemExit(f"dbfs read {got!r}")
 
         print("e2e/sdk: identity + workspace + dbfs ok")

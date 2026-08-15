@@ -37,5 +37,5 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - run: pip install databricks-sdk
+      - run: pip install -r e2e/sdk/requirements.txt
       - run: python3 e2e/sdk/run.py

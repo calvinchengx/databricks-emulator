@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -73,6 +74,43 @@ func (h *harness) do(method, path, token string, body any) *http.Response {
 	if err != nil {
 		h.t.Fatal(err)
 	}
+	return resp
+}
+
+func (h *harness) multipart(path, token string, fields map[string]string, fileField string, fileBytes []byte) *http.Response {
+	h.t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range fields {
+		if err := mw.WriteField(k, v); err != nil {
+			h.t.Fatal(err)
+		}
+	}
+	if fileField != "" {
+		part, err := mw.CreateFormFile(fileField, "upload")
+		if err != nil {
+			h.t.Fatal(err)
+		}
+		if _, err := part.Write(fileBytes); err != nil {
+			h.t.Fatal(err)
+		}
+	}
+	if err := mw.Close(); err != nil {
+		h.t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, h.http.URL+path, &buf)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	resp.Body.Close()
 	return resp
 }
 

@@ -29,6 +29,7 @@ test: ## go build, vet and unit tests
 
 e2e: ## Unmodified databricks-sdk against a local server
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	$(PY) -m pip install -q -r e2e/sdk/requirements.txt
 	$(PY) e2e/sdk/run.py
 
 clean: ## Remove the built binary and ./data

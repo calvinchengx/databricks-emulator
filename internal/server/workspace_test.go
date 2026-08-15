@@ -65,6 +65,61 @@ func TestWorkspaceFilesRawBytesAnd404(t *testing.T) {
 	}
 }
 
+func TestWorkspaceSDKMultipartAutoAndDirectDownload(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+
+	fileBody := []byte("print(1)\n")
+	resp := h.multipart("/api/2.0/workspace/import", pat, map[string]string{
+		"path": "/Shared/hello.py", "format": "AUTO", "overwrite": "true",
+	}, "content", fileBody)
+	if resp.StatusCode != 200 {
+		t.Fatalf("auto file import %d", resp.StatusCode)
+	}
+	var status map[string]any
+	if st := h.json("GET", "/api/2.0/workspace/get-status?path=/Shared/hello.py", pat, nil, &status); st != 200 {
+		t.Fatalf("status %d", st)
+	}
+	if status["object_type"] != "FILE" {
+		t.Fatalf("auto file status %+v", status)
+	}
+	raw := h.do("GET", "/api/2.0/workspace/export?path=/Shared/hello.py&direct_download=true", pat, nil)
+	defer raw.Body.Close()
+	if raw.StatusCode != 200 {
+		t.Fatalf("direct_download %d", raw.StatusCode)
+	}
+	got, _ := io.ReadAll(raw.Body)
+	if string(got) != "print(1)\n" {
+		t.Fatalf("direct_download bytes = %q", got)
+	}
+
+	nb := []byte("# Databricks notebook source\nprint(2)\n")
+	resp = h.multipart("/api/2.0/workspace/import", pat, map[string]string{
+		"path": "/Shared/job.py", "format": "AUTO", "overwrite": "true",
+	}, "content", nb)
+	if resp.StatusCode != 200 {
+		t.Fatalf("auto notebook import %d", resp.StatusCode)
+	}
+	var nbStatus map[string]any
+	if st := h.json("GET", "/api/2.0/workspace/get-status?path=/Shared/job", pat, nil, &nbStatus); st != 200 {
+		t.Fatalf("notebook status %d", st)
+	}
+	if nbStatus["object_type"] != "NOTEBOOK" || nbStatus["language"] != "PYTHON" {
+		t.Fatalf("auto notebook status %+v", nbStatus)
+	}
+	if st := h.json("GET", "/api/2.0/workspace/get-status?path=/Shared/job.py", pat, nil, nil); st != 404 {
+		t.Fatalf("notebook path kept .py: %d", st)
+	}
+
+	scala := []byte("# Databricks notebook source\nobject X\n")
+	resp = h.multipart("/api/2.0/workspace/import", pat, map[string]string{
+		"path": "/Shared/x.scala", "format": "AUTO", "overwrite": "true",
+	}, "content", scala)
+	if resp.StatusCode != 501 {
+		t.Fatalf("auto scala notebook %d", resp.StatusCode)
+	}
+}
+
 func TestWorkspaceListMkdirDelete(t *testing.T) {
 	h := newHarness(t)
 	pat := h.srv.Store.AdminPAT
