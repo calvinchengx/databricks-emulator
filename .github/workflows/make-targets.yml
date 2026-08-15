@@ -1,0 +1,49 @@
+name: Make targets
+
+on:
+  workflow_call:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  make-targets:
+    name: make targets (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      - name: Install GNU Make (Windows only)
+        if: runner.os == 'Windows'
+        run: choco install make --no-progress -y
+      - name: make help (from the platform's native shell)
+        run: make help
+      - name: Witness map
+        shell: bash
+        run: python3 scripts/check_witnesses.py
+      - name: Every target expands
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in help doctor build test e2e clean witnesses; do
+            echo "=== make -n $t ==="
+            make -n "$t"
+          done
+      - name: make test
+        shell: bash
+        run: make test
+      - name: make doctor
+        if: runner.os == 'Linux'
+        run: make doctor
+      - name: docker build
+        if: runner.os == 'Linux'
+        run: docker build -t databricks-emulator:ci .
