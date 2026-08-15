@@ -51,9 +51,10 @@ cluster-create **without** an engine must fail naming
 `os.environ`; AKV rotate visible on the next run; warehouse `SELECT 1`
 names `dialect: spark-sql`; MCP `execute_sql`.
 
-**`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + two
-`INSERT`s through unmodified `databricks-sdk`. Confirmation is delta-rs on
-the shared volume (`_delta_log` exists, rows match, version advances). Sail
+**`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + `INSERT`
++ `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation
+is delta-rs on the shared volume (`_delta_log` exists, rows match, version
+advances). Standalone `UPDATE` is FAILED (`CommandNode::Update`). Sail
 `COUNT(*)` is not the witness.
 
 **`e2e-uc`** — `catalogs.create` / `schemas.create` / EXTERNAL `tables.create`

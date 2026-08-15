@@ -135,6 +135,65 @@ func TestSQLWarehouseMissingAndBadBodies(t *testing.T) {
 	}
 }
 
+func TestSQLWarehouseForwardsDeltaDML(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "dml"}, &created)
+	id := str(created["id"])
+
+	statements := []string{
+		"DELETE FROM events WHERE id = 2",
+		"MERGE INTO events AS t USING updates AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.name = s.name WHEN NOT MATCHED THEN INSERT *",
+		"UPDATE events SET name = 'zed' WHERE id = 1",
+	}
+	for _, stmt := range statements {
+		h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+			if req.Kind != "sql" || req.Code != stmt {
+				t.Fatalf("engine request %+v want kind=sql code=%q", req, stmt)
+			}
+			return spark.Result{OK: true, Stdout: "ok"}, nil
+		}
+		var execd map[string]any
+		if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+			"warehouse_id": id, "statement": stmt,
+		}, &execd); st != 200 {
+			t.Fatalf("%s: %d %+v", stmt, st, execd)
+		}
+		if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+			t.Fatalf("forwarded %s: %+v", stmt, execd)
+		}
+	}
+
+	h.exec.Hook = func(spark.Request) (spark.Result, error) {
+		return spark.Result{OK: false, EValue: "found UPDATE at 0:6 expected something else"}, nil
+	}
+	var upd map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "UPDATE events SET name = 'zed' WHERE id = 1",
+	}, &upd)
+	errObj, _ := upd["status"].(map[string]any)["error"].(map[string]any)
+	if upd["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("update fail %+v", upd)
+	}
+	if !strings.Contains(str(errObj["message"]), "UPDATE") {
+		t.Fatalf("update error %+v", upd)
+	}
+
+	h.srv.Spark = nil
+	var missing map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "DELETE FROM events WHERE id = 1",
+	}, &missing)
+	if missing["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("no engine DELETE %+v", missing)
+	}
+	errObj, _ = missing["status"].(map[string]any)["error"].(map[string]any)
+	if !strings.Contains(str(errObj["message"]), "DATABRICKS_SPARK_CONNECT_URL") {
+		t.Fatalf("DELETE must name the missing engine %+v", missing)
+	}
+}
+
 func TestSQLStatementEngineFailure(t *testing.T) {
 	h := newHarness(t)
 	pat := h.srv.Store.AdminPAT

@@ -60,14 +60,19 @@ def stop(proc: subprocess.Popen[bytes] | None) -> None:
         proc.kill()
 
 
-def sql(w, warehouse_id: str, statement: str) -> None:
+def exec_sql(w, warehouse_id: str, statement: str) -> tuple[str | None, str]:
     stmt = w.statement_execution.execute_statement(warehouse_id=warehouse_id, statement=statement)
     state = stmt.status.state.value if stmt.status and stmt.status.state else None
+    err = ""
+    if stmt.status and getattr(stmt.status, "error", None) is not None:
+        err = str(stmt.status.error)
+    return state, err or str(stmt)
+
+
+def sql(w, warehouse_id: str, statement: str) -> None:
+    state, err = exec_sql(w, warehouse_id, statement)
     if state not in {"SUCCEEDED", "SUCCESS"}:
-        err = ""
-        if stmt.status and getattr(stmt.status, "error", None) is not None:
-            err = str(stmt.status.error)
-        raise SystemExit(f"sql {statement!r}: state={state} {err or stmt}")
+        raise SystemExit(f"sql {statement!r}: state={state} {err}")
 
 
 def confirm(host_table: Path, want_rows: list[tuple[int, str]], min_version: int) -> int:
@@ -131,7 +136,43 @@ def main() -> int:
         if v2 <= v1:
             raise SystemExit(f"second insert did not advance the log: {v1} -> {v2}")
 
-        print(f"e2e/delta: Sail wrote, delta-rs confirmed versions {v1} then {v2}")
+        sql(w, wh.id, "DELETE FROM events WHERE id = 2")
+        v3 = confirm(host_table, [(1, "alice"), (3, "carol")], min_version=v2 + 1)
+        if v3 <= v2:
+            raise SystemExit(f"DELETE did not advance the log: {v2} -> {v3}")
+
+        sql(
+            w,
+            wh.id,
+            """
+            MERGE INTO events AS t
+            USING (SELECT * FROM VALUES (3, 'carol-upd'), (4, 'dave') AS s(id, name)) AS s
+            ON t.id = s.id
+            WHEN MATCHED THEN UPDATE SET t.name = s.name
+            WHEN NOT MATCHED THEN INSERT *
+            """,
+        )
+        v4 = confirm(host_table, [(1, "alice"), (3, "carol-upd"), (4, "dave")], min_version=v3 + 1)
+        if v4 <= v3:
+            raise SystemExit(f"MERGE did not advance the log: {v3} -> {v4}")
+
+        # Standalone UPDATE: Sail must fail loudly or actually write. A
+        # SUCCEEDED no-op is the lookalike this slice refuses.
+        state, err = exec_sql(w, wh.id, "UPDATE events SET name = 'zed' WHERE id = 1")
+        if state in {"SUCCEEDED", "SUCCESS"}:
+            v5 = confirm(host_table, [(1, "zed"), (3, "carol-upd"), (4, "dave")], min_version=v4 + 1)
+            print(
+                f"e2e/delta: Sail wrote, delta-rs confirmed versions "
+                f"{v1} then {v2} then DELETE {v3} then MERGE {v4} then UPDATE {v5}"
+            )
+        else:
+            confirm(host_table, [(1, "alice"), (3, "carol-upd"), (4, "dave")], min_version=v4)
+            if "SUCCEEDED" in err:
+                raise SystemExit(f"UPDATE failed but named success: {err}")
+            print(
+                f"e2e/delta: Sail wrote, delta-rs confirmed versions "
+                f"{v1} then {v2} then DELETE {v3} then MERGE {v4}; UPDATE refused ({err})"
+            )
         return 0
     finally:
         stop(proc)
