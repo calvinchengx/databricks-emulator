@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -25,6 +26,7 @@ HOST = "http://127.0.0.1:18451"
 AGENT = "http://127.0.0.1:18100"
 UC = "http://127.0.0.1:18452"
 TABLE = "file:///data/delta/e2e/events"
+RACE = "file:///data/delta/e2e/race"
 COMPOSE = ["docker", "compose", "-f", str(HERE / "docker-compose.yml"), "-p", "dbx-e2e-delta"]
 
 
@@ -255,10 +257,59 @@ def main() -> int:
         if "SUCCEEDED" in err:
             raise SystemExit(f"ZORDER failed but named success: {err}")
 
+        # Two warehouse overwrites, released together. Serialisation is a
+        # valid outcome; two writers landing on the same log version is not.
+        host_race = host_root / "e2e" / "race"
+        host_race.mkdir(parents=True)
+        os.chmod(host_race, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        sql(w, wh.id, f"CREATE TABLE race (id INT, name STRING) USING delta LOCATION '{RACE}'")
+        sql(w, wh.id, "INSERT INTO race VALUES (0, 'seed')")
+        v_seed = confirm(host_race, [(0, "seed")], min_version=0)
+        barrier = threading.Barrier(2)
+        outcomes: list[tuple[str, str | None, str]] = []
+
+        def overwrite(label: str, values: str) -> None:
+            try:
+                barrier.wait(timeout=30)
+                state, err = exec_sql(w, wh.id, f"INSERT OVERWRITE TABLE race VALUES {values}")
+                outcomes.append((label, state, err))
+            except Exception as exc:  # noqa: BLE001 — both writers must report
+                outcomes.append((label, "EXC", str(exc)))
+
+        threads = [
+            threading.Thread(target=overwrite, args=("a", "(1, 'race-a')")),
+            threading.Thread(target=overwrite, args=("b", "(2, 'race-b')")),
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=120)
+        ok = [o for o in outcomes if o[1] in {"SUCCEEDED", "SUCCESS"}]
+        if not ok:
+            raise SystemExit(f"both overwrites failed: {outcomes}")
+        from deltalake import DeltaTable
+
+        v_race = DeltaTable(str(host_race)).version()
+        if v_race - v_seed != len(ok):
+            raise SystemExit(
+                f"race log advanced {v_race - v_seed} but successes={len(ok)} outcomes={outcomes}"
+            )
+        names = {
+            str(n) for n in DeltaTable(str(host_race)).to_pyarrow_table().column("name").to_pylist()
+        }
+        if names == {"race-a"}:
+            want_race = [(1, "race-a")]
+        elif names == {"race-b"}:
+            want_race = [(2, "race-b")]
+        else:
+            raise SystemExit(f"race rows {names} are not a single overwrite")
+        confirm(host_race, want_race, min_version=v_seed + 1)
+
         print(
             f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
             f"UC three-part INSERT {v_uc}; OPTIMIZE {before_n}->{after_n} files "
-            f"v{before_v}->{v_opt}; VACUUM ok; ZORDER refused ({err})"
+            f"v{before_v}->{v_opt}; VACUUM ok; ZORDER refused ({err}); "
+            f"concurrent overwrite {outcomes} log {v_seed}->{v_race}"
         )
         return 0
     finally:

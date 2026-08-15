@@ -60,6 +60,9 @@ The files change; Spark does not run a job. The e2e witness addresses the
 table as `OPTIMIZE delta.\`uri\`` (self-describing). `OPTIMIZE … ZORDER` /
 `WHERE` are refused rather than silently ignored.
 
+Two concurrent warehouse `INSERT OVERWRITE`s: each success advances its own
+log version; the rows are one overwrite, not a silent merge.
+
 Photon is not this path. See [parity.md](parity.md).
 
 Witness: `ci:e2e-delta`.

@@ -146,6 +146,7 @@ func TestSQLWarehouseForwardsDeltaDML(t *testing.T) {
 		"DELETE FROM events WHERE id = 2",
 		"MERGE INTO events AS t USING updates AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.name = s.name WHEN NOT MATCHED THEN INSERT *",
 		"UPDATE events SET name = 'zed' WHERE id = 1",
+		"INSERT OVERWRITE TABLE race VALUES (1, 'race-a')",
 	}
 	for _, stmt := range statements {
 		h.exec.Hook = func(req spark.Request) (spark.Result, error) {

@@ -51,8 +51,7 @@ implemented until a witness exists.
 
 This is not a Databricks Runtime. Photon, DBR version strings, full
 `dbutils` / `spark.databricks.*`, cluster VMs, and any "DBR compatible"
-claim stay out even though the docs mention them. Crossing that line
-would change the project's character.
+claim are 🔴 Not implemented even though the docs mention them.
 
 ## Identity
 
@@ -91,13 +90,13 @@ would change the project's character.
 | Feature | Emulator | Type |
 |---|---|---|
 | SQL warehouses | Session handle, not a VM and not Photon. `POST /api/2.0/sql/statements` sends the SQL as `kind: sql` (the code **is** Spark SQL). Wire names `dialect: spark-sql`; `executedBy` says Spark SQL, not Photon. Without `DATABRICKS_SPARK_CONNECT_URL`, execute is `FAILED` naming the engine. | 🟢 Real |
-| Delta writes — Sail | Warehouse SQL `CREATE TABLE … USING delta LOCATION` + `INSERT` + `DELETE` + `MERGE INTO` on a shared volume. Sail writes; **delta-rs** reads `_delta_log` and the rows. A Sail `COUNT(*)` after DML is not a witness. Standalone `UPDATE` is forwarded and Sail answers FAILED (`CommandNode::Update`) — never a silent no-op. Photon is not this row. | 🟢 Real |
+| Delta writes — Sail | Warehouse SQL `CREATE TABLE … USING delta LOCATION` + `INSERT` + `DELETE` + `MERGE INTO` on a shared volume. Sail writes; **delta-rs** reads `_delta_log` and the rows. A Sail `COUNT(*)` after DML is not a witness. Standalone `UPDATE` is forwarded and Sail answers FAILED (`CommandNode::Update`) — never a silent no-op. Two concurrent `INSERT OVERWRITE`s: each success has its own log version; rows are one overwrite, not a silent merge. Photon is not this row. | 🟢 Real |
 | Delta writes — UC three-part names | SDK creates an EXTERNAL table in UC OSS (Docker sidecar). Sail's unity catalog provider (`SAIL_CATALOG__LIST`, same Compose network) resolves `cat.sch.tbl`. Warehouse `INSERT` writes; **delta-rs** confirms the log. This process forwards the name unchanged — it is not a path rewrite. | 🟢 Real |
 | Delta maintenance — OPTIMIZE / VACUUM | Warehouse SQL. Sail cannot plan these. The family's spark-agent runs them through **delta-rs** (named shim). ZORDER and WHERE are refused, not silently dropped. Photon is not this row. | 🟢 Real |
 | Clusters as session handle | `POST /api/2.0/clusters/create` starts a Sail session (`print(1)` via the HTTP agent) or fails naming the missing engine. Never sleeps to `RUNNING`. Autoscale and cluster libraries stay refused. | 🟢 Real |
 | Databricks Connect | After PAT/OIDC and `x-databricks-cluster-id` naming a RUNNING handle, `application/grpc` / `/spark.connect.…` is reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail `:50051`, h2c). The HTTP agent is not this backend; only that URL set is 501 naming the gRPC variable. Authorization stripped before the engine. | 🟢 Real |
 | Clusters as VMs | No hypervisor. A session handle is not a VM. | 🔴 Not implemented |
-| Photon / DBR compatibility | No Photon attach exists. Sail is Spark SQL over Spark Connect. Relabeling it (or DuckDB) as Photon is the lookalike doctrine refuses. | 🔴 Not implemented |
+| Photon / DBR compatibility | No Photon attach exists. Sail is Spark SQL over Spark Connect. | 🔴 Not implemented |
 
 ## Catalog
 
