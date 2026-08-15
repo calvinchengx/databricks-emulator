@@ -64,6 +64,7 @@ engine. Clusters as VMs and Photon are not implemented.
 | Unity Catalog CRUD | UC OSS sidecar |
 | Databricks Connect | Spark Connect |
 | Git Credentials / Repos | git clone into the workspace store |
+| Cluster policies | Enforced JSON definition on cluster create |
 | Identity | PAT + emulator OIDC; Entra optional |
 
 ## Not implemented

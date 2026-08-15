@@ -30,6 +30,21 @@ Start re-runs the session probe. Delete / permanent-delete drop the handle.
 
 Witness: `ci:e2e-engine`. `e2e-sdk` proves the no-engine refusal.
 
+## Cluster policies
+
+Policies persist under `data/policies/`. Every attribute in the definition
+is one this process actually checks on `clusters/create`: `spark_version`,
+`node_type_id`, `num_workers`, `autoscale`, `libraries`. Types: `fixed`,
+`range`, `forbidden`, `allowlist`, `unlimited`. Anything else is 501 — a
+policy that would not be enforced is not stored.
+
+One policy family is listed: `emulator-session` (session handle, not a VM).
+`GET /api/2.0/policies/clusters/get-compliance` reports the stored handle
+against its policy.
+
+Witness: `ci:e2e-sdk` (mismatch is 400 naming the field; matching policy
+still fails naming the missing engine; unknown attributes 501).
+
 ## Databricks Connect
 
 After PAT/OIDC, a gRPC request (`Content-Type: application/grpc` or path

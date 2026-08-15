@@ -207,6 +207,13 @@ func TestReposCloneCommitPullAndWorkspaceSeesFiles(t *testing.T) {
 	if updated["head_commit_id"] == repo["head_commit_id"] {
 		t.Fatal("head did not advance")
 	}
+	var listed map[string]any
+	if st := h.json("GET", "/api/2.0/repos", pat, nil, &listed); st != 200 {
+		t.Fatalf("repos list %d", st)
+	}
+	if len(listed["repos"].([]any)) != 1 {
+		t.Fatalf("repos list %+v", listed)
+	}
 	b, _, err := h.srv.Store.Workspace.Get("/Repos/admin/e2e/pulled.txt")
 	if err != nil || string(b) != "from-remote\n" {
 		t.Fatalf("pulled file %q %v", b, err)
