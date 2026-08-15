@@ -75,6 +75,9 @@ printed from `os.environ`, an AKV-backed scope whose rotate is visible on
 the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
 and MCP `execute_sql`. Python 3.12 is required.
 
+`make e2e-delta` writes a Delta table through the warehouse API onto Sail
+and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.
+
 `make e2e-uc` attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
 `v0.5.0` and drives catalog / schema / EXTERNAL table create through the
 unmodified SDK. MANAGED create and grants stay 501.

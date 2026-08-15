@@ -35,6 +35,17 @@ alert are refused at job create.
 
 Witness: `ci:e2e-engine`.
 
+## Delta writes
+
+`CREATE TABLE … USING delta LOCATION` and `INSERT` go down this same warehouse
+path onto Sail. The witness is **not** a Sail `COUNT(*)`. `make e2e-delta`
+writes to a shared volume and **delta-rs** (`deltalake`) reads `_delta_log`
+and the rows. The engine that wrote is never the one that confirms.
+
+Photon is not this path. See [parity.md](parity.md).
+
+Witness: `ci:e2e-delta`.
+
 ## MCP — Databricks SQL
 
 `POST /api/2.0/mcp/sql` is JSON-RPC after PAT/OIDC. `initialize` returns a

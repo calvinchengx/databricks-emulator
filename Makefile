@@ -9,7 +9,7 @@ endif
 
 PY ?= $(shell for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done)
 
-.PHONY: help doctor build run test e2e e2e-terraform e2e-engine e2e-uc clean witnesses
+.PHONY: help doctor build run test e2e e2e-terraform e2e-engine e2e-delta e2e-uc clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -45,6 +45,12 @@ e2e-engine: ## Unmodified databricks-sdk + databricks-connect with Sail attached
 		|| { echo "e2e-engine needs Python 3.12 (databricks-connect==19.1 Requires-Python ==3.12.*); set PY=" >&2; exit 1; }
 	$(PY) -m pip install -q -r e2e/engine/requirements.txt
 	$(PY) e2e/engine/run.py
+
+e2e-delta: ## Warehouse SQL writes Delta via Sail; delta-rs confirms the log
+	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
+	$(PY) -m pip install -q -r e2e/delta/requirements.txt
+	$(PY) e2e/delta/run.py
 
 e2e-uc: ## Unmodified databricks-sdk Unity Catalog CRUD with UC OSS attached
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }

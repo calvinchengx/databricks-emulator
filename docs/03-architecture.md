@@ -48,6 +48,7 @@ the persisted TLS pair.
 | Unity Catalog CRUD | UC OSS at `DATABRICKS_UC_URL` | 501 naming the missing sidecar |
 | AKV-backed secrets | Live vault at `DATABRICKS_AKV_VAULT_HOST` | Emulator `dns_name` refused by name |
 | Federated JWT | Issuer list in `DATABRICKS_OIDC_ISSUERS` | Only PAT and emulator OIDC work |
+| Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log | No write witness — a Sail `COUNT(*)` is not one |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.

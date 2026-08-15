@@ -89,6 +89,13 @@
       "go:TestAKVScopeUsesVaultAudienceToken"
     ]
   },
+  "delta-writes-sail": {
+    "section": "Compute",
+    "claim": "Delta writes — Sail",
+    "witnesses": [
+      "ci:e2e-delta"
+    ]
+  },
   "sql-warehouses": {
     "section": "Compute",
     "claim": "SQL warehouses",
