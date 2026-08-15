@@ -17,7 +17,8 @@ secret persist and injection, AKV read-through + vault-audience, Terraform/DAB,
 clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
 Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
-via Sail's unity catalog provider).
+via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
+delta-rs shim, ZORDER refused).
 
 ## Next honest attaches
 

@@ -250,6 +250,70 @@ func TestSQLWarehouseForwardsThreePartNames(t *testing.T) {
 	}
 }
 
+func TestSQLWarehouseForwardsDeltaMaintenance(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "maint"}, &created)
+	id := str(created["id"])
+
+	statements := []string{
+		"OPTIMIZE events",
+		"VACUUM events RETAIN 0 HOURS",
+		"OPTIMIZE delta.`file:///data/delta/e2e/events`",
+		"VACUUM delta.`file:///data/delta/e2e/events` RETAIN 0 HOURS",
+	}
+	for _, stmt := range statements {
+		h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+			if req.Kind != "sql" || req.Code != stmt {
+				t.Fatalf("engine request %+v want kind=sql code=%q", req, stmt)
+			}
+			return spark.Result{OK: true, Stdout: "ok"}, nil
+		}
+		var execd map[string]any
+		if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+			"warehouse_id": id, "statement": stmt,
+		}, &execd); st != 200 {
+			t.Fatalf("%s: %d %+v", stmt, st, execd)
+		}
+		if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+			t.Fatalf("forwarded %s: %+v", stmt, execd)
+		}
+	}
+
+	zorder := "OPTIMIZE events ZORDER BY name"
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Kind != "sql" || req.Code != zorder {
+			t.Fatalf("ZORDER rewritten %+v", req)
+		}
+		return spark.Result{OK: false, EValue: "OPTIMIZE ... ZORDER is not supported by the delta-rs path"}, nil
+	}
+	var named map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": zorder,
+	}, &named)
+	errObj, _ := named["status"].(map[string]any)["error"].(map[string]any)
+	if named["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("ZORDER fail %+v", named)
+	}
+	if !strings.Contains(str(errObj["message"]), "ZORDER") {
+		t.Fatalf("ZORDER error %+v", named)
+	}
+
+	h.srv.Spark = nil
+	var missing map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "OPTIMIZE events",
+	}, &missing)
+	if missing["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("no engine OPTIMIZE %+v", missing)
+	}
+	errObj, _ = missing["status"].(map[string]any)["error"].(map[string]any)
+	if !strings.Contains(str(errObj["message"]), "DATABRICKS_SPARK_CONNECT_URL") {
+		t.Fatalf("OPTIMIZE must name the missing engine %+v", missing)
+	}
+}
+
 func TestSQLStatementEngineFailure(t *testing.T) {
 	h := newHarness(t)
 	pat := h.srv.Store.AdminPAT

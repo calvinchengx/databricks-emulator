@@ -58,7 +58,9 @@ advances). Standalone `UPDATE` is FAILED (`CommandNode::Update`). Sail
 `COUNT(*)` is not the witness. A UC EXTERNAL table then names that
 `storage_location`; three-part `INSERT INTO e2e.s.events` writes through
 Sail's unity catalog provider (same Compose network as UC OSS) and
-delta-rs confirms the new row.
+delta-rs confirms the new row. `OPTIMIZE` / `VACUUM` use
+`delta.\`file://…\`` through the spark-agent's delta-rs shim (Sail has no
+grammar); `OPTIMIZE … ZORDER` is refused.
 
 **`e2e-uc`** — `catalogs.create` / `schemas.create` / EXTERNAL `tables.create`
 plus `tables.get`; MANAGED create and `grants.get` are 501. The sidecar is
