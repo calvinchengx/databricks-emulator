@@ -38,6 +38,11 @@ Secret scopes are Databricks-backed by default (persisted under `data/secrets/`)
 scopes are refused; rotate the vault secret and the next job run sees the new
 value. There is no sync.
 
+Unity Catalog CRUD reverse-proxies to a [UC OSS](https://github.com/unitycatalog/unitycatalog)
+sidecar (`DATABRICKS_UC_URL`). Without one those routes are 501 naming the
+missing sidecar. MANAGED table create is refused (UC OSS only creates
+EXTERNAL tables at a filesystem location). Grants stay 501 until they deny.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
 See [docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).

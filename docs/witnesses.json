@@ -10,6 +10,7 @@
     "jobs-python-mutation": "internal/server/jobs_test.go:TestJobsPythonRunsAndMutation",
     "secrets-injection": "internal/server/secrets_test.go:TestSecretsCRUDGetRefusedAndJobInjection",
     "secrets-persist": "internal/store/store_test.go:TestSecretsPersistAcrossOpen",
-    "secrets-akv-readthrough": "internal/server/secrets_backends_test.go:TestAKVScopeReadThroughAndRotate"
+    "secrets-akv-readthrough": "internal/server/secrets_backends_test.go:TestAKVScopeReadThroughAndRotate",
+    "unity-catalog-crud": "internal/server/uc_test.go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants"
   }
 }

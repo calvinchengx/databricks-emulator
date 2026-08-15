@@ -17,6 +17,7 @@ import (
 	"github.com/calvinchengx/databricks-emulator/internal/oidc"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
+	"github.com/calvinchengx/databricks-emulator/internal/uc"
 )
 
 // Server is the HTTP API.
@@ -28,6 +29,7 @@ type Server struct {
 	Clock  *clock.Clock
 	Spark  spark.Executor
 	AKV    *akv.Client
+	UC     *uc.Client
 	Origin string
 }
 
@@ -68,6 +70,7 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		Clock:  clk,
 		Spark:  exec,
 		AKV:    akv.New(cfg.AKVTLSInsecure, nil, cfg.AKVVaultHost),
+		UC:     uc.New(cfg.UCURL, cfg.UCTLSInsecure, nil),
 		Origin: origin,
 	}, nil
 }
@@ -138,6 +141,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/2.0/secrets/acls/get", s.protect(s.secretsACLRefused))
 	mux.HandleFunc("POST /api/2.0/secrets/acls/put", s.protect(s.secretsACLRefused))
 	mux.HandleFunc("POST /api/2.0/secrets/acls/delete", s.protect(s.secretsACLRefused))
+
+	mux.HandleFunc("/api/2.1/unity-catalog/", s.protect(s.unityCatalog))
+	mux.HandleFunc("/api/2.0/unity-catalog/", s.protect(s.unityCatalog))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, pattern := mux.Handler(r)

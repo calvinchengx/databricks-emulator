@@ -37,6 +37,13 @@ type Config struct {
 	// AKVTLSInsecure skips TLS verification when dialing the vault
 	// (keyvault-emulator's self-signed cert).
 	AKVTLSInsecure bool
+
+	// UCURL, when set, is a Unity Catalog OSS sidecar the /unity-catalog
+	// REST is reverse-proxied to after PAT/OIDC. Empty means those routes
+	// are 501 naming the missing sidecar — never an invented metastore.
+	UCURL string
+	// UCTLSInsecure skips TLS verification when dialing UC OSS.
+	UCTLSInsecure bool
 }
 
 // FromEnvPartial reads the environment without validating.
@@ -52,6 +59,8 @@ func FromEnvPartial() *Config {
 		SparkAgentURL:   os.Getenv("DATABRICKS_SPARK_CONNECT_URL"),
 		AKVVaultHost:    os.Getenv("DATABRICKS_AKV_VAULT_HOST"),
 		AKVTLSInsecure:  truthy(os.Getenv("DATABRICKS_AKV_TLS_INSECURE")),
+		UCURL:           os.Getenv("DATABRICKS_UC_URL"),
+		UCTLSInsecure:   truthy(os.Getenv("DATABRICKS_UC_TLS_INSECURE")),
 	}
 }
 

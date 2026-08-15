@@ -44,6 +44,8 @@ func run(args []string) error {
 	fs.BoolVar(&cfg.OIDCTLSInsecure, "oidc-tls-insecure", cfg.OIDCTLSInsecure, "skip TLS when fetching federated JWKS")
 	fs.StringVar(&cfg.AKVVaultHost, "akv-vault-host", cfg.AKVVaultHost, "keyvault-emulator host:port accepted as a Key Vault (empty = Azure suffixes only)")
 	fs.BoolVar(&cfg.AKVTLSInsecure, "akv-tls-insecure", cfg.AKVTLSInsecure, "skip TLS when fetching Key Vault secrets")
+	fs.StringVar(&cfg.UCURL, "uc-url", cfg.UCURL, "Unity Catalog OSS sidecar origin")
+	fs.BoolVar(&cfg.UCTLSInsecure, "uc-tls-insecure", cfg.UCTLSInsecure, "skip TLS when talking to UC OSS")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
