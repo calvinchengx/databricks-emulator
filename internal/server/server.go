@@ -220,6 +220,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/2.0/policies/clusters/get-compliance", s.protect(s.policiesGetCompliance))
 	mux.HandleFunc("GET /api/2.0/policy-families", s.protect(s.policyFamiliesList))
 
+	mux.HandleFunc("POST /api/1.2/contexts/create", s.protect(s.contextsCreate))
+	mux.HandleFunc("GET /api/1.2/contexts/status", s.protect(s.contextsStatus))
+	mux.HandleFunc("POST /api/1.2/contexts/destroy", s.protect(s.contextsDestroy))
+	mux.HandleFunc("POST /api/1.2/commands/execute", s.protect(s.commandsExecute))
+	mux.HandleFunc("GET /api/1.2/commands/status", s.protect(s.commandsStatus))
+	mux.HandleFunc("POST /api/1.2/commands/cancel", s.protect(s.commandsCancel))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {

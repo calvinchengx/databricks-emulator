@@ -157,7 +157,7 @@ def main() -> int:
 
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.core import DatabricksError
-    from databricks.sdk.service.compute import ClusterSpec
+    from databricks.sdk.service.compute import ClusterSpec, Language
     from databricks.sdk.service.jobs import SparkPythonTask, Task
     from databricks.sdk.service.workspace import (
         AzureKeyVaultSecretScopeMetadata,
@@ -185,6 +185,24 @@ def main() -> int:
         if created.state is None or created.state.value != "RUNNING":
             raise SystemExit(f"cluster state {created.state}")
         connect_select_one(pat, created.cluster_id)
+
+        ctx = w.command_execution.create(cluster_id=created.cluster_id, language=Language.PYTHON).result()
+        if ctx.status is None or ctx.status.value != "Running":
+            raise SystemExit(f"command context {ctx}")
+        ran = w.command_execution.execute(
+            cluster_id=created.cluster_id,
+            context_id=ctx.id,
+            language=Language.PYTHON,
+            command="print('CMD-REACHED')",
+        ).result()
+        if ran.status is None or ran.status.value != "Finished":
+            raise SystemExit(f"command status {ran}")
+        out = ""
+        if ran.results is not None and ran.results.data is not None:
+            out = str(ran.results.data)
+        if "CMD-REACHED" not in out:
+            raise SystemExit(f"command output {ran.results!r}")
+        w.command_execution.destroy(cluster_id=created.cluster_id, context_id=ctx.id)
 
         w.workspace.upload("/Shared/reached.py", b"print('REACHED')\n", overwrite=True, format=ImportFormat.AUTO)
         job = w.jobs.create(
@@ -309,7 +327,7 @@ def main() -> int:
         if st != 200 or "SUCCEEDED" not in blob or "spark-sql" not in blob:
             raise SystemExit(f"mcp execute {st} {execd}")
 
-        print("e2e/engine: cluster + connect SELECT 1 + REACHED + secret print + AKV rotate + sql + mcp ok")
+        print("e2e/engine: cluster + connect SELECT 1 + command-execution + REACHED + secret print + AKV rotate + sql + mcp ok")
         return 0
     finally:
         stop(proc)

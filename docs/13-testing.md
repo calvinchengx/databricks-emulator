@@ -50,7 +50,8 @@ cluster-create **without** an engine must fail naming
 **create** (not execution). That is the DAB pair.
 
 **`e2e-engine`** — cluster session `RUNNING`; `databricks-connect`
-`SELECT 1`; Python job logs contain `REACHED`; `{{secrets}}` printed from
+`SELECT 1`; Command Execution `print('CMD-REACHED')` on that handle;
+Python job logs contain `REACHED`; `{{secrets}}` printed from
 `os.environ`; AKV rotate visible on the next run; warehouse `SELECT 1`
 names `dialect: spark-sql`; MCP `execute_sql`.
 

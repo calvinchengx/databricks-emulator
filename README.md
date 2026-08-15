@@ -51,6 +51,8 @@ Clusters are a session handle onto that same engine — not a VM.
 `POST /api/2.0/clusters/create` starts a Sail session or fails naming the
 missing engine; it never sleeps to `RUNNING`. Cluster policies persist and
 are enforced on create; attributes this process cannot check are 501.
+Command Execution (`/api/1.2/contexts` + `/commands`) runs Python or SQL
+on that same agent; Scala and R stay 501.
 Databricks Connect is Spark
 Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail
 `:50051`) after PAT/OIDC and a `x-databricks-cluster-id` that names a

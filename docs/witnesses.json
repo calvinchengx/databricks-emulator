@@ -145,6 +145,14 @@
       "go:TestClusterPoliciesEnforceAndFamilies"
     ]
   },
+  "command-execution": {
+    "section": "Compute",
+    "claim": "Command Execution",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestCommandExecutionRunsOnSailAndRefusesScala"
+    ]
+  },
   "databricks-connect": {
     "section": "Compute",
     "claim": "Databricks Connect",
