@@ -15,6 +15,7 @@ const (
 	ObjectNotebook = "NOTEBOOK"
 	ObjectFile     = "FILE"
 	ObjectDir      = "DIRECTORY"
+	ObjectRepo     = "REPO"
 )
 
 // WorkspaceObject is listing metadata.
@@ -63,6 +64,13 @@ func (w *Workspace) disk(p string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(w.root, filepath.FromSlash(rel)), nil
+}
+
+// Abs is the on-disk path for a workspace object. Repos git-clone here.
+func (w *Workspace) Abs(p string) (string, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.disk(p)
 }
 
 func (w *Workspace) metaPath(disk string) string { return disk + ".wsmeta.json" }
@@ -169,7 +177,7 @@ func (w *Workspace) List(p string) ([]WorkspaceObject, error) {
 	parent, _ := WorkspacePath(p)
 	var out []WorkspaceObject
 	for _, e := range ents {
-		if strings.HasSuffix(e.Name(), ".wsmeta.json") {
+		if strings.HasSuffix(e.Name(), ".wsmeta.json") || e.Name() == ".git" {
 			continue
 		}
 		child := parent

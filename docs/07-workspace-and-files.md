@@ -63,6 +63,25 @@ Jobs load `dbfs:/…` paths from this store. Fabric activities that pass
 
 Witness: `ci:e2e-sdk`.
 
+## Git Credentials / Repos
+
+The engine is **git**. Credentials persist under `data/git/` (token never
+returned after create). `POST /api/2.0/repos` runs `git clone` into the
+workspace store; `PATCH` fetch/checkouts a branch or tag; workspace export
+of a cloned file is those bytes. Sparse checkout is 501. Without `git` on
+PATH, clone is 501 naming the binary.
+
+```python
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient(host="http://127.0.0.1:8447", token=open("data/admin.pat").read().strip())
+w.git_credentials.create(git_provider="gitHub", git_username="alice", personal_access_token="…")
+repo = w.repos.create(url="file:///path/to/remote.git", provider="gitHub", path="/Repos/admin/demo")
+print(w.workspace.download(f"{repo.path}/README.md").read())
+```
+
+Witness: `ci:e2e-sdk` (unmodified SDK clone + checkout; git CLI commit/push
+against the working tree, then SDK update pulls).
+
 ## Also on this store
 
 `get-status`, `list`, `mkdirs`, `delete` (recursive). Direct download

@@ -1,6 +1,6 @@
 # The DAB pair this phase witnesses: workspace files + a job.
 # `databricks bundle deploy` is the CLI spelling of the same surfaces
-# terraform apply already drives. Permissions / repos stay 501 — this
+# terraform apply already drives. Permissions stay 501 — this
 # file is the bundle shape, not a claim that the CLI completed deploy.
 bundle:
   name: tf-e2e

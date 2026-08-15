@@ -113,10 +113,43 @@ class ForeignIssuer:
         self.httpd.shutdown()
 
 
+def git(cwd: Path, *args: str) -> None:
+    env = os.environ.copy()
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    subprocess.check_call(["git", *args], cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def file_url(path: Path) -> str:
+    abs_path = path.resolve().as_posix()
+    if not abs_path.startswith("/"):
+        abs_path = "/" + abs_path
+    return "file://" + abs_path
+
+
+def init_bare_remote(work: Path) -> str:
+    src = work / "src"
+    src.mkdir(parents=True)
+    (src / "README.md").write_text("hello from remote\n")
+    git(src, "init", "-b", "main")
+    git(src, "config", "user.email", "e2e@local")
+    git(src, "config", "user.name", "e2e")
+    git(src, "add", ".")
+    git(src, "commit", "-m", "init")
+    git(src, "checkout", "-b", "other")
+    (src / "other.txt").write_text("other-branch\n")
+    git(src, "add", ".")
+    git(src, "commit", "-m", "other")
+    git(src, "checkout", "main")
+    bare = work / "remote.git"
+    git(work, "clone", "--bare", str(src), str(bare))
+    return file_url(bare)
+
+
 def main() -> int:
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.core import DatabricksError
-    from databricks.sdk.service.workspace import ImportFormat
+    from databricks.sdk.service.workspace import ImportFormat, ObjectType
 
     data_dir = Path(tempfile.mkdtemp(prefix="dbx-e2e-"))
     env = os.environ.copy()
@@ -164,6 +197,49 @@ def main() -> int:
         blob = base64.b64decode(got.data or "")
         if blob != b"dbfs-bytes":
             raise SystemExit(f"dbfs read {got!r}")
+
+        remote = init_bare_remote(data_dir / "git-remote")
+        cred = w.git_credentials.create(git_provider="gitHub", git_username="alice", personal_access_token="unused-for-file")
+        if getattr(cred, "personal_access_token", None):
+            raise SystemExit(f"git credential leaked token: {cred}")
+        repo = w.repos.create(url=remote, provider="gitHub", path="/Repos/admin/e2e")
+        exported = w.workspace.download("/Repos/admin/e2e/README.md").read()
+        if b"hello from remote" not in exported:
+            raise SystemExit(f"cloned README {exported!r}")
+        status = w.workspace.get_status("/Repos/admin/e2e")
+        if status.object_type != ObjectType.REPO:
+            raise SystemExit(f"repo status {status.object_type}")
+        dest = data_dir / "workspace" / "Repos" / "admin" / "e2e"
+        (dest / "from-sdk.txt").write_text("committed\n")
+        git(dest, "config", "user.email", "e2e@local")
+        git(dest, "config", "user.name", "e2e")
+        git(dest, "add", "from-sdk.txt")
+        git(dest, "commit", "-m", "sdk commit")
+        git(dest, "push", "origin", "main")
+        second = data_dir / "git-second"
+        git(data_dir, "clone", remote, str(second))
+        git(second, "config", "user.email", "e2e@local")
+        git(second, "config", "user.name", "e2e")
+        (second / "pulled.txt").write_text("from-remote\n")
+        git(second, "add", ".")
+        git(second, "commit", "-m", "remote advance")
+        git(second, "push", "origin", "main")
+        w.repos.update(repo_id=repo.id, branch="main")
+        pulled = w.workspace.download("/Repos/admin/e2e/pulled.txt").read()
+        if pulled != b"from-remote\n":
+            raise SystemExit(f"pulled {pulled!r}")
+        w.repos.update(repo_id=repo.id, branch="other")
+        other = w.workspace.download("/Repos/admin/e2e/other.txt").read()
+        if other != b"other-branch\n":
+            raise SystemExit(f"other branch {other!r}")
+        w.repos.delete(repo_id=repo.id)
+        try:
+            w.workspace.get_status("/Repos/admin/e2e")
+        except DatabricksError:
+            pass
+        else:
+            raise SystemExit("deleted repo still in workspace")
+        w.git_credentials.delete(credential_id=cred.credential_id)
 
         w.secrets.create_scope(scope="kv")
         w.secrets.put_secret(scope="kv", key="pw", string_value="s3cret")
@@ -229,7 +305,7 @@ def main() -> int:
                 continue
             raise SystemExit(f"federated {why} was accepted")
 
-        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + secrets-persist + cluster-refuse ok")
+        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + secrets-persist + cluster-refuse ok")
         return 0
     finally:
         stop(proc)

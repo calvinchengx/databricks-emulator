@@ -13,7 +13,8 @@ secret persist, SQL warehouses / MCP SQL / clusters-as-session on that engine,
 Terraform/DAB pair. Green rows and their witnesses: [parity.md](parity.md).
 
 Independently evidenced (`ci:`) as of this writing: identity, workspace, DBFS,
-secret persist and injection, AKV read-through + vault-audience, Terraform/DAB,
+Git Credentials / Repos (git clone into the workspace store), secret persist
+and injection, AKV read-through + vault-audience, Terraform/DAB,
 clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
 Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`

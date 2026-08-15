@@ -41,6 +41,14 @@
       "go:TestWorkspaceFilesRawBytesAnd404"
     ]
   },
+  "git-credentials-repos": {
+    "section": "Workspace",
+    "claim": "Git Credentials / Repos",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestReposCloneCommitPullAndWorkspaceSeesFiles"
+    ]
+  },
   "dbfs-files-api": {
     "section": "Workspace",
     "claim": "DBFS / Files API",

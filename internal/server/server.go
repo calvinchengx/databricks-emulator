@@ -127,6 +127,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /api/2.0/workspace-files/import-file/", s.protect(s.workspaceFilesImport))
 	mux.HandleFunc("GET /api/2.0/workspace-files/", s.protect(s.workspaceFilesGet))
 
+	mux.HandleFunc("POST /api/2.0/git-credentials", s.protect(s.gitCredentialsCreate))
+	mux.HandleFunc("GET /api/2.0/git-credentials", s.protect(s.gitCredentialsList))
+	mux.HandleFunc("GET /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsGet))
+	mux.HandleFunc("PATCH /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsUpdate))
+	mux.HandleFunc("DELETE /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsDelete))
+
+	mux.HandleFunc("POST /api/2.0/repos", s.protect(s.reposCreate))
+	mux.HandleFunc("GET /api/2.0/repos", s.protect(s.reposList))
+	mux.HandleFunc("GET /api/2.0/repos/{repo_id}", s.protect(s.reposGet))
+	mux.HandleFunc("PATCH /api/2.0/repos/{repo_id}", s.protect(s.reposUpdate))
+	mux.HandleFunc("DELETE /api/2.0/repos/{repo_id}", s.protect(s.reposDelete))
+
 	mux.HandleFunc("POST /api/2.0/dbfs/put", s.protect(s.dbfsPut))
 	mux.HandleFunc("GET /api/2.0/dbfs/read", s.protect(s.dbfsRead))
 	mux.HandleFunc("GET /api/2.0/dbfs/get-status", s.protect(s.dbfsStatus))

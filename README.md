@@ -85,6 +85,10 @@ The same job attaches UC OSS on Sail's Compose network so
 `v0.5.0` and drives catalog / schema / EXTERNAL table create through the
 unmodified SDK. MANAGED create and grants stay 501.
 
+Git credentials persist (token never returned after create). `repos.create`
+**git clone**s a real remote into the workspace store. `make e2e` drives that
+with unmodified `databricks-sdk`. Sparse checkout stays 501.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
 See the [docs site](https://calvinchengx.github.io/databricks-emulator/)
