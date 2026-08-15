@@ -37,10 +37,12 @@ Witness: `ci:e2e-engine`.
 
 ## Delta writes
 
-`CREATE TABLE … USING delta LOCATION` and `INSERT` go down this same warehouse
-path onto Sail. The witness is **not** a Sail `COUNT(*)`. `make e2e-delta`
-writes to a shared volume and **delta-rs** (`deltalake`) reads `_delta_log`
-and the rows. The engine that wrote is never the one that confirms.
+`CREATE TABLE … USING delta LOCATION`, `INSERT`, `DELETE`, and `MERGE INTO`
+go down this same warehouse path onto Sail. The witness is **not** a Sail
+`COUNT(*)`. `make e2e-delta` writes to a shared volume and **delta-rs**
+(`deltalake`) reads `_delta_log` and the rows. The engine that wrote is
+never the one that confirms. Standalone `UPDATE` is forwarded; Sail
+answers FAILED (`CommandNode::Update`), never a silent no-op.
 
 Photon is not this path. See [parity.md](parity.md).
 
