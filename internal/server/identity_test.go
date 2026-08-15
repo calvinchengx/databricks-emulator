@@ -43,8 +43,17 @@ func TestSeededPATMeAndDevRejected(t *testing.T) {
 	if st := h.json("GET", "/api/2.0/preview/scim/v2/Me", h.srv.Store.AdminPAT, nil, &me); st != 200 {
 		t.Fatalf("me %d", st)
 	}
-	if me["userName"] != "admin" {
+	if me["userName"] != "admin" || me["home"] != "/Users/admin" || me["repos"] != "/Repos/admin" {
 		t.Fatalf("me = %+v", me)
+	}
+	meResp := h.do("GET", "/api/2.0/preview/scim/v2/Me", h.srv.Store.AdminPAT, nil)
+	meResp.Body.Close()
+	if meResp.Header.Get("x-databricks-org-id") != workspaceOrgID {
+		t.Fatalf("org-id %q", meResp.Header.Get("x-databricks-org-id"))
+	}
+	var meAlias map[string]any
+	if st := h.json("GET", "/api/2.0/scim/v2/Me", h.srv.Store.AdminPAT, nil, &meAlias); st != 200 || meAlias["home"] != "/Users/admin" {
+		t.Fatalf("scim alias %d %+v", st, meAlias)
 	}
 	for _, tok := range []string{"dev", "dapiDEADBEEF", "random"} {
 		var body map[string]any

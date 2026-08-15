@@ -78,6 +78,6 @@ engine. Clusters as VMs and Photon never.
 ## Proof
 
 A row is green only when a witness exists: an unmodified client (`databricks-sdk`,
-Databricks CLI, or fabric-emulator's Databricks activity) drove the call, and
+`databricks/databricks` Terraform, Databricks CLI, or fabric-emulator's Databricks activity) drove the call, and
 the engine or store actually did the work. Status without a witness is not
 support. See [parity.md](parity.md).

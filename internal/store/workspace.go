@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,20 @@ type WorkspaceObject struct {
 	Path       string `json:"path"`
 	ObjectType string `json:"object_type"`
 	Language   string `json:"language,omitempty"`
+	ObjectID   int64  `json:"object_id,omitempty"`
+}
+
+// ObjectID is a stable workspace object id derived from the path. The
+// store is file-backed and has no separate integer sequence; Terraform's
+// notebook / workspace_file resources still expect object_id on get-status.
+func ObjectID(p string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(p))
+	id := int64(h.Sum64() & 0x7fffffffffffffff)
+	if id == 0 {
+		return 1
+	}
+	return id
 }
 
 type workspaceMeta struct {
@@ -85,7 +100,7 @@ func (w *Workspace) Get(p string) ([]byte, WorkspaceObject, error) {
 	}
 	if st.IsDir() {
 		wp, _ := WorkspacePath(p)
-		return nil, WorkspaceObject{Path: wp, ObjectType: ObjectDir}, nil
+		return nil, WorkspaceObject{Path: wp, ObjectType: ObjectDir, ObjectID: ObjectID(wp)}, nil
 	}
 	b, err := os.ReadFile(disk)
 	if err != nil {
@@ -93,6 +108,7 @@ func (w *Workspace) Get(p string) ([]byte, WorkspaceObject, error) {
 	}
 	obj := WorkspaceObject{ObjectType: ObjectFile}
 	obj.Path, _ = WorkspacePath(p)
+	obj.ObjectID = ObjectID(obj.Path)
 	if mb, err := os.ReadFile(w.metaPath(disk)); err == nil {
 		var m workspaceMeta
 		if json.Unmarshal(mb, &m) == nil {
@@ -162,7 +178,7 @@ func (w *Workspace) List(p string) ([]WorkspaceObject, error) {
 		} else {
 			child = parent + "/" + e.Name()
 		}
-		obj := WorkspaceObject{Path: child, ObjectType: ObjectFile}
+		obj := WorkspaceObject{Path: child, ObjectType: ObjectFile, ObjectID: ObjectID(child)}
 		if e.IsDir() {
 			obj.ObjectType = ObjectDir
 		} else if mb, err := os.ReadFile(w.metaPath(filepath.Join(disk, e.Name()))); err == nil {

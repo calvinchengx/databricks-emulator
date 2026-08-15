@@ -23,6 +23,16 @@ func TestWorkspaceImportExportAndRefuseFormats(t *testing.T) {
 	if string(got) != "print(1)\n" {
 		t.Fatalf("bytes = %q", got)
 	}
+	rawContent := base64.StdEncoding.EncodeToString([]byte("lock-bytes\n"))
+	if st := h.json("POST", "/api/2.0/workspace/import", pat, map[string]any{
+		"path": "/Shared/app.lock", "format": "RAW", "content": rawContent, "overwrite": true,
+	}, nil); st != 200 {
+		t.Fatalf("raw import %d", st)
+	}
+	var rawStatus map[string]any
+	if st := h.json("GET", "/api/2.0/workspace/get-status?path=/Shared/app.lock", pat, nil, &rawStatus); st != 200 || rawStatus["object_type"] != "FILE" {
+		t.Fatalf("raw status %d %+v", st, rawStatus)
+	}
 	if st := h.json("POST", "/api/2.0/workspace/import", pat, map[string]any{
 		"path": "/Shared/etl.py", "format": "JUPYTER", "language": "PYTHON", "content": content,
 	}, nil); st != 501 {
@@ -62,6 +72,18 @@ func TestWorkspaceFilesRawBytesAnd404(t *testing.T) {
 	miss.Body.Close()
 	if miss.StatusCode != 404 {
 		t.Fatalf("missing %d", miss.StatusCode)
+	}
+
+	put := h.do("PUT", "/api/2.0/workspace-files/import-file/libs/via-put.txt", pat, []byte("put-bytes\n"))
+	put.Body.Close()
+	if put.StatusCode != 200 {
+		t.Fatalf("put import-file %d", put.StatusCode)
+	}
+	gotPut := h.do("GET", "/api/2.0/workspace-files/libs/via-put.txt", pat, nil)
+	defer gotPut.Body.Close()
+	bPut, _ := io.ReadAll(gotPut.Body)
+	if gotPut.StatusCode != 200 || string(bPut) != "put-bytes\n" {
+		t.Fatalf("put round-trip %d %q", gotPut.StatusCode, bPut)
 	}
 }
 
@@ -138,6 +160,9 @@ func TestWorkspaceListMkdirDelete(t *testing.T) {
 	h.json("GET", "/api/2.0/workspace/get-status?path=/Shared/n/a.py", pat, nil, &status)
 	if status["object_type"] != "NOTEBOOK" {
 		t.Fatalf("status %+v", status)
+	}
+	if _, ok := status["object_id"].(float64); !ok || status["object_id"].(float64) == 0 {
+		t.Fatalf("object_id %+v", status)
 	}
 	if st := h.json("POST", "/api/2.0/workspace/delete", pat, map[string]any{"path": "/Shared/n", "recursive": true}, nil); st != 200 {
 		t.Fatalf("delete %d", st)

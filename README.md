@@ -62,6 +62,10 @@ EXTERNAL tables at a filesystem location). Grants stay 501 until they deny.
 `poll_response` wrap the warehouse statements handler after PAT/OIDC.
 Genie, AI Search, and UC function MCP paths stay 501.
 
+The official Terraform provider (`databricks/databricks`) applies a notebook,
+a workspace file, and a job against the seeded PAT — the DAB pair. `token=dev`
+is refused. `make e2e-terraform` is the witness.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
 See [docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).

@@ -117,6 +117,9 @@ func classifyImport(p, format, language string, raw []byte) (storePath, objectTy
 		format = "SOURCE"
 	}
 	lang = strings.ToUpper(strings.TrimSpace(language))
+	if format == "RAW" || format == "FILE" {
+		return p, store.ObjectFile, "", nil
+	}
 	if format == "AUTO" {
 		if isNotebookSource(raw) {
 			lang = langFromExt(p)
@@ -136,7 +139,7 @@ func classifyImport(p, format, language string, raw []byte) (storePath, objectTy
 	return p, store.ObjectNotebook, lang, nil
 }
 
-var errClassicPythonOnly = errString("classic /workspace/import only accepts format=SOURCE language=PYTHON, or AUTO for a file / Python notebook")
+var errClassicPythonOnly = errString("classic /workspace/import only accepts format=SOURCE language=PYTHON, AUTO for a file / Python notebook, or RAW/FILE for a workspace file")
 
 type errString string
 
