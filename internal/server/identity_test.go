@@ -26,9 +26,9 @@ func TestHealthAnd501(t *testing.T) {
 		t.Fatalf("health %d", st)
 	}
 	var errBody map[string]any
-	st := h.json("GET", "/api/2.0/clusters/list", h.srv.Store.AdminPAT, nil, &errBody)
+	st := h.json("GET", "/api/2.0/instance-pools/list", h.srv.Store.AdminPAT, nil, &errBody)
 	if st != 501 || errBody["error_code"] != "NOT_IMPLEMENTED" {
-		t.Fatalf("clusters: %d %+v", st, errBody)
+		t.Fatalf("unmapped: %d %+v", st, errBody)
 	}
 	resp := h.do("GET", "/nope", "", nil)
 	resp.Body.Close()

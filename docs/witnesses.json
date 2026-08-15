@@ -1,5 +1,5 @@
 {
-  "supported": 10,
+  "supported": 14,
   "claims": {
     "identity-pat": "internal/server/identity_test.go:TestSeededPATMeAndDevRejected",
     "identity-oidc": "internal/server/identity_test.go:TestOIDCClientCredentialsMe",
@@ -12,6 +12,8 @@
     "secrets-persist": "internal/store/store_test.go:TestSecretsPersistAcrossOpen",
     "secrets-akv-readthrough": "internal/server/secrets_backends_test.go:TestAKVScopeReadThroughAndRotate",
     "unity-catalog-crud": "internal/server/uc_test.go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants",
-    "sql-warehouses": "internal/server/sql_test.go:TestSQLWarehouseStatementDialectAndMutation"
+    "sql-warehouses": "internal/server/sql_test.go:TestSQLWarehouseStatementDialectAndMutation",
+    "clusters-session": "internal/server/clusters_test.go:TestClustersCreateStartsSailSession",
+    "databricks-connect": "internal/server/connect_test.go:TestSparkConnectProxiesAfterPATAndClusterID"
   }
 }

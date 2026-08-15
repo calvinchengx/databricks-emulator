@@ -48,8 +48,8 @@ point at the same host:
 
 Unity Catalog CRUD attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
 (`DATABRICKS_UC_URL`); there is no invented metastore. Grants stay refused
-until they deny. SQL warehouses and Databricks Connect come next. Clusters
-as VMs and Photon never.
+until they deny. SQL warehouses and Databricks Connect attach the same Spark
+engine. Clusters as VMs and Photon never.
 
 ## Reachable, if honest
 

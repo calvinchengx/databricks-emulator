@@ -20,6 +20,7 @@ type Store struct {
 	Jobs      *Jobs
 	Secrets   *Secrets
 	SQL       *SQL
+	Clusters  *Clusters
 }
 
 // Open creates dataDir, seeds identity on first run, and opens file stores.
@@ -57,5 +58,6 @@ func Open(dataDir string, now int64) (*Store, error) {
 		Jobs:       newJobs(),
 		Secrets:    secrets,
 		SQL:        newSQL(),
+		Clusters:   newClusters(),
 	}, nil
 }
