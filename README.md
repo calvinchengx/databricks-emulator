@@ -50,8 +50,9 @@ not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
 Clusters are a session handle onto that same engine — not a VM.
 `POST /api/2.0/clusters/create` starts a Sail session or fails naming the
 missing engine; it never sleeps to `RUNNING`. Databricks Connect is Spark
-Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_URL` after PAT/OIDC
-and a `x-databricks-cluster-id` that names a RUNNING handle. Autoscale and
+Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail
+`:50051`) after PAT/OIDC and a `x-databricks-cluster-id` that names a
+RUNNING handle. The HTTP statement agent is not that backend. Autoscale and
 cluster libraries stay refused.
 
 Unity Catalog CRUD reverse-proxies to a [UC OSS](https://github.com/unitycatalog/unitycatalog)
@@ -67,10 +68,22 @@ The official Terraform provider (`databricks/databricks`) applies a notebook,
 a workspace file, and a job against the seeded PAT — the DAB pair. `token=dev`
 is refused. `make e2e-terraform` is the witness.
 
+`make e2e-engine` attaches Sail + the family's spark-agent (and entra +
+keyvault) and drives cluster create, a Python job whose logs contain
+`REACHED`, `{{secrets}}` printed from `os.environ`, an AKV-backed scope
+whose rotate is visible on the next run, a SQL warehouse `SELECT 1` that
+names `dialect: spark-sql`, and MCP `execute_sql` through the unmodified
+SDK. It does not witness Databricks Connect — that still needs a stranger
+`databricks-connect` client; the gRPC URL is split so the HTTP agent is
+no longer the Connect backend.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
-See the [docs site](https://calvinchengx.github.io/databricks-emulator/),
-[docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).
+See the [docs site](https://calvinchengx.github.io/databricks-emulator/)
+([quickstart](docs/01-quickstart.md), [doctrine](docs/00-doctrine.md),
+[parity ledger](docs/parity.md)). The ledger's catalog is the
+[workspace REST API reference](https://docs.databricks.com/api/workspace/);
+green rows are unmodified clients, not doc pages.
 
 ## Emulator family
 
@@ -85,6 +98,7 @@ See the [docs site](https://calvinchengx.github.io/databricks-emulator/),
 
 ## License
 
-Apache-2.0. Clean-room: grounded solely in Databricks' public documentation and
-OpenAPI (Workspace, Jobs, Unity Catalog), with Databricks' own SDK and CLI as
+Apache-2.0. Clean-room: grounded solely in Databricks' public
+[workspace REST API reference](https://docs.databricks.com/api/workspace/)
+(Workspace, Jobs, Unity Catalog), with Databricks' own SDK and CLI as
 the conformance oracle — no Databricks Runtime source.

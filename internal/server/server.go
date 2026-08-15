@@ -84,7 +84,9 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("GET /.well-known/databricks-config", s.hostMetadata)
 	mux.HandleFunc("GET /oidc/.well-known/openid-configuration", s.discovery)
+	mux.HandleFunc("GET /oidc/.well-known/oauth-authorization-server", s.discovery)
 	mux.HandleFunc("GET /oidc/jwks.json", s.jwks)
 	mux.HandleFunc("POST /oidc/v1/token", s.token)
 
@@ -200,6 +202,13 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) hostMetadata(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"oidc_endpoint": s.Origin + "/oidc",
+		"workspace_id":  workspaceOrgID,
+	})
 }
 
 func (s *Server) discovery(w http.ResponseWriter, _ *http.Request) {

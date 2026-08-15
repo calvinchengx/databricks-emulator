@@ -23,7 +23,7 @@ func TestSQLWarehouseStatementDialectAndMutation(t *testing.T) {
 	id := str(created["id"])
 
 	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
-		if req.Kind != "sql" || !strings.Contains(req.Code, "SELECT 1") {
+		if req.Kind != "sql" || req.Code != "SELECT 1" {
 			t.Fatalf("engine request %+v", req)
 		}
 		return spark.Result{OK: true, Stdout: `[{"1":1}]`}, nil

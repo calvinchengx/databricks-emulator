@@ -1,22 +1,137 @@
 {
-  "supported": 17,
-  "claims": {
-    "identity-pat": "internal/server/identity_test.go:TestSeededPATMeAndDevRejected",
-    "identity-emulator-oidc": "internal/server/identity_test.go:TestOIDCClientCredentialsMe",
-    "identity-federated-jwt": "internal/server/identity_test.go:TestFederatedJWTDoors",
-    "workspace-source-python": "internal/server/workspace_test.go:TestWorkspaceImportExportAndRefuseFormats",
-    "workspace-raw-files": "internal/server/workspace_test.go:TestWorkspaceFilesRawBytesAnd404",
-    "dbfs-files-api": "internal/server/dbfs_test.go:TestDBFSPutGetListMoveDeleteAndTraversal",
-    "jobs-2-2-notebook-python": "internal/server/jobs_test.go:TestJobsPythonRunsAndMutation",
-    "secrets-databricks-injection": "internal/server/secrets_test.go:TestSecretsCRUDGetRefusedAndJobInjection",
-    "secrets-databricks-persist": "internal/store/store_test.go:TestSecretsPersistAcrossOpen",
-    "secrets-azure-key-vault-backed": "internal/server/secrets_backends_test.go:TestAKVScopeReadThroughAndRotate",
-    "secrets-vault-audience-token": "internal/server/secrets_backends_test.go:TestAKVScopeUsesVaultAudienceToken",
-    "sql-warehouses": "internal/server/sql_test.go:TestSQLWarehouseStatementDialectAndMutation",
-    "clusters-as-session-handle": "internal/server/clusters_test.go:TestClustersCreateStartsSailSession",
-    "databricks-connect": "internal/server/connect_test.go:TestSparkConnectProxiesAfterPATAndClusterID",
-    "unity-catalog-crud": "internal/server/uc_test.go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants",
-    "mcp-databricks-sql": "internal/server/mcp_test.go:TestMCPSQLExecuteAndPoll",
-    "terraform-dab-pair": "e2e/terraform/run.py"
+  "identity-pat": {
+    "section": "Identity",
+    "claim": "Identity — PAT",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "ci:e2e-terraform",
+      "go:TestSeededPATMeAndDevRejected"
+    ]
+  },
+  "identity-emulator-oidc": {
+    "section": "Identity",
+    "claim": "Identity — emulator OIDC",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestOIDCClientCredentialsMe"
+    ]
+  },
+  "identity-federated-jwt": {
+    "section": "Identity",
+    "claim": "Identity — federated JWT",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestFederatedJWTDoors"
+    ]
+  },
+  "workspace-source-python": {
+    "section": "Workspace",
+    "claim": "Workspace — SOURCE/PYTHON",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "ci:e2e-terraform",
+      "go:TestWorkspaceImportExportAndRefuseFormats"
+    ]
+  },
+  "workspace-raw-files": {
+    "section": "Workspace",
+    "claim": "Workspace — raw files",
+    "witnesses": [
+      "ci:e2e-terraform",
+      "go:TestWorkspaceFilesRawBytesAnd404"
+    ]
+  },
+  "dbfs-files-api": {
+    "section": "Workspace",
+    "claim": "DBFS / Files API",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestDBFSPutGetListMoveDeleteAndTraversal"
+    ]
+  },
+  "jobs-2-2-notebook-python": {
+    "section": "Jobs",
+    "claim": "Jobs 2.2 — notebook / Python",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestJobsPythonRunsAndMutation"
+    ]
+  },
+  "secrets-databricks-injection": {
+    "section": "Secrets",
+    "claim": "Secrets — Databricks injection",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestSecretsCRUDGetRefusedAndJobInjection"
+    ]
+  },
+  "secrets-databricks-persist": {
+    "section": "Secrets",
+    "claim": "Secrets — Databricks persist",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestSecretsPersistAcrossOpen"
+    ]
+  },
+  "secrets-azure-key-vault-backed": {
+    "section": "Secrets",
+    "claim": "Secrets — Azure Key Vault-backed",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestAKVScopeReadThroughAndRotate"
+    ]
+  },
+  "secrets-vault-audience-token": {
+    "section": "Secrets",
+    "claim": "Secrets — vault-audience token",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestAKVScopeUsesVaultAudienceToken"
+    ]
+  },
+  "sql-warehouses": {
+    "section": "Compute",
+    "claim": "SQL warehouses",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestSQLWarehouseStatementDialectAndMutation"
+    ]
+  },
+  "clusters-as-session-handle": {
+    "section": "Compute",
+    "claim": "Clusters as session handle",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestClustersCreateStartsSailSession"
+    ]
+  },
+  "databricks-connect": {
+    "section": "Compute",
+    "claim": "Databricks Connect",
+    "witnesses": [
+      "go:TestSparkConnectProxiesAfterPATAndClusterID"
+    ]
+  },
+  "unity-catalog-crud": {
+    "section": "Catalog",
+    "claim": "Unity Catalog CRUD",
+    "witnesses": [
+      "go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants"
+    ]
+  },
+  "mcp-databricks-sql": {
+    "section": "Clients",
+    "claim": "MCP — Databricks SQL",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestMCPSQLExecuteAndPoll"
+    ]
+  },
+  "terraform-dab-pair": {
+    "section": "Clients",
+    "claim": "Terraform / DAB pair",
+    "witnesses": [
+      "ci:e2e-terraform"
+    ]
   }
 }

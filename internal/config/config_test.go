@@ -12,6 +12,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("DATABRICKS_OIDC_ISSUERS", "")
 	t.Setenv("DATABRICKS_OIDC_TLS_INSECURE", "")
 	t.Setenv("DATABRICKS_SPARK_CONNECT_URL", "")
+	t.Setenv("DATABRICKS_SPARK_CONNECT_GRPC_URL", "")
 	t.Setenv("DATABRICKS_AKV_VAULT_HOST", "")
 	t.Setenv("DATABRICKS_AKV_TLS_INSECURE", "")
 	t.Setenv("DATABRICKS_UC_URL", "")
@@ -23,7 +24,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	if c.Addr != ":8447" || c.DataDir != "./data" {
 		t.Fatalf("defaults: %+v", c)
 	}
-	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure || c.EntraTokenURL != "" {
+	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.SparkConnectGRPCURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure || c.EntraTokenURL != "" {
 		t.Fatalf("empty env leaked values: %+v", c)
 	}
 
@@ -34,6 +35,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("DATABRICKS_OIDC_ISSUERS", " https://a/v2.0 ,https://b ")
 	t.Setenv("DATABRICKS_OIDC_TLS_INSECURE", "1")
 	t.Setenv("DATABRICKS_SPARK_CONNECT_URL", "http://sail:8080")
+	t.Setenv("DATABRICKS_SPARK_CONNECT_GRPC_URL", "http://sail:50051")
 	t.Setenv("DATABRICKS_AKV_VAULT_HOST", "keyvault-emulator:4997")
 	t.Setenv("DATABRICKS_AKV_TLS_INSECURE", "true")
 	t.Setenv("DATABRICKS_UC_URL", "http://uc:8080")
@@ -45,7 +47,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	if c.Addr != ":9" || c.DataDir != "/tmp/dbx" || c.PublicURL != "https://localhost:8447" {
 		t.Fatalf("overrides: %+v", c)
 	}
-	if !c.DisableTLS || !c.OIDCTLSInsecure || c.SparkAgentURL != "http://sail:8080" {
+	if !c.DisableTLS || !c.OIDCTLSInsecure || c.SparkAgentURL != "http://sail:8080" || c.SparkConnectGRPCURL != "http://sail:50051" {
 		t.Fatalf("flags: %+v", c)
 	}
 	if c.AKVVaultHost != "keyvault-emulator:4997" || !c.AKVTLSInsecure {

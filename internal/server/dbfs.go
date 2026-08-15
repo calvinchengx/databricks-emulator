@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
+	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
 
 func (s *Server) dbfsPut(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -34,7 +35,11 @@ func (s *Server) dbfsRead(w http.ResponseWriter, r *http.Request, _ *auth.Princi
 	offset := parseInt64(query(r, "offset"))
 	length := parseInt64(query(r, "length"))
 	if length <= 0 {
-		length = 1 << 20
+		length = store.MaxDBFSRead
+	}
+	if length > store.MaxDBFSRead {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "length exceeds 1MB")
+		return
 	}
 	b, err := s.Store.DBFS.ReadAt(p, offset, length)
 	if err != nil {

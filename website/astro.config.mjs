@@ -24,10 +24,40 @@ export default defineConfig({
       },
       sidebar: [
         {
-          label: 'Start here',
+          label: 'Getting started',
           items: [
             { slug: 'index' },
             { slug: '00-doctrine' },
+            { slug: '01-quickstart' },
+            { slug: '02-installation' },
+            { slug: '03-architecture' },
+            { slug: '04-configuration' },
+            { slug: '05-tls-and-hosts' },
+          ],
+        },
+        {
+          label: 'Reference',
+          items: [
+            { slug: '06-identity' },
+            { slug: '07-workspace-and-files' },
+            { slug: '08-jobs-and-spark' },
+            { slug: '09-secrets' },
+            { slug: '10-sql-and-mcp' },
+            { slug: '11-clusters-and-connect' },
+            { slug: '12-unity-catalog' },
+          ],
+        },
+        {
+          label: 'Testing',
+          items: [
+            { slug: '13-testing' },
+            { slug: '14-family-integration' },
+          ],
+        },
+        {
+          label: 'Project',
+          items: [
+            { slug: '15-roadmap' },
           ],
         },
         {

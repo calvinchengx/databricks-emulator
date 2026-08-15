@@ -107,9 +107,17 @@ func TestOIDCClientCredentialsMe(t *testing.T) {
 		t.Fatalf("bad grant %d", resp3.StatusCode)
 	}
 
+	var meta map[string]any
+	if st := h.json("GET", "/.well-known/databricks-config", "", nil, &meta); st != 200 || meta["oidc_endpoint"] == nil {
+		t.Fatalf("host metadata %d %+v", st, meta)
+	}
 	var disc map[string]any
 	if st := h.json("GET", "/oidc/.well-known/openid-configuration", "", nil, &disc); st != 200 || disc["issuer"] == nil {
 		t.Fatalf("discovery %d %+v", st, disc)
+	}
+	var rfc8414 map[string]any
+	if st := h.json("GET", "/oidc/.well-known/oauth-authorization-server", "", nil, &rfc8414); st != 200 || rfc8414["token_endpoint"] != disc["token_endpoint"] {
+		t.Fatalf("rfc8414 %d %+v", st, rfc8414)
 	}
 	var jwks map[string]any
 	if st := h.json("GET", "/oidc/jwks.json", "", nil, &jwks); st != 200 {

@@ -26,7 +26,8 @@ func TestSparkConnectProxiesAfterPATAndClusterID(t *testing.T) {
 		_, _ = w.Write([]byte("plan-ok"))
 	}))
 	t.Cleanup(backend.Close)
-	h.srv.Cfg.SparkAgentURL = backend.URL
+	h.srv.Cfg.SparkConnectGRPCURL = backend.URL
+	h.srv.Cfg.SparkAgentURL = "http://127.0.0.1:9" // HTTP agent must not be the Connect backend
 
 	req, err := http.NewRequest(http.MethodPost, h.http.URL+"/spark.connect.SparkConnectService/AnalyzePlan", strings.NewReader("plan"))
 	if err != nil {
@@ -101,17 +102,22 @@ func TestSparkConnectRefusesWithoutEngineURLOrCluster(t *testing.T) {
 		t.Fatalf("stopped %d %+v", st, body)
 	}
 	h.srv.Store.Clusters.SetState(id, "RUNNING", clusterSessionMsg)
-	if st, body := post("/spark.connect.SparkConnectService/ExecutePlan", pat, id, "application/grpc"); st != 501 {
-		t.Fatalf("no url %d %+v", st, body)
+	h.srv.Cfg.SparkAgentURL = "http://127.0.0.1:8099"
+	st, body := post("/spark.connect.SparkConnectService/ExecutePlan", pat, id, "application/grpc")
+	if st != 501 {
+		t.Fatalf("http agent is not a gRPC url %d %+v", st, body)
 	}
-	h.srv.Cfg.SparkAgentURL = "http://["
+	if !strings.Contains(str(body["message"]), "DATABRICKS_SPARK_CONNECT_GRPC_URL") {
+		t.Fatalf("501 must name the gRPC var: %+v", body)
+	}
+	h.srv.Cfg.SparkConnectGRPCURL = "http://["
 	if st, _ := post("/spark.connect.SparkConnectService/ExecutePlan", pat, id, "application/grpc"); st != 502 {
 		t.Fatalf("bad url %d", st)
 	}
 
 	// gRPC content-type on a non-prefixed path still routes through Connect.
-	h.srv.Cfg.SparkAgentURL = "http://127.0.0.1:1"
-	st, body := post("/custom-grpc", pat, id, "application/grpc")
+	h.srv.Cfg.SparkConnectGRPCURL = "http://127.0.0.1:1"
+	st, body = post("/custom-grpc", pat, id, "application/grpc")
 	if st != 502 {
 		t.Fatalf("dead backend %d %+v", st, body)
 	}

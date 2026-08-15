@@ -3,6 +3,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"log"
@@ -32,7 +33,7 @@ func run(args []string) error {
 			fmt.Println("databricks-emulator", version)
 			return nil
 		case "healthcheck":
-			return healthcheck(cfg.Addr)
+			return healthcheck(cfg)
 		}
 	}
 	fs := flag.NewFlagSet("databricks-emulator", flag.ContinueOnError)
@@ -40,7 +41,8 @@ func run(args []string) error {
 	fs.StringVar(&cfg.DataDir, "data-dir", cfg.DataDir, "state directory")
 	fs.StringVar(&cfg.PublicURL, "public-url", cfg.PublicURL, "advertised origin")
 	fs.BoolVar(&cfg.DisableTLS, "disable-tls", cfg.DisableTLS, "serve plain HTTP")
-	fs.StringVar(&cfg.SparkAgentURL, "spark-connect-url", cfg.SparkAgentURL, "statement agent URL")
+	fs.StringVar(&cfg.SparkAgentURL, "spark-connect-url", cfg.SparkAgentURL, "statement agent URL (Jobs / SQL / cluster session)")
+	fs.StringVar(&cfg.SparkConnectGRPCURL, "spark-connect-grpc-url", cfg.SparkConnectGRPCURL, "Spark Connect gRPC origin for Databricks Connect")
 	fs.BoolVar(&cfg.OIDCTLSInsecure, "oidc-tls-insecure", cfg.OIDCTLSInsecure, "skip TLS when fetching federated JWKS")
 	fs.StringVar(&cfg.AKVVaultHost, "akv-vault-host", cfg.AKVVaultHost, "keyvault-emulator host:port accepted as a Key Vault (empty = Azure suffixes only)")
 	fs.BoolVar(&cfg.AKVTLSInsecure, "akv-tls-insecure", cfg.AKVTLSInsecure, "skip TLS when fetching Key Vault secrets")
@@ -81,23 +83,32 @@ func run(args []string) error {
 	return http.Serve(ln, srv.Handler())
 }
 
-func healthcheck(addr string) error {
-	host, port, err := net.SplitHostPort(addr)
+func healthcheck(cfg *config.Config) error {
+	_, port, err := net.SplitHostPort(cfg.Addr)
 	if err != nil {
 		return err
 	}
-	if host == "" {
-		host = "127.0.0.1"
-	}
-	client := &http.Client{
-		Timeout:   3 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
-	}
-	resp, err := client.Get("https://" + net.JoinHostPort(host, port) + "/health")
-	if err != nil {
-		if resp, err = client.Get("http://" + net.JoinHostPort(host, port) + "/health"); err != nil {
+	scheme := "https"
+	tr := &http.Transport{}
+	if cfg.DisableTLS {
+		scheme = "http"
+	} else {
+		// Self-probe: pin the cert this process already serves. Skipping
+		// verification would make the container HEALTHCHECK a MITM target.
+		pem, err := tlscert.ReadPEM(cfg.DataDir)
+		if err != nil {
 			return err
 		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return fmt.Errorf("healthcheck: could not parse server certificate")
+		}
+		tr.TLSClientConfig = &tls.Config{RootCAs: pool}
+	}
+	client := &http.Client{Timeout: 3 * time.Second, Transport: tr}
+	resp, err := client.Get(scheme + "://" + net.JoinHostPort("127.0.0.1", port) + "/health")
+	if err != nil {
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

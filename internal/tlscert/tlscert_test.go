@@ -30,3 +30,24 @@ func TestLoadEphemeralAndPersisted(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReadPEMPinsPersistedCertAndRefusesMissing(t *testing.T) {
+	if _, err := ReadPEM(""); err == nil {
+		t.Fatal("empty data dir must not invent a cert")
+	}
+	if _, err := ReadPEM(t.TempDir()); err == nil {
+		t.Fatal("missing cert.pem must not generate one")
+	}
+	dir := t.TempDir()
+	if _, err := Load(dir); err != nil {
+		t.Fatal(err)
+	}
+	pem, err := ReadPEM(dir)
+	if err != nil || !looksLikeCertPEM(pem) {
+		t.Fatalf("ReadPEM after Load: %q %v", pem, err)
+	}
+}
+
+func looksLikeCertPEM(b []byte) bool {
+	return len(b) > 0 && string(b[:10]) == "-----BEGIN"
+}

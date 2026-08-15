@@ -36,10 +36,10 @@ func (s *Server) sparkConnect(w http.ResponseWriter, r *http.Request, _ *auth.Pr
 			"cluster is not RUNNING — Databricks Connect needs a started session handle")
 		return
 	}
-	backend := strings.TrimRight(s.Cfg.SparkAgentURL, "/")
+	backend := strings.TrimRight(s.Cfg.SparkConnectGRPCURL, "/")
 	if backend == "" {
 		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED",
-			"Spark Connect gRPC is reverse-proxied to DATABRICKS_SPARK_CONNECT_URL; no engine URL is configured")
+			"Spark Connect gRPC is reverse-proxied to DATABRICKS_SPARK_CONNECT_GRPC_URL; no gRPC engine URL is configured")
 		return
 	}
 	u, err := url.Parse(backend)
@@ -49,6 +49,7 @@ func (s *Server) sparkConnect(w http.ResponseWriter, r *http.Request, _ *auth.Pr
 	}
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.FlushInterval = -1
+	proxy.Transport = connectTransport()
 	proxy.ErrorHandler = func(rw http.ResponseWriter, _ *http.Request, err error) {
 		writeError(rw, http.StatusBadGateway, "ABORTED", "spark connect: "+err.Error())
 	}
@@ -59,4 +60,15 @@ func (s *Server) sparkConnect(w http.ResponseWriter, r *http.Request, _ *auth.Pr
 		req.Header.Del("Authorization")
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+// connectTransport speaks HTTP/1 (tests, httptest backends) and h2c
+// (Sail's Spark Connect port). DefaultTransport is HTTP/1-only on http://.
+func connectTransport() http.RoundTripper {
+	tr := &http.Transport{}
+	p := new(http.Protocols)
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	tr.Protocols = p
+	return tr
 }

@@ -8,6 +8,10 @@ import (
 	"sync"
 )
 
+// MaxDBFSRead is the Databricks dbfs/read length cap (1 MiB). Allocating
+// from an unbounded query parameter is a denial of service.
+const MaxDBFSRead int64 = 1 << 20
+
 // DBFS is a file-backed store under data/dbfs. The Files API shares this root.
 type DBFS struct {
 	mu      sync.Mutex
@@ -215,6 +219,9 @@ func (d *DBFS) CloseHandle(handle int64) error {
 
 // ReadAt reads a slice of a file (DBFS read).
 func (d *DBFS) ReadAt(p string, offset, length int64) ([]byte, error) {
+	if length <= 0 || length > MaxDBFSRead {
+		return nil, fmt.Errorf("length must be between 1 and %d", MaxDBFSRead)
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	disk, err := d.disk(p)
