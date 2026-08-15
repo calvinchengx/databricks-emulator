@@ -2,10 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
+	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
 
 func (s *Server) dbfsPut(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -14,7 +16,7 @@ func (s *Server) dbfsPut(w http.ResponseWriter, r *http.Request, _ *auth.Princip
 		Contents string `json:"contents"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	raw, err := decodeB64(body.Contents)
@@ -34,7 +36,11 @@ func (s *Server) dbfsRead(w http.ResponseWriter, r *http.Request, _ *auth.Princi
 	offset := parseInt64(query(r, "offset"))
 	length := parseInt64(query(r, "length"))
 	if length <= 0 {
-		length = 1 << 20
+		length = store.MaxDBFSRead
+	}
+	if length > store.MaxDBFSRead {
+		writeError(w, http.StatusBadRequest, "BAD_REQUEST", "length exceeds 1MB")
+		return
 	}
 	b, err := s.Store.DBFS.ReadAt(p, offset, length)
 	if err != nil {
@@ -151,7 +157,13 @@ func (s *Server) dbfsClose(w http.ResponseWriter, r *http.Request, _ *auth.Princ
 
 func (s *Server) fsPut(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
 	p := pathFromURL(r.URL, "/api/2.0/fs/files/")
-	if err := s.Store.DBFS.Put(p, readAll(r.Body)); err != nil {
+	// Not io.ReadAll-and-ignore: past the ceiling that writes a truncated file.
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeBodyErr(w, err)
+		return
+	}
+	if err := s.Store.DBFS.Put(p, raw); err != nil {
 		writeWorkspaceErr(w, err)
 		return
 	}

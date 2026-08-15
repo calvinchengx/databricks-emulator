@@ -15,7 +15,7 @@ func TestMCPSQLExecuteAndPoll(t *testing.T) {
 	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "starter"}, &created)
 	id := str(created["id"])
 	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
-		if req.Kind != "sql" || !strings.Contains(req.Code, "SELECT 1") {
+		if req.Kind != "sql" || req.Code != "SELECT 1" {
 			t.Fatalf("engine %+v", req)
 		}
 		return spark.Result{OK: true, Stdout: `[{"1":1}]`}, nil

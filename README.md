@@ -49,9 +49,12 @@ not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
 
 Clusters are a session handle onto that same engine — not a VM.
 `POST /api/2.0/clusters/create` starts a Sail session or fails naming the
-missing engine; it never sleeps to `RUNNING`. Databricks Connect is Spark
-Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_URL` after PAT/OIDC
-and a `x-databricks-cluster-id` that names a RUNNING handle. Autoscale and
+missing engine; it never sleeps to `RUNNING`. Cluster policies persist and
+are enforced on create; attributes this process cannot check are 501.
+Databricks Connect is Spark
+Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail
+`:50051`) after PAT/OIDC and a `x-databricks-cluster-id` that names a
+RUNNING handle. The HTTP statement agent is not that backend. Autoscale and
 cluster libraries stay refused.
 
 Unity Catalog CRUD reverse-proxies to a [UC OSS](https://github.com/unitycatalog/unitycatalog)
@@ -67,10 +70,34 @@ The official Terraform provider (`databricks/databricks`) applies a notebook,
 a workspace file, and a job against the seeded PAT — the DAB pair. `token=dev`
 is refused. `make e2e-terraform` is the witness.
 
+`make e2e-engine` attaches Sail + the family's spark-agent (and entra +
+keyvault) and drives cluster create, unmodified `databricks-connect`
+`SELECT 1`, a Python job whose logs contain `REACHED`, `{{secrets}}`
+printed from `os.environ`, an AKV-backed scope whose rotate is visible on
+the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
+and MCP `execute_sql`. Run it with `uv` (`.python-version` is 3.12).
+
+`make e2e-delta` writes a Delta table through the warehouse API onto Sail
+and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.
+The same job attaches UC OSS on Sail's Compose network so
+`INSERT INTO cat.sch.tbl` resolves through Sail's unity catalog provider.
+`OPTIMIZE` / `VACUUM` are delta-rs through the spark-agent, not Sail.
+
+`make e2e-uc` attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
+`v0.5.0` and drives catalog / schema / EXTERNAL table create through the
+unmodified SDK. MANAGED create and grants stay 501.
+
+Git credentials persist (token never returned after create). `repos.create`
+**git clone**s a real remote into the workspace store. `make e2e` drives that
+with unmodified `databricks-sdk`. Sparse checkout stays 501.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
-See the [docs site](https://calvinchengx.github.io/databricks-emulator/),
-[docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).
+See the [docs site](https://calvinchengx.github.io/databricks-emulator/)
+([quickstart](docs/01-quickstart.md), [doctrine](docs/00-doctrine.md),
+[parity ledger](docs/parity.md)). The ledger's catalog is the
+[workspace REST API reference](https://docs.databricks.com/api/workspace/);
+green rows are unmodified clients, not doc pages.
 
 ## Emulator family
 
@@ -85,6 +112,7 @@ See the [docs site](https://calvinchengx.github.io/databricks-emulator/),
 
 ## License
 
-Apache-2.0. Clean-room: grounded solely in Databricks' public documentation and
-OpenAPI (Workspace, Jobs, Unity Catalog), with Databricks' own SDK and CLI as
+Apache-2.0. Clean-room: grounded solely in Databricks' public
+[workspace REST API reference](https://docs.databricks.com/api/workspace/)
+(Workspace, Jobs, Unity Catalog), with Databricks' own SDK and CLI as
 the conformance oracle — no Databricks Runtime source.

@@ -1,0 +1,66 @@
+# Real Spark attach for the engine-backed parity rows.
+# Sail (Rust Spark Connect) + the family's published statement agent.
+# ENTRA_TOKEN_URL is deliberately unset on Sail so its launcher execs the
+# server instead of waiting on a Storage-audience mint.
+# entra + keyvault (no ARM) witness AKV read-through and the vault-audience
+# bearer. KV_ARM_URL is empty so the vault's own control surface authorizes.
+services:
+  entra-emulator:
+    image: ghcr.io/calvinchengx/entra-emulator:${ENTRA_VERSION:-0.7.0}
+    ports:
+      # 28443/28444 sit above the 1844x band local entra processes already use.
+      - "28443:8443"
+    environment:
+      ORIGIN_MODE: compat
+      PUBLIC_ORIGIN: "https://entra-emulator:8443"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/entra-emulator", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keyvault-emulator:
+    image: ghcr.io/calvinchengx/azure-keyvault-emulator:${KEYVAULT_VERSION:-0.7.0}
+    depends_on:
+      entra-emulator:
+        condition: service_healthy
+    ports:
+      - "28444:8444"
+    environment:
+      KV_ENTRA_ISSUER: "https://entra-emulator:8443/6f89cf12-978b-4d23-ac18-9ef0c127cf87/v2.0"
+      KV_ENTRA_TLS_INSECURE: "true"
+      KV_ARM_URL: ""
+      KV_DATA_DIR: ""
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/azure-keyvault-emulator", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  sail:
+    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION:-0.22.0}
+    ports:
+      - "50051:50051"
+    environment:
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+      RUST_LOG: "info"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  spark-agent:
+    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:-0.22.0}
+    depends_on:
+      sail:
+        condition: service_healthy
+    ports:
+      - "8099:8099"
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

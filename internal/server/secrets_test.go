@@ -39,6 +39,9 @@ func TestSecretsCRUDGetRefusedAndJobInjection(t *testing.T) {
 	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "s3cret" {
 		t.Fatalf("secret not injected: %+v", h.exec.Calls)
 	}
+	if !strings.Contains(h.exec.Calls[0].Code, "os.environ.update") || !strings.Contains(h.exec.Calls[0].Code, "s3cret") {
+		t.Fatalf("resolved secret never reached the driver preamble: %s", h.exec.Calls[0].Code)
+	}
 
 	h.exec.Calls = nil
 	var created2 map[string]any

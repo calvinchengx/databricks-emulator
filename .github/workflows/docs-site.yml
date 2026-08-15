@@ -37,7 +37,12 @@ jobs:
     name: Build Starlight site
     runs-on: ubuntu-latest
     steps:
+      # Full history + tags: the parity-version generator reads the map at each
+      # `v*` tag (git show) and stamps the live map from `git describe`.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:

@@ -159,7 +159,7 @@ func TestJobsSQLFileRunsOnSparkSQL(t *testing.T) {
 	if out["state"].(map[string]any)["result_state"] != "SUCCESS" {
 		t.Fatalf("run %+v", out)
 	}
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Kind != "sql" || !strings.Contains(h.exec.Calls[0].Code, "SELECT 42") {
+	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Kind != "sql" || h.exec.Calls[0].Code != "SELECT 42" {
 		t.Fatalf("sql never reached the engine: %+v", h.exec.Calls)
 	}
 }

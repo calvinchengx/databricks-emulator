@@ -1,0 +1,17 @@
+# JVM Spark overlay for the 🟠 Delta row. Sail is not in this file.
+# The confirmer is still delta-rs on the host bind mount.
+services:
+  spark-jvm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "18101:8099"
+    volumes:
+      - ${DELTA_DATA:-/tmp/dbx-delta-jvm}:/data/delta
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 90s

@@ -4,7 +4,8 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
-	"io"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -80,11 +81,32 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 	}, nil
 }
 
+// Request bodies are read fully into memory, so an unbounded one is a denial
+// of service. Raw file uploads get a larger ceiling than the JSON control
+// plane. Spark Connect is exempt: its gRPC streams are framed, not buffered.
+const (
+	MaxJSONBody   int64 = 16 << 20  // 16 MiB
+	MaxUploadBody int64 = 256 << 20 // 256 MiB
+)
+
+// bodyLimit is the ceiling for a request the mux will route.
+func bodyLimit(r *http.Request) int64 {
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/api/2.0/fs/files/"),
+		strings.HasPrefix(r.URL.Path, "/api/2.0/workspace-files/import-file/"):
+		return MaxUploadBody
+	default:
+		return MaxJSONBody
+	}
+}
+
 // Handler returns the mux. Unmapped /api/* is 501, never 404.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("GET /.well-known/databricks-config", s.hostMetadata)
 	mux.HandleFunc("GET /oidc/.well-known/openid-configuration", s.discovery)
+	mux.HandleFunc("GET /oidc/.well-known/oauth-authorization-server", s.discovery)
 	mux.HandleFunc("GET /oidc/jwks.json", s.jwks)
 	mux.HandleFunc("POST /oidc/v1/token", s.token)
 
@@ -104,6 +126,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/2.0/workspace-files/import-file/", s.protect(s.workspaceFilesImport))
 	mux.HandleFunc("PUT /api/2.0/workspace-files/import-file/", s.protect(s.workspaceFilesImport))
 	mux.HandleFunc("GET /api/2.0/workspace-files/", s.protect(s.workspaceFilesGet))
+
+	mux.HandleFunc("POST /api/2.0/git-credentials", s.protect(s.gitCredentialsCreate))
+	mux.HandleFunc("GET /api/2.0/git-credentials", s.protect(s.gitCredentialsList))
+	mux.HandleFunc("GET /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsGet))
+	mux.HandleFunc("PATCH /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsUpdate))
+	mux.HandleFunc("DELETE /api/2.0/git-credentials/{credential_id}", s.protect(s.gitCredentialsDelete))
+
+	mux.HandleFunc("POST /api/2.0/repos", s.protect(s.reposCreate))
+	mux.HandleFunc("GET /api/2.0/repos", s.protect(s.reposList))
+	mux.HandleFunc("GET /api/2.0/repos/{repo_id}", s.protect(s.reposGet))
+	mux.HandleFunc("PATCH /api/2.0/repos/{repo_id}", s.protect(s.reposUpdate))
+	mux.HandleFunc("DELETE /api/2.0/repos/{repo_id}", s.protect(s.reposDelete))
 
 	mux.HandleFunc("POST /api/2.0/dbfs/put", s.protect(s.dbfsPut))
 	mux.HandleFunc("GET /api/2.0/dbfs/read", s.protect(s.dbfsRead))
@@ -178,10 +212,19 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET "+p+"list-node-types", s.protect(s.clustersNodeTypes))
 	}
 
+	mux.HandleFunc("POST /api/2.0/policies/clusters/create", s.protect(s.policiesCreate))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/get", s.protect(s.policiesGet))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/list", s.protect(s.policiesList))
+	mux.HandleFunc("POST /api/2.0/policies/clusters/edit", s.protect(s.policiesEdit))
+	mux.HandleFunc("POST /api/2.0/policies/clusters/delete", s.protect(s.policiesDelete))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/get-compliance", s.protect(s.policiesGetCompliance))
+	mux.HandleFunc("GET /api/2.0/policy-families", s.protect(s.policyFamiliesList))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {
 			// Serve through the mux so {wildcard} PathValue is populated.
+			r.Body = http.MaxBytesReader(w, r.Body, bodyLimit(r))
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -200,6 +243,13 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) hostMetadata(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"oidc_endpoint": s.Origin + "/oidc",
+		"workspace_id":  workspaceOrgID,
+	})
 }
 
 func (s *Server) discovery(w http.ResponseWriter, _ *http.Request) {
@@ -345,9 +395,15 @@ func pathFromURL(u *url.URL, prefix string) string {
 	return p
 }
 
-func readAll(r io.Reader) []byte {
-	b, _ := io.ReadAll(r)
-	return b
+// writeBodyErr reports a body that failed to read. Over the ceiling is 413.
+func writeBodyErr(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "MAX_REQUEST_SIZE_EXCEEDED",
+			fmt.Sprintf("request body exceeds %d bytes", tooLarge.Limit))
+		return
+	}
+	writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 }
 
 func parseInt64(s string) int64 {

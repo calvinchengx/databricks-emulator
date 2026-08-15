@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"os"
@@ -52,6 +53,19 @@ func Load(dataDir string) (tls.Certificate, error) {
 		return tls.Certificate{}, err
 	}
 	return tls.X509KeyPair(certPEM, keyPEM)
+}
+
+// ReadPEM returns the persisted certificate bytes. It never generates —
+// a healthcheck must pin the cert the running server already serves.
+func ReadPEM(dataDir string) ([]byte, error) {
+	if dataDir == "" {
+		return nil, fmt.Errorf("tls: no data dir")
+	}
+	b, err := os.ReadFile(filepath.Join(dataDir, "tls", "cert.pem"))
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 func generate() (certPEM, keyPEM []byte, err error) {

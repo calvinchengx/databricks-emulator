@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
@@ -16,7 +15,7 @@ func (s *Server) sqlCreateWarehouse(w http.ResponseWriter, r *http.Request, _ *a
 		ClusterSize string `json:"cluster_size"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.Name == "" {
@@ -78,7 +77,7 @@ func (s *Server) sqlExecuteStatement(w http.ResponseWriter, r *http.Request, _ *
 		Statement   string `json:"statement"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.Statement == "" || body.WarehouseID == "" {
@@ -143,7 +142,7 @@ func sparkSQLRequest(sql, session string) spark.Request {
 	return spark.Request{
 		Session: session,
 		Kind:    "sql",
-		Code:    fmt.Sprintf("print(spark.sql(%q).toJSON().collect())\n", sql),
+		Code:    sql,
 	}
 }
 

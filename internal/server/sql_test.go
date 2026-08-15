@@ -23,7 +23,7 @@ func TestSQLWarehouseStatementDialectAndMutation(t *testing.T) {
 	id := str(created["id"])
 
 	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
-		if req.Kind != "sql" || !strings.Contains(req.Code, "SELECT 1") {
+		if req.Kind != "sql" || req.Code != "SELECT 1" {
 			t.Fatalf("engine request %+v", req)
 		}
 		return spark.Result{OK: true, Stdout: `[{"1":1}]`}, nil
@@ -132,6 +132,186 @@ func TestSQLWarehouseMissingAndBadBodies(t *testing.T) {
 		"warehouse_id": "x", "statement": "",
 	}, nil); st != 400 {
 		t.Fatalf("empty statement %d", st)
+	}
+}
+
+func TestSQLWarehouseForwardsDeltaDML(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "dml"}, &created)
+	id := str(created["id"])
+
+	statements := []string{
+		"DELETE FROM events WHERE id = 2",
+		"MERGE INTO events AS t USING updates AS s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.name = s.name WHEN NOT MATCHED THEN INSERT *",
+		"UPDATE events SET name = 'zed' WHERE id = 1",
+		"INSERT OVERWRITE TABLE race VALUES (1, 'race-a')",
+	}
+	for _, stmt := range statements {
+		h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+			if req.Kind != "sql" || req.Code != stmt {
+				t.Fatalf("engine request %+v want kind=sql code=%q", req, stmt)
+			}
+			return spark.Result{OK: true, Stdout: "ok"}, nil
+		}
+		var execd map[string]any
+		if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+			"warehouse_id": id, "statement": stmt,
+		}, &execd); st != 200 {
+			t.Fatalf("%s: %d %+v", stmt, st, execd)
+		}
+		if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+			t.Fatalf("forwarded %s: %+v", stmt, execd)
+		}
+	}
+
+	h.exec.Hook = func(spark.Request) (spark.Result, error) {
+		return spark.Result{OK: false, EValue: "found UPDATE at 0:6 expected something else"}, nil
+	}
+	var upd map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "UPDATE events SET name = 'zed' WHERE id = 1",
+	}, &upd)
+	errObj, _ := upd["status"].(map[string]any)["error"].(map[string]any)
+	if upd["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("update fail %+v", upd)
+	}
+	if !strings.Contains(str(errObj["message"]), "UPDATE") {
+		t.Fatalf("update error %+v", upd)
+	}
+
+	h.srv.Spark = nil
+	var missing map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "DELETE FROM events WHERE id = 1",
+	}, &missing)
+	if missing["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("no engine DELETE %+v", missing)
+	}
+	errObj, _ = missing["status"].(map[string]any)["error"].(map[string]any)
+	if !strings.Contains(str(errObj["message"]), "DATABRICKS_SPARK_CONNECT_URL") {
+		t.Fatalf("DELETE must name the missing engine %+v", missing)
+	}
+}
+
+func TestSQLWarehouseForwardsThreePartNames(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "uc"}, &created)
+	id := str(created["id"])
+
+	stmt := "INSERT INTO e2e.s.events VALUES (5, 'erin')"
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Kind != "sql" || req.Code != stmt {
+			t.Fatalf("three-part rewritten %+v", req)
+		}
+		return spark.Result{OK: true, Stdout: "ok"}, nil
+	}
+	var execd map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": stmt,
+	}, &execd); st != 200 {
+		t.Fatalf("execute %d %+v", st, execd)
+	}
+	if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("forwarded three-part: %+v", execd)
+	}
+
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Code != stmt {
+			t.Fatalf("engine request %+v", req)
+		}
+		return spark.Result{OK: false, EValue: "TABLE_OR_VIEW_NOT_FOUND e2e.s.events"}, nil
+	}
+	var named map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": stmt,
+	}, &named)
+	errObj, _ := named["status"].(map[string]any)["error"].(map[string]any)
+	if named["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("three-part fail %+v", named)
+	}
+	if !strings.Contains(str(errObj["message"]), "e2e.s.events") {
+		t.Fatalf("three-part error %+v", named)
+	}
+
+	h.srv.Spark = nil
+	var missing map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": stmt,
+	}, &missing)
+	if missing["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("no engine three-part %+v", missing)
+	}
+	errObj, _ = missing["status"].(map[string]any)["error"].(map[string]any)
+	if !strings.Contains(str(errObj["message"]), "DATABRICKS_SPARK_CONNECT_URL") {
+		t.Fatalf("three-part must name the missing engine %+v", missing)
+	}
+}
+
+func TestSQLWarehouseForwardsDeltaMaintenance(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "maint"}, &created)
+	id := str(created["id"])
+
+	statements := []string{
+		"OPTIMIZE events",
+		"VACUUM events RETAIN 0 HOURS",
+		"OPTIMIZE delta.`file:///data/delta/e2e/events`",
+		"VACUUM delta.`file:///data/delta/e2e/events` RETAIN 0 HOURS",
+	}
+	for _, stmt := range statements {
+		h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+			if req.Kind != "sql" || req.Code != stmt {
+				t.Fatalf("engine request %+v want kind=sql code=%q", req, stmt)
+			}
+			return spark.Result{OK: true, Stdout: "ok"}, nil
+		}
+		var execd map[string]any
+		if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+			"warehouse_id": id, "statement": stmt,
+		}, &execd); st != 200 {
+			t.Fatalf("%s: %d %+v", stmt, st, execd)
+		}
+		if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+			t.Fatalf("forwarded %s: %+v", stmt, execd)
+		}
+	}
+
+	zorder := "OPTIMIZE events ZORDER BY name"
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Kind != "sql" || req.Code != zorder {
+			t.Fatalf("ZORDER rewritten %+v", req)
+		}
+		return spark.Result{OK: false, EValue: "OPTIMIZE ... ZORDER is not supported by the delta-rs path"}, nil
+	}
+	var named map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": zorder,
+	}, &named)
+	errObj, _ := named["status"].(map[string]any)["error"].(map[string]any)
+	if named["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("ZORDER fail %+v", named)
+	}
+	if !strings.Contains(str(errObj["message"]), "ZORDER") {
+		t.Fatalf("ZORDER error %+v", named)
+	}
+
+	h.srv.Spark = nil
+	var missing map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "OPTIMIZE events",
+	}, &missing)
+	if missing["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("no engine OPTIMIZE %+v", missing)
+	}
+	errObj, _ = missing["status"].(map[string]any)["error"].(map[string]any)
+	if !strings.Contains(str(errObj["message"]), "DATABRICKS_SPARK_CONNECT_URL") {
+		t.Fatalf("OPTIMIZE must name the missing engine %+v", missing)
 	}
 }
 

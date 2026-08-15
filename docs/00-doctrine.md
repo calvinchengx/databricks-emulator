@@ -49,11 +49,11 @@ point at the same host:
 Unity Catalog CRUD attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
 (`DATABRICKS_UC_URL`); there is no invented metastore. Grants stay refused
 until they deny. SQL warehouses and Databricks Connect attach the same Spark
-engine. Clusters as VMs and Photon never.
+engine. Clusters as VMs and Photon are not implemented.
 
 ## Reachable, if honest
 
-| Surface | Honest attach |
+| Feature | Honest attach |
 |---|---|
 | Workspace files / notebooks | File-backed store |
 | Jobs 2.2 | Python / notebook on Sail or JVM Spark |
@@ -63,9 +63,11 @@ engine. Clusters as VMs and Photon never.
 | Clusters | Session handle onto the attached engine, not a VM |
 | Unity Catalog CRUD | UC OSS sidecar |
 | Databricks Connect | Spark Connect |
+| Git Credentials / Repos | git clone into the workspace store |
+| Cluster policies | Enforced JSON definition on cluster create |
 | Identity | PAT + emulator OIDC; Entra optional |
 
-## Permanently red
+## Not implemented
 
 - Photon and any "DBR compatible" claim
 - Full `dbutils` / `spark.databricks.*` runtime
@@ -77,7 +79,11 @@ engine. Clusters as VMs and Photon never.
 
 ## Proof
 
+The **catalog** of what real Databricks offers at the workspace host is the
+[workspace REST API reference](https://docs.databricks.com/api/workspace/).
+Account-level APIs and Databricks Runtime are out of that catalog.
+
 A row is green only when a witness exists: an unmodified client (`databricks-sdk`,
 `databricks/databricks` Terraform, Databricks CLI, or fabric-emulator's Databricks activity) drove the call, and
 the engine or store actually did the work. Status without a witness is not
-support. See [parity.md](parity.md).
+support. See [parity.md](parity.md), then the [quickstart](01-quickstart.md).

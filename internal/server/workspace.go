@@ -209,7 +209,7 @@ func (s *Server) workspaceStatus(w http.ResponseWriter, r *http.Request, _ *auth
 		writeWorkspaceErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, obj)
+	writeJSON(w, http.StatusOK, s.overlayRepo(obj))
 }
 
 func (s *Server) workspaceList(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -221,6 +221,9 @@ func (s *Server) workspaceList(w http.ResponseWriter, r *http.Request, _ *auth.P
 	if err != nil {
 		writeWorkspaceErr(w, err)
 		return
+	}
+	for i := range objs {
+		objs[i] = s.overlayRepo(objs[i])
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"objects": objs})
 }
@@ -247,12 +250,19 @@ func (s *Server) workspaceDelete(w http.ResponseWriter, r *http.Request, _ *auth
 		writeWorkspaceErr(w, err)
 		return
 	}
+	s.Store.Git.DropRepoByPath(body.Path)
 	writeJSON(w, http.StatusOK, map[string]any{})
 }
 
 func (s *Server) workspaceFilesImport(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
 	p := pathFromURL(r.URL, "/api/2.0/workspace-files/import-file/")
-	if err := s.Store.Workspace.Put(p, readAll(r.Body), store.ObjectFile, ""); err != nil {
+	// Not io.ReadAll-and-ignore: past the ceiling that writes a truncated file.
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeBodyErr(w, err)
+		return
+	}
+	if err := s.Store.Workspace.Put(p, raw, store.ObjectFile, ""); err != nil {
 		writeWorkspaceErr(w, err)
 		return
 	}

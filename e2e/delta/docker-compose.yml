@@ -1,0 +1,60 @@
+# Sail writes Delta; the CI job confirms with delta-rs on the same bind mount.
+# The engine that wrote is never the one that confirms.
+# ENTRA_TOKEN_URL is unset on Sail so the launcher execs the server.
+#
+# UC OSS shares this network so Sail's unity catalog provider can resolve
+# three-part names (cat.sch.tbl). The emulator on the host proxies UC REST
+# at the published port; Sail dials http://uc:8080 inside Compose. That is
+# not the JVM UCSingleCatalog plugin — Sail's own provider, documented at
+# https://docs.lakesail.com/sail/latest/guide/catalog/unity.html
+services:
+  uc:
+    image: unitycatalog/unitycatalog:${UC_VERSION:-v0.5.0}
+    ports:
+      - "18452:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/2.1/unity-catalog/catalogs"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 20s
+
+  sail:
+    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION:-0.22.0}
+    depends_on:
+      uc:
+        condition: service_healthy
+    ports:
+      - "15051:50051"
+    volumes:
+      - ${DELTA_DATA}:/data/delta
+    environment:
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+      RUST_LOG: "info"
+      UNITY_ALLOW_HTTP_URL: "true"
+      SAIL_CATALOG__DEFAULT_CATALOG: sail
+      # `sail` is the memory catalog LOCATION DML uses. `e2e` is the Spark
+      # catalog name matching the UC catalog the witness creates.
+      SAIL_CATALOG__LIST: '[{name="sail", type="memory", initial_database=["default"]}, {type="unity", name="e2e", uri="http://uc:8080/api/2.1/unity-catalog", default_catalog="e2e"}]'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  spark-agent:
+    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:-0.22.0}
+    depends_on:
+      sail:
+        condition: service_healthy
+    ports:
+      - "18100:8099"
+    volumes:
+      - ${DELTA_DATA}:/data/delta
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

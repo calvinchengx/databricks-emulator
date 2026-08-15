@@ -21,6 +21,9 @@ func TestDBFSPutGetListMoveDeleteAndTraversal(t *testing.T) {
 	if string(got) != "hello-dbfs" {
 		t.Fatalf("got %q", got)
 	}
+	if st := h.json("GET", "/api/2.0/dbfs/read?path=/tmp/a.txt&offset=0&length=2000000", pat, nil, nil); st != 400 {
+		t.Fatalf("oversize length %d", st)
+	}
 	var stt map[string]any
 	h.json("GET", "/api/2.0/dbfs/get-status?path=/tmp/a.txt", pat, nil, &stt)
 	if stt["is_dir"] != false {

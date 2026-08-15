@@ -20,15 +20,17 @@ const (
 
 func (s *Server) clustersCreate(w http.ResponseWriter, r *http.Request, p *auth.Principal) {
 	var body struct {
-		ClusterName  string `json:"cluster_name"`
-		SparkVersion string `json:"spark_version"`
-		NodeTypeID   string `json:"node_type_id"`
-		NumWorkers   int    `json:"num_workers"`
-		Autoscale    any    `json:"autoscale"`
-		Libraries    any    `json:"libraries"`
+		ClusterName              string `json:"cluster_name"`
+		SparkVersion             string `json:"spark_version"`
+		NodeTypeID               string `json:"node_type_id"`
+		NumWorkers               int    `json:"num_workers"`
+		Autoscale                any    `json:"autoscale"`
+		Libraries                any    `json:"libraries"`
+		PolicyID                 string `json:"policy_id"`
+		ApplyPolicyDefaultValues bool   `json:"apply_policy_default_values"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.ClusterName == "" {
@@ -45,13 +47,23 @@ func (s *Server) clustersCreate(w http.ResponseWriter, r *http.Request, p *auth.
 			"libraries installs packages on a cluster whose lifecycle the emulator does not own")
 		return
 	}
-	if body.SparkVersion == "" {
-		body.SparkVersion = emulatorSparkVersion
+	attrs := store.ClusterAttrs{
+		SparkVersion: body.SparkVersion,
+		NodeTypeID:   body.NodeTypeID,
+		NumWorkers:   body.NumWorkers,
 	}
-	if body.NodeTypeID == "" {
-		body.NodeTypeID = emulatorNodeType
+	if err := s.enforcePolicy(body.PolicyID, &attrs); err != nil {
+		status, code := policyErr(err)
+		writeError(w, status, code, err.Error())
+		return
 	}
-	cl := s.Store.Clusters.Create(body.ClusterName, body.SparkVersion, body.NodeTypeID, body.NumWorkers, p.UserName)
+	if attrs.SparkVersion == "" {
+		attrs.SparkVersion = emulatorSparkVersion
+	}
+	if attrs.NodeTypeID == "" {
+		attrs.NodeTypeID = emulatorNodeType
+	}
+	cl := s.Store.Clusters.Create(body.ClusterName, attrs.SparkVersion, attrs.NodeTypeID, attrs.NumWorkers, p.UserName, body.PolicyID)
 	if err := s.startClusterSession(cl); err != nil {
 		s.Store.Clusters.Delete(cl.ID)
 		writeError(w, http.StatusBadRequest, "INVALID_STATE", err.Error())
@@ -83,7 +95,7 @@ func (s *Server) clustersStart(w http.ResponseWriter, r *http.Request, _ *auth.P
 		ClusterID string `json:"cluster_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	cl, ok := s.Store.Clusters.Get(body.ClusterID)
@@ -103,7 +115,7 @@ func (s *Server) clustersDelete(w http.ResponseWriter, r *http.Request, _ *auth.
 		ClusterID string `json:"cluster_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if !s.Store.Clusters.Delete(body.ClusterID) {
@@ -166,7 +178,7 @@ func (s *Server) startClusterSession(cl *store.Cluster) error {
 }
 
 func clusterJSON(cl *store.Cluster) map[string]any {
-	return map[string]any{
+	out := map[string]any{
 		"cluster_id":        cl.ID,
 		"cluster_name":      cl.Name,
 		"spark_version":     cl.SparkVersion,
@@ -178,4 +190,8 @@ func clusterJSON(cl *store.Cluster) map[string]any {
 		"cluster_source":    "API",
 		"executedBy":        "the emulator's Spark engine, not a Databricks cluster VM",
 	}
+	if cl.PolicyID != "" {
+		out["policy_id"] = cl.PolicyID
+	}
+	return out
 }

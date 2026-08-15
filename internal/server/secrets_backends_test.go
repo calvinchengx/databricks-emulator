@@ -50,6 +50,9 @@ func TestSecretsBytesValueAndSparkConf(t *testing.T) {
 	if h.exec.Calls[0].Conf["spark.hadoop.fs.s3a.secret"] != "from-bytes" {
 		t.Fatalf("spark_conf not resolved: %+v", h.exec.Calls[0].Conf)
 	}
+	if !strings.Contains(h.exec.Calls[0].Code, "from-bytes") {
+		t.Fatalf("bytes secret never reached the driver preamble: %s", h.exec.Calls[0].Code)
+	}
 }
 
 func TestSecretsACLRefused(t *testing.T) {
@@ -154,6 +157,9 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "first" {
 		t.Fatalf("first resolve %+v", h.exec.Calls)
 	}
+	if !strings.Contains(h.exec.Calls[0].Code, "first") {
+		t.Fatalf("first vault value never reached the driver: %s", h.exec.Calls[0].Code)
+	}
 
 	value.Store("rotated")
 	h.exec.Calls = nil
@@ -162,6 +168,9 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	h.waitRun(int64(run2["run_id"].(float64)))
 	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "rotated" {
 		t.Fatalf("rotate did not read through: %+v", h.exec.Calls)
+	}
+	if !strings.Contains(h.exec.Calls[0].Code, "rotated") {
+		t.Fatalf("rotated vault value never reached the driver: %s", h.exec.Calls[0].Code)
 	}
 
 	var scopes map[string]any
@@ -223,6 +232,9 @@ func TestAKVScopeUsesVaultAudienceToken(t *testing.T) {
 	h.waitRun(int64(run["run_id"].(float64)))
 	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "from-vault" {
 		t.Fatalf("resolve %+v", h.exec.Calls)
+	}
+	if !strings.Contains(h.exec.Calls[0].Code, "from-vault") {
+		t.Fatalf("vault value never reached the driver: %s", h.exec.Calls[0].Code)
 	}
 	if sawAuth != "Bearer vault-aud" {
 		t.Fatalf("vault saw %q", sawAuth)

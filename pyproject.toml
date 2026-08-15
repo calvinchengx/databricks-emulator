@@ -1,0 +1,27 @@
+[project]
+name = "databricks-emulator-python"
+version = "0.1.0"
+description = "Locked Python tooling and end-to-end witnesses for databricks-emulator"
+requires-python = ">=3.12"
+dependencies = []
+
+# Named groups, same shape as fabric-emulator: each e2e that needs a
+# stranger client declares it here and locks it in uv.lock. A floating
+# `pip install databricks-sdk` is not a witness.
+[dependency-groups]
+sdk = [
+    "databricks-sdk==0.129.0",
+]
+# databricks-connect 19.1 Requires-Python ==3.12.*
+engine = [
+    { include-group = "sdk" },
+    "databricks-connect==19.1",
+]
+# Confirmer is delta-rs, not Sail. Same pin family as fabric's delta-rs group.
+delta = [
+    { include-group = "sdk" },
+    "deltalake==0.25.5",
+]
+
+[tool.uv]
+package = false

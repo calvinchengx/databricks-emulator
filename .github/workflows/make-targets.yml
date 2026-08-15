@@ -22,6 +22,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
       - name: Install GNU Make (Windows only)
         if: runner.os == 'Windows'
         run: choco install make --no-progress -y
@@ -34,7 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for t in help doctor build test e2e e2e-terraform clean witnesses; do
+          for t in help doctor build test e2e e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc clean witnesses; do
             echo "=== make -n $t ==="
             make -n "$t"
           done

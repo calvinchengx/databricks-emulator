@@ -28,7 +28,7 @@ func (s *Server) jobsCreate(w http.ResponseWriter, r *http.Request, _ *auth.Prin
 func (s *Server) jobsReset(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
 	var raw map[string]json.RawMessage
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	id := int64From(raw["job_id"])
@@ -365,18 +365,9 @@ func (s *Server) runTask(t store.Task) store.TaskRun {
 		req = sparkSQLRequest(code, "job-"+t.Key)
 		req.Env, req.Conf = env, conf
 	} else {
-		var preamble string
-		if t.NotebookPath != "" {
-			pj, _ := json.Marshal(t.NotebookParams)
-			preamble = fmt.Sprintf("import json\nfor __k, __v in json.loads(%q).items():\n    globals()[__k] = __v\n", string(pj))
-		} else {
-			argv := append([]string{path}, t.PythonParams...)
-			aj, _ := json.Marshal(argv)
-			preamble = fmt.Sprintf("import sys, json\nsys.argv = json.loads(%q)\n", string(aj))
-		}
 		req = spark.Request{
 			Session: "job-" + t.Key,
-			Code:    preamble + code,
+			Code:    pythonPreamble(t, path, env) + code,
 			Kind:    "python",
 			Env:     env,
 			Conf:    conf,
@@ -399,6 +390,29 @@ func (s *Server) runTask(t store.Task) store.TaskRun {
 	}
 	tr.ResultState = "SUCCESS"
 	return tr
+}
+
+// pythonPreamble delivers argv, notebook params, and resolved secrets the
+// way a Databricks cluster would: the workspace process resolves
+// {{secrets}} and the driver sees them in os.environ. The family's
+// spark-agent drops req.Env, so baking the map into the code is the
+// attach, not a lookalike.
+func pythonPreamble(t store.Task, path string, env map[string]string) string {
+	var b strings.Builder
+	b.WriteString("import json, os, sys\n")
+	if t.NotebookPath != "" {
+		pj, _ := json.Marshal(t.NotebookParams)
+		fmt.Fprintf(&b, "for __k, __v in json.loads(%q).items():\n    globals()[__k] = __v\n", string(pj))
+	} else {
+		argv := append([]string{path}, t.PythonParams...)
+		aj, _ := json.Marshal(argv)
+		fmt.Fprintf(&b, "sys.argv = json.loads(%q)\n", string(aj))
+	}
+	if len(env) > 0 {
+		ej, _ := json.Marshal(env)
+		fmt.Fprintf(&b, "os.environ.update(json.loads(%q))\n", string(ej))
+	}
+	return b.String()
 }
 
 func (s *Server) loadTaskCode(t store.Task) (code, path string, err error) {

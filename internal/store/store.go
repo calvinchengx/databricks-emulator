@@ -21,6 +21,8 @@ type Store struct {
 	Secrets   *Secrets
 	SQL       *SQL
 	Clusters  *Clusters
+	Git       *Git
+	Policies  *Policies
 }
 
 // Open creates dataDir, seeds identity on first run, and opens file stores.
@@ -47,6 +49,14 @@ func Open(dataDir string, now int64) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	git, err := openGit(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	policies, err := openPolicies(dataDir)
+	if err != nil {
+		return nil, err
+	}
 	return &Store{
 		DataDir:    dataDir,
 		AdminPAT:   adminPAT,
@@ -59,5 +69,7 @@ func Open(dataDir string, now int64) (*Store, error) {
 		Secrets:    secrets,
 		SQL:        newSQL(),
 		Clusters:   newClusters(),
+		Git:        git,
+		Policies:   policies,
 	}, nil
 }

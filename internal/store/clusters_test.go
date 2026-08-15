@@ -4,7 +4,7 @@ import "testing"
 
 func TestClustersCRUDAndState(t *testing.T) {
 	c := newClusters()
-	cl := c.Create("dev", "emulator-spark", "emulator.session", 0, "admin")
+	cl := c.Create("dev", "emulator-spark", "emulator.session", 0, "admin", "")
 	if cl.ID == "" || cl.State != "PENDING" {
 		t.Fatalf("create %+v", cl)
 	}
