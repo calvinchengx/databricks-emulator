@@ -13,10 +13,11 @@ make build          # ./databricks-emulator
 make run            # https://localhost:8447
 ```
 
-`make doctor` checks for Go. Python is required for `make e2e` /
-`make witnesses`; Docker and **Python 3.12** are required for
-`make e2e-engine` (`databricks-connect==19.1`). Docker is required for
-`make e2e-uc` (UC OSS).
+`make doctor` checks for Go and [uv](https://docs.astral.sh/uv/) (the same
+Python toolchain as fabric-emulator). `make e2e` / `e2e-engine` / `e2e-delta`
+/ `e2e-uc` run through `uv run --frozen --group …` against `pyproject.toml`
+and `uv.lock`. Docker is required for the engine, Delta, and UC attaches.
+`databricks-connect==19.1` needs Python 3.12; uv reads `.python-version`.
 
 ## Docker / GHCR
 

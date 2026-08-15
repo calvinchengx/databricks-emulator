@@ -1,13 +1,21 @@
 # Everyday verbs for databricks-emulator. Identity is Databricks-native;
 # entra is an optional federated issuer. Engine e2e attaches Sail; UC e2e
 # attaches Unity Catalog OSS.
+#
+# Python e2e uses uv + the root pyproject.toml / uv.lock, same as
+# fabric-emulator. Do not add requirements.txt.
 
 ifeq ($(OS),Windows_NT)
   SHELL := sh.exe
   .SHELLFLAGS := -c
 endif
 
-PY ?= $(shell for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done)
+UV ?= uv
+# uv first, matching fabric-emulator: the project environment is the only
+# interpreter the witnesses run against. Bare python remains for stdlib
+# scripts on a machine that has not installed uv yet.
+PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
+	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
 .PHONY: help doctor build run test e2e e2e-terraform e2e-engine e2e-delta e2e-uc clean witnesses
 
@@ -18,6 +26,8 @@ help: ## Show the available targets
 doctor: ## Check the toolchain
 	@command -v go >/dev/null || { echo "go is required" >&2; exit 1; }
 	@go version
+	@command -v $(UV) >/dev/null || { echo "uv is required for e2e (https://docs.astral.sh/uv/); same toolchain as fabric-emulator" >&2; exit 1; }
+	@$(UV) --version
 
 build: ## Compile the binary
 	go build -o databricks-emulator ./cmd/databricks-emulator
@@ -29,9 +39,8 @@ test: ## go build, vet and unit tests
 	go build ./... && go vet ./... && go test ./...
 
 e2e: ## Unmodified databricks-sdk against a local server
-	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
-	$(PY) -m pip install -q -r e2e/sdk/requirements.txt
-	$(PY) e2e/sdk/run.py
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
+	$(UV) run --frozen --group sdk python e2e/sdk/run.py
 
 e2e-terraform: ## Unmodified databricks/databricks provider against a local server
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
@@ -39,24 +48,19 @@ e2e-terraform: ## Unmodified databricks/databricks provider against a local serv
 	$(PY) e2e/terraform/run.py
 
 e2e-engine: ## Unmodified databricks-sdk + databricks-connect with Sail attached
-	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
-	@$(PY) -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' \
-		|| { echo "e2e-engine needs Python 3.12 (databricks-connect==19.1 Requires-Python ==3.12.*); set PY=" >&2; exit 1; }
-	$(PY) -m pip install -q -r e2e/engine/requirements.txt
-	$(PY) e2e/engine/run.py
+	$(UV) run --frozen --group engine python e2e/engine/run.py
 
 e2e-delta: ## Warehouse SQL writes Delta via Sail; delta-rs confirms the log
-	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
-	$(PY) -m pip install -q -r e2e/delta/requirements.txt
-	$(PY) e2e/delta/run.py
+	$(UV) run --frozen --group delta python e2e/delta/run.py
 
 e2e-uc: ## Unmodified databricks-sdk Unity Catalog CRUD with UC OSS attached
-	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
-	$(PY) -m pip install -q -r e2e/sdk/requirements.txt
-	$(PY) e2e/uc/run.py
+	$(UV) run --frozen --group sdk python e2e/uc/run.py
 
 witnesses: ## Verify docs/witnesses.json points at real tests
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }

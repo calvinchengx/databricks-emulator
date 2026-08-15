@@ -39,11 +39,10 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.12'
-      - run: pip install -r e2e/sdk/requirements.txt
-      - run: python3 e2e/sdk/run.py
+          version: "0.12.3"
+      - run: uv run --frozen --group sdk python e2e/sdk/run.py
 
   e2e-terraform:
     name: Unmodified databricks/databricks
@@ -67,13 +66,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.12'
+          version: "0.12.3"
       - name: GHCR login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - run: pip install -r e2e/engine/requirements.txt
-      - run: python3 e2e/engine/run.py
+      - run: uv run --frozen --group engine python e2e/engine/run.py
 
   e2e-delta:
     name: Sail writes Delta; delta-rs confirms
@@ -83,13 +81,12 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.12'
+          version: "0.12.3"
       - name: GHCR login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - run: pip install -r e2e/delta/requirements.txt
-      - run: python3 e2e/delta/run.py
+      - run: uv run --frozen --group delta python e2e/delta/run.py
 
   e2e-uc:
     name: Unmodified SDK + UC OSS
@@ -99,8 +96,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.25'
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: '3.12'
-      - run: pip install -r e2e/sdk/requirements.txt
-      - run: python3 e2e/uc/run.py
+          version: "0.12.3"
+      - run: uv run --frozen --group sdk python e2e/uc/run.py

@@ -1,4 +1,0 @@
-# Pinned witness: the unmodified Databricks Python SDK.
-# A floating `pip install databricks-sdk` is not a witness — it is whatever
-# PyPI shipped the morning CI ran.
-databricks-sdk==0.129.0

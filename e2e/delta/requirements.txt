@@ -1,5 +1,0 @@
-# Writer is unmodified databricks-sdk through the warehouse API.
-# Confirmer is delta-rs (deltalake) — not Sail, not the SDK.
-# A floating pip install is not a witness.
--r ../sdk/requirements.txt
-deltalake==0.25.5

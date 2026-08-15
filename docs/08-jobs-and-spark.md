@@ -19,7 +19,8 @@ builds this binary, sets `DATABRICKS_SPARK_CONNECT_URL=http://127.0.0.1:8099`
 (Sail), and drives unmodified `databricks-sdk` plus pinned
 `databricks-connect==19.1`. `ENTRA_TOKEN_URL` is
 deliberately unset on Sail so the launcher execs the server instead of
-waiting on a Storage-audience mint. Python 3.12 is required (`Requires-Python ==3.12.*`).
+waiting on a Storage-audience mint. `uv run --frozen --group engine`
+supplies Python 3.12 (`databricks-connect==19.1` Requires-Python).
 
 To attach by hand:
 

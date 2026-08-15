@@ -12,12 +12,14 @@ percentage scores. Both run in CI.
 | `make witnesses` | `scripts/check_witnesses.py` — every 🟢 row in [parity.md](parity.md) names an existing CI job or Go test in [witnesses.json](witnesses.json). |
 | `make e2e` | Unmodified `databricks-sdk==0.129.0` (`e2e/sdk/run.py`, CI job `e2e-sdk`). |
 | `make e2e-terraform` | Unmodified `databricks/databricks` provider (`e2e/terraform/run.py`, CI job `e2e-terraform`). |
-| `make e2e-engine` | Unmodified `databricks-sdk==0.129.0` and `databricks-connect==19.1` with Sail + spark-agent (`e2e/engine/run.py`, CI job `e2e-engine`). Needs Docker and Python 3.12. |
+| `make e2e-engine` | Unmodified `databricks-sdk==0.129.0` and `databricks-connect==19.1` with Sail + spark-agent (`e2e/engine/run.py`, CI job `e2e-engine`). Needs Docker and uv (Python 3.12 via `.python-version`). |
 | `make e2e-delta` | Warehouse SQL writes Delta via Sail; **delta-rs** confirms the log (`e2e/delta/run.py`, CI job `e2e-delta`). Needs Docker. |
 | `make e2e-uc` | Unmodified `databricks-sdk==0.129.0` with UC OSS (`e2e/uc/run.py`, CI job `e2e-uc`). Needs Docker. |
 
-Pin the SDK. A floating `pip install databricks-sdk` is not a witness — it is
-whatever PyPI shipped the morning CI ran.
+Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
+`delta` groups). A floating `pip install databricks-sdk` is not a witness —
+it is whatever PyPI shipped the morning CI ran. Same toolchain as
+fabric-emulator: `uv run --frozen --group <name>`.
 
 ## Witness kinds
 

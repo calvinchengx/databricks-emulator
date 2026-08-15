@@ -73,7 +73,7 @@ keyvault) and drives cluster create, unmodified `databricks-connect`
 `SELECT 1`, a Python job whose logs contain `REACHED`, `{{secrets}}`
 printed from `os.environ`, an AKV-backed scope whose rotate is visible on
 the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
-and MCP `execute_sql`. Python 3.12 is required.
+and MCP `execute_sql`. Run it with `uv` (`.python-version` is 3.12).
 
 `make e2e-delta` writes a Delta table through the warehouse API onto Sail
 and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.

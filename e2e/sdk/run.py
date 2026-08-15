@@ -53,8 +53,8 @@ class ForeignIssuer:
     """A local JWKS issuer so the SDK can present a federated JWT.
 
     This is test setup, not a witness. The witness is WorkspaceClient.me()
-    with those tokens. openssl is the signer so e2e/sdk/requirements.txt
-    stays the pinned databricks-sdk only.
+    with those tokens. openssl is the signer so the sdk group in
+    pyproject.toml stays the pinned databricks-sdk only.
     """
 
     def __init__(self, work: Path) -> None:
