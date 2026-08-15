@@ -95,6 +95,7 @@ def confirm(host_table: Path, want_rows: list[tuple[int, str]], min_version: int
     version = dt.version()
     if version < min_version:
         raise SystemExit(f"delta log version {version} < {min_version}")
+    # PyArrow is a deltalake dependency. pandas is not; to_pandas() dies in CI.
     table = dt.to_pyarrow_table()
     cols = {c.lower(): c for c in table.column_names}
     if "id" not in cols or "name" not in cols:
