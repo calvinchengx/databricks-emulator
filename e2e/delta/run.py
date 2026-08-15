@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 HOST = "http://127.0.0.1:18451"
 AGENT = "http://127.0.0.1:18100"
+UC = "http://127.0.0.1:18452"
 TABLE = "file:///data/delta/e2e/events"
 COMPOSE = ["docker", "compose", "-f", str(HERE / "docker-compose.yml"), "-p", "dbx-e2e-delta"]
 
@@ -45,6 +46,7 @@ def start_emulator(bin_path: Path, data_dir: Path) -> subprocess.Popen[bytes]:
     env["DATABRICKS_ADDR"] = "127.0.0.1:18451"
     env["DATABRICKS_PUBLIC_URL"] = HOST
     env["DATABRICKS_SPARK_CONNECT_URL"] = AGENT
+    env["DATABRICKS_UC_URL"] = UC
     proc = subprocess.Popen([str(bin_path)], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     wait_http(HOST + "/health")
     return proc
@@ -120,6 +122,7 @@ def main() -> int:
     try:
         subprocess.run(COMPOSE + ["up", "-d", "--wait"], check=True, env=env)
         wait_http(AGENT + "/health")
+        wait_http(UC + "/api/2.1/unity-catalog/catalogs", timeout=120)
         proc = start_emulator(bin_path, data_dir)
         pat = (data_dir / "admin.pat").read_text().strip()
         w = WorkspaceClient(host=HOST, token=pat)
@@ -158,20 +161,63 @@ def main() -> int:
 
         # Standalone UPDATE: Sail must fail loudly or actually write. A
         # SUCCEEDED no-op is the lookalike this slice refuses.
+        after_dml = [(1, "alice"), (3, "carol-upd"), (4, "dave")]
         state, err = exec_sql(w, wh.id, "UPDATE events SET name = 'zed' WHERE id = 1")
         if state in {"SUCCEEDED", "SUCCESS"}:
-            v5 = confirm(host_table, [(1, "zed"), (3, "carol-upd"), (4, "dave")], min_version=v4 + 1)
-            print(
-                f"e2e/delta: Sail wrote, delta-rs confirmed versions "
-                f"{v1} then {v2} then DELETE {v3} then MERGE {v4} then UPDATE {v5}"
-            )
+            after_dml = [(1, "zed"), (3, "carol-upd"), (4, "dave")]
+            v_upd = confirm(host_table, after_dml, min_version=v4 + 1)
+            dml = f"{v1} then {v2} then DELETE {v3} then MERGE {v4} then UPDATE {v_upd}"
         else:
-            confirm(host_table, [(1, "alice"), (3, "carol-upd"), (4, "dave")], min_version=v4)
+            confirm(host_table, after_dml, min_version=v4)
             if "SUCCEEDED" in err:
                 raise SystemExit(f"UPDATE failed but named success: {err}")
+            dml = f"{v1} then {v2} then DELETE {v3} then MERGE {v4}; UPDATE refused ({err})"
+
+        # UC metadata points at the same files. Sail has no UCSingleCatalog
+        # attach, so three-part INSERT must fail loudly or actually write.
+        from databricks.sdk.service.catalog import ColumnInfo, ColumnTypeName, DataSourceFormat, TableType
+
+        w.catalogs.create(name="e2e")
+        w.schemas.create(name="s", catalog_name="e2e")
+        w.tables.create(
+            name="events",
+            catalog_name="e2e",
+            schema_name="s",
+            table_type=TableType.EXTERNAL,
+            data_source_format=DataSourceFormat.DELTA,
+            storage_location=TABLE,
+            columns=[ColumnInfo(
+                name="id",
+                type_name=ColumnTypeName.INT,
+                type_text="int",
+                type_json='{"name":"id","type":"integer","nullable":true,"metadata":{}}',
+                position=0,
+                nullable=True,
+            ), ColumnInfo(
+                name="name",
+                type_name=ColumnTypeName.STRING,
+                type_text="string",
+                type_json='{"name":"name","type":"string","nullable":true,"metadata":{}}',
+                position=1,
+                nullable=True,
+            )],
+        )
+        got = w.tables.get("e2e.s.events")
+        loc = (got.storage_location or "").rstrip("/")
+        if loc != TABLE.rstrip("/"):
+            raise SystemExit(f"UC storage_location {got.storage_location!r} != {TABLE}")
+
+        state, err = exec_sql(w, wh.id, "INSERT INTO e2e.s.events VALUES (5, 'erin')")
+        if state in {"SUCCEEDED", "SUCCESS"}:
+            confirm(host_table, after_dml + [(5, "erin")], min_version=v4 + 1)
+            print(f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; UC three-part INSERT wrote")
+        else:
+            confirm(host_table, after_dml, min_version=v4)
+            if "SUCCEEDED" in err:
+                raise SystemExit(f"three-part INSERT failed but named success: {err}")
             print(
-                f"e2e/delta: Sail wrote, delta-rs confirmed versions "
-                f"{v1} then {v2} then DELETE {v3} then MERGE {v4}; UPDATE refused ({err})"
+                f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
+                f"UC location bound, three-part INSERT refused ({err})"
             )
         return 0
     finally:

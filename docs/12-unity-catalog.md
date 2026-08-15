@@ -27,6 +27,12 @@ Witness: `ci:e2e-uc` — unmodified `databricks-sdk` creates catalog `e2e`, sche
 attaches `unitycatalog/unitycatalog:v0.5.0`. MANAGED create and grants stay
 501 even with the sidecar.
 
+`make e2e-delta` also attaches UC OSS and points an EXTERNAL table's
+`storage_location` at the Sail-written Delta directory. That binds
+metadata to the files. It is not a three-part write attach: Sail has no
+`UCSingleCatalog` plugin, and this process does not rewrite
+`INSERT INTO cat.sch.tbl` into a path.
+
 ## What is refused here, even with a sidecar
 
 | Call | Why |

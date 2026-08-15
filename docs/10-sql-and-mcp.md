@@ -42,7 +42,11 @@ go down this same warehouse path onto Sail. The witness is **not** a Sail
 `COUNT(*)`. `make e2e-delta` writes to a shared volume and **delta-rs**
 (`deltalake`) reads `_delta_log` and the rows. The engine that wrote is
 never the one that confirms. Standalone `UPDATE` is forwarded; Sail
-answers FAILED (`CommandNode::Update`), never a silent no-op.
+answers FAILED (`CommandNode::Update`), never a silent no-op. A UC
+EXTERNAL table can point `storage_location` at the same files; three-part
+`INSERT INTO cat.sch.tbl` is forwarded to Sail and fails until an engine
+that loads `UCSingleCatalog` is attached — this process does not rewrite
+the name.
 
 Photon is not this path. See [parity.md](parity.md).
 
