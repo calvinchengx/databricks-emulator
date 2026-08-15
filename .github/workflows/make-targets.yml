@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for t in help doctor build test e2e clean witnesses; do
+          for t in help doctor build test e2e e2e-terraform clean witnesses; do
             echo "=== make -n $t ==="
             make -n "$t"
           done

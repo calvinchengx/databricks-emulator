@@ -1,0 +1,18 @@
+# The DAB pair this phase witnesses: workspace files + a job.
+# `databricks bundle deploy` is the CLI spelling of the same surfaces
+# terraform apply already drives. Permissions / repos stay 501 — this
+# file is the bundle shape, not a claim that the CLI completed deploy.
+bundle:
+  name: tf-e2e
+
+workspace:
+  root_path: /Users/admin/.bundle/tf-e2e
+
+resources:
+  jobs:
+    hello:
+      name: tf-hello
+      tasks:
+        - task_key: run
+          spark_python_task:
+            python_file: ${workspace.root_path}/tf-job.py

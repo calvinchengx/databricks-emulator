@@ -8,7 +8,7 @@ endif
 
 PY ?= $(shell for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done)
 
-.PHONY: help doctor build run test e2e clean witnesses
+.PHONY: help doctor build run test e2e e2e-terraform clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -31,6 +31,11 @@ e2e: ## Unmodified databricks-sdk against a local server
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
 	$(PY) -m pip install -q -r e2e/sdk/requirements.txt
 	$(PY) e2e/sdk/run.py
+
+e2e-terraform: ## Unmodified databricks/databricks provider against a local server
+	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	@command -v terraform >/dev/null || { echo "terraform is required on PATH" >&2; exit 1; }
+	$(PY) e2e/terraform/run.py
 
 witnesses: ## Verify docs/witnesses.json points at real tests
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }

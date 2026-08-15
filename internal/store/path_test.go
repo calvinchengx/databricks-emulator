@@ -25,3 +25,12 @@ func TestCleanRelRejectsTraversal(t *testing.T) {
 		t.Fatalf("dbfs = %q %v", dp, err)
 	}
 }
+
+func TestObjectIDStableAndNonZero(t *testing.T) {
+	a := ObjectID("/Users/admin/tf-hello")
+	b := ObjectID("/Users/admin/tf-hello")
+	c := ObjectID("/Users/admin/other")
+	if a == 0 || a != b || a == c {
+		t.Fatalf("object id a=%d b=%d c=%d", a, b, c)
+	}
+}

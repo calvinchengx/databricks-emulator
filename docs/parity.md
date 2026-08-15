@@ -8,7 +8,7 @@ A row is 🟢 **Real** only when an unmodified client drove the call and the
 attached engine or store actually did the work. Status without a witness is
 not support. See [00-doctrine.md](00-doctrine.md).
 
-**Witnessed claims: 16.** See [witnesses.json](witnesses.json).
+**Witnessed claims: 17.** See [witnesses.json](witnesses.json).
 
 | Surface | What would make it real | Status |
 |---|---|---|
@@ -29,6 +29,7 @@ not support. See [00-doctrine.md](00-doctrine.md).
 | Unity Catalog grants | Enforcement, not allow-all CRUD | 🔴 refuse (not shipped until they deny) |
 | Databricks Connect | Spark Connect | 🟢 Real (engine attached) |
 | MCP — Databricks SQL | Same SQL warehouse handler, behind PAT/OIDC | 🟢 Real (engine attached) |
+| Terraform / DAB pair | Unmodified `databricks/databricks`: current_user + notebook + workspace_file + job; `token=dev` refused | 🟢 Real |
 | MCP — Genie / AI Search / UC functions | — | 🔴 refuse |
 | Photon / DBR compatibility | — | 🔴 refuse |
 | Lakeflow / DLT | — | 🔴 refuse |

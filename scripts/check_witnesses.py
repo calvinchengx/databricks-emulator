@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Every witnesses.json claim must name a test that exists.
+"""Every witnesses.json claim must name a test or e2e script that exists.
 
 A 🟢 parity row is not support without a witness. This checker does not
 invent keys from the table — it verifies the explicit map the repo already
 keeps, and that `supported` matches the number of claims.
+
+A claim is either `file.go:TestName` (a Go test) or a path to an existing
+file (an unmodified-client e2e script).
 """
 
 from __future__ import annotations
@@ -28,7 +31,9 @@ def main() -> int:
     dangling = []
     for key, ref in claims.items():
         if ":" not in ref:
-            dangling.append(f"{key} → {ref} (want file:TestName)")
+            if (ROOT / ref).is_file():
+                continue
+            dangling.append(f"{key} → {ref} (no such file)")
             continue
         path, name = ref.rsplit(":", 1)
         src = ROOT / path

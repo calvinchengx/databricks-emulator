@@ -89,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /oidc/v1/token", s.token)
 
 	mux.HandleFunc("GET /api/2.0/preview/scim/v2/Me", s.protect(s.me))
+	mux.HandleFunc("GET /api/2.0/scim/v2/Me", s.protect(s.me))
 	mux.HandleFunc("POST /api/2.0/token/create", s.protect(s.tokenCreate))
 	mux.HandleFunc("GET /api/2.0/token/list", s.protect(s.tokenList))
 	mux.HandleFunc("POST /api/2.0/token/delete", s.protect(s.tokenDelete))
@@ -101,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/2.0/workspace/mkdirs", s.protect(s.workspaceMkdirs))
 	mux.HandleFunc("POST /api/2.0/workspace/delete", s.protect(s.workspaceDelete))
 	mux.HandleFunc("POST /api/2.0/workspace-files/import-file/", s.protect(s.workspaceFilesImport))
+	mux.HandleFunc("PUT /api/2.0/workspace-files/import-file/", s.protect(s.workspaceFilesImport))
 	mux.HandleFunc("GET /api/2.0/workspace-files/", s.protect(s.workspaceFilesGet))
 
 	mux.HandleFunc("POST /api/2.0/dbfs/put", s.protect(s.dbfsPut))
@@ -240,6 +242,11 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// workspaceOrgID is the numeric workspace id the official Terraform
+// provider parses from x-databricks-org-id. A non-integer value fails
+// strconv.ParseInt in databricks_current_user.
+const workspaceOrgID = "1"
+
 func (s *Server) protect(next func(http.ResponseWriter, *http.Request, *auth.Principal)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, err := s.Auth.AuthenticateRequest(r)
@@ -247,18 +254,20 @@ func (s *Server) protect(next func(http.ResponseWriter, *http.Request, *auth.Pri
 			write401(w, s.Origin+"/oidc", err.Error())
 			return
 		}
+		w.Header().Set("x-databricks-org-id", workspaceOrgID)
 		next(w, r, p)
 	}
 }
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request, p *auth.Principal) {
-	w.Header().Set("x-databricks-org-id", "databricks-emulator")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id":          p.ID,
 		"userName":    p.UserName,
 		"displayName": p.UserName,
 		"active":      true,
 		"emails":      []map[string]any{{"value": p.UserName + "@local", "primary": true}},
+		"home":        "/Users/" + p.UserName,
+		"repos":       "/Repos/" + p.UserName,
 	})
 }
 
