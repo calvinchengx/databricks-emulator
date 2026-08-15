@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
@@ -266,9 +267,30 @@ func (s *Server) mlGetExperimentByName(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"experiment": experimentJSON(exp)})
 }
 
+// maxResultsCap bounds a caller's max_results before it is narrowed to int.
+// The value only truncates an already-built slice, so the store is in no
+// danger from a large one — but int64 -> int is lossy on a 32-bit build,
+// where max_results=2147483648 wraps negative and silently becomes the
+// store's default instead of the ceiling the caller asked for. Clamping
+// first makes the conversion provably exact on every platform.
+const maxResultsCap = 50000
+
+// parseMaxResults reads a max_results query parameter. Absent, unparseable
+// or non-positive returns 0, which leaves the store's own default in place.
+func parseMaxResults(s string) int {
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	if n > maxResultsCap {
+		return maxResultsCap
+	}
+	return int(n)
+}
+
 func (s *Server) mlSearchExperiments(w http.ResponseWriter, r *http.Request) {
 	filter, view := query(r, "filter"), query(r, "view_type")
-	maxResults := int(parseInt64(query(r, "max_results")))
+	maxResults := parseMaxResults(query(r, "max_results"))
 	if r.Method == http.MethodPost {
 		var body struct {
 			Filter     string `json:"filter"`
@@ -631,7 +653,7 @@ func (s *Server) mlSearchModels(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "page_token is not implemented")
 		return
 	}
-	mods, err := s.Store.MLflow.SearchModels(query(r, "filter"), int(parseInt64(query(r, "max_results"))))
+	mods, err := s.Store.MLflow.SearchModels(query(r, "filter"), parseMaxResults(query(r, "max_results")))
 	if err != nil {
 		writeMLErr(w, err)
 		return
@@ -748,7 +770,7 @@ func (s *Server) mlSearchModelVersions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "page_token is not implemented")
 		return
 	}
-	vers, err := s.Store.MLflow.SearchModelVersions(query(r, "filter"), int(parseInt64(query(r, "max_results"))))
+	vers, err := s.Store.MLflow.SearchModelVersions(query(r, "filter"), parseMaxResults(query(r, "max_results")))
 	if err != nil {
 		writeMLErr(w, err)
 		return
