@@ -24,6 +24,11 @@ import re
 import subprocess
 import sys
 
+# Windows stdout is cp1252. This script prints the ledger glyphs; without
+# UTF-8 on stdout, `make-targets` dies on UnicodeEncodeError for 🟢.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PARITY = ROOT / "docs" / "parity.md"
 MANIFEST = ROOT / "docs" / "witnesses.json"
@@ -51,7 +56,7 @@ def key_for(feature: str) -> str:
 def green_claims():
     """Yield (section, feature, key) for every row claiming 🟢."""
     section = None
-    for line in PARITY.read_text().splitlines():
+    for line in PARITY.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             section = line[3:].strip()
             continue
@@ -70,7 +75,7 @@ def grade_counts() -> dict[str, int]:
     """Capability-row grades, using the same skip list as green_claims."""
     counts = {"🟢": 0, "🟡": 0, "🟠": 0, "🔴": 0}
     section = None
-    for line in PARITY.read_text().splitlines():
+    for line in PARITY.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
             section = line[3:].strip()
             continue
@@ -90,7 +95,7 @@ def grade_counts() -> dict[str, int]:
 
 
 def ci_job_ids() -> set[str]:
-    return set(re.findall(r"^  ([a-z0-9-]+):$", CI.read_text(), re.M))
+    return set(re.findall(r"^  ([a-z0-9-]+):$", CI.read_text(encoding="utf-8"), re.M))
 
 
 def go_test_names() -> set[str]:
@@ -111,7 +116,7 @@ def go_test_names() -> set[str]:
 
 def main() -> int:
     strict = "--strict" in sys.argv
-    raw = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    raw = json.loads(MANIFEST.read_text(encoding="utf-8")) if MANIFEST.exists() else {}
     # Family shape is a flat map of claim keys. A "claims" wrapper is accepted
     # so an older checkout of this file still parses.
     manifest = raw.get("claims", raw) if isinstance(raw, dict) else {}
