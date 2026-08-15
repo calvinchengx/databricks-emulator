@@ -97,6 +97,7 @@ claim are 🔴 Not implemented even though the docs mention them.
 | Delta writes — JVM overlay | Warehouse SQL on Apache Spark 3.5.5 + delta-spark (`make e2e-delta-jvm`), not Sail. Same **delta-rs** confirmer. `OPTIMIZE … ZORDER` is this row. | 🟠 Non-default engine |
 | Clusters as session handle | `POST /api/2.0/clusters/create` starts a Sail session (`print(1)` via the HTTP agent) or fails naming the missing engine. Never sleeps to `RUNNING`. Autoscale and cluster libraries stay refused. | 🟢 Real |
 | Cluster Policies / Policy Families / compliance | Policies persist. Create is denied when it violates `fixed` / `range` / `forbidden` / `allowlist` on `spark_version`, `node_type_id`, `num_workers`, `autoscale`, `libraries`. Unknown attributes are 501, not stored-and-ignored. One policy family: `emulator-session`. `get-compliance` reports the stored handle against that policy. | 🟢 Real |
+| Command Execution | `/api/1.2/contexts` + `/commands` on a RUNNING cluster handle. Python and SQL run on the attached Sail agent (`kind: python` / `kind: sql`). Scala / R are 501. Without the engine, context create fails naming `DATABRICKS_SPARK_CONNECT_URL`. | 🟢 Real |
 | Databricks Connect | After PAT/OIDC and `x-databricks-cluster-id` naming a RUNNING handle, `application/grpc` / `/spark.connect.…` is reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail `:50051`, h2c). The HTTP agent is not this backend; only that URL set is 501 naming the gRPC variable. Authorization stripped before the engine. | 🟢 Real |
 | Clusters as VMs | No hypervisor. A session handle is not a VM. | 🔴 Not implemented |
 | Photon / DBR compatibility | No Photon attach exists. Sail is Spark SQL over Spark Connect. | 🔴 Not implemented |
@@ -123,7 +124,6 @@ same style as the greens — not a product-page promise.
 
 | Feature | Emulator | Type |
 |---|---|---|
-| Command Execution | Would need a context-id session that runs on the attached Sail agent. | 🔴 Not implemented |
 | Global Init Scripts | Applied to a real cluster VM — we have no VMs. | 🔴 Not implemented |
 | Instance Pools / Instance Profiles | Real VMs / cloud instance profiles. | 🔴 Not implemented |
 | Managed Libraries | Installed on a real cluster VM. JARs on Sail have no classloader (fabric's JVM overlay is the 🟠 path; this repo does not ship one). | 🔴 Not implemented |

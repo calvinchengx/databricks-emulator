@@ -65,6 +65,7 @@ engine. Clusters as VMs and Photon are not implemented.
 | Databricks Connect | Spark Connect |
 | Git Credentials / Repos | git clone into the workspace store |
 | Cluster policies | Enforced JSON definition on cluster create |
+| Command Execution | Context-id session on the attached Sail agent |
 | Identity | PAT + emulator OIDC; Entra optional |
 
 ## Not implemented

@@ -52,6 +52,7 @@ git credentials, the persisted TLS pair.
 | Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log. Three-part names: Sail's unity provider dials UC OSS on the Compose network | No write witness — a Sail `COUNT(*)` is not one |
 | Git Credentials / Repos | `git` on PATH clones into `{dataDir}/workspace` | 501 naming the missing binary |
 | Cluster policies | Enforced on `clusters/create`; unknown attributes 501 | — |
+| Command Execution | Same HTTP statement agent as Jobs / SQL | Fail naming `DATABRICKS_SPARK_CONNECT_URL` |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.

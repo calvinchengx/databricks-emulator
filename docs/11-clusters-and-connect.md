@@ -45,6 +45,28 @@ against its policy.
 Witness: `ci:e2e-sdk` (mismatch is 400 naming the field; matching policy
 still fails naming the missing engine; unknown attributes 501).
 
+## Command Execution
+
+`/api/1.2/contexts/create` and `/api/1.2/commands/execute` after PAT/OIDC.
+The cluster must be RUNNING. Python and SQL are forwarded to the same
+statement agent Jobs and warehouses use (`kind: python` / `kind: sql`).
+Scala and R are 501. Without `DATABRICKS_SPARK_CONNECT_URL`, context
+create fails naming the engine.
+
+```python
+from databricks.sdk.service.compute import Language
+ctx = w.command_execution.create(cluster_id=cluster_id, language=Language.PYTHON).result()
+cmd = w.command_execution.execute(
+    cluster_id=cluster_id,
+    context_id=ctx.id,
+    language=Language.PYTHON,
+    command="print(1)",
+).result()
+print(cmd.results.data)
+```
+
+Witness: `ci:e2e-engine` (unmodified SDK `print('CMD-REACHED')` on Sail).
+
 ## Databricks Connect
 
 After PAT/OIDC, a gRPC request (`Content-Type: application/grpc` or path
