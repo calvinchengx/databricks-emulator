@@ -14,6 +14,7 @@ percentage scores. Both run in CI.
 | `make e2e-terraform` | Unmodified `databricks/databricks` provider (`e2e/terraform/run.py`, CI job `e2e-terraform`). |
 | `make e2e-engine` | Unmodified `databricks-sdk==0.129.0` and `databricks-connect==19.1` with Sail + spark-agent (`e2e/engine/run.py`, CI job `e2e-engine`). Needs Docker and uv (Python 3.12 via `.python-version`). |
 | `make e2e-delta` | Warehouse SQL writes Delta via Sail; **delta-rs** confirms the log (`e2e/delta/run.py`, CI job `e2e-delta`). Needs Docker. |
+| `make e2e-delta-jvm` | Warehouse SQL writes Delta via JVM Spark + delta-spark; **delta-rs** confirms (`e2e/delta-jvm/run.py`, CI job `e2e-delta-jvm`). 🟠 overlay. Needs Docker. |
 | `make e2e-uc` | Unmodified `databricks-sdk==0.129.0` with UC OSS (`e2e/uc/run.py`, CI job `e2e-uc`). Needs Docker. |
 
 Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
@@ -63,6 +64,10 @@ delta-rs confirms the new row. `OPTIMIZE` / `VACUUM` use
 grammar); `OPTIMIZE … ZORDER` is refused. Two concurrent `INSERT OVERWRITE`s
 on a second table: each success has its own log version; rows are one
 overwrite, not a silent merge.
+
+**`e2e-delta-jvm`** — the 🟠 overlay. Warehouse SQL on Apache Spark 3.5.5 +
+delta-spark (no Sail). Confirmation is still delta-rs. `OPTIMIZE … ZORDER`
+is this job.
 
 **`e2e-uc`** — `catalogs.create` / `schemas.create` / EXTERNAL `tables.create`
 plus `tables.get`; MANAGED create and `grants.get` are 501. The sidecar is

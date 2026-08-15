@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run test e2e e2e-terraform e2e-engine e2e-delta e2e-uc clean witnesses
+.PHONY: help doctor build run test e2e e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -56,6 +56,11 @@ e2e-delta: ## Warehouse SQL writes Delta via Sail; delta-rs confirms the log
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
 	$(UV) run --frozen --group delta python e2e/delta/run.py
+
+e2e-delta-jvm: ## Warehouse SQL writes Delta via JVM Spark; delta-rs confirms
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
+	$(UV) run --frozen --group delta python e2e/delta-jvm/run.py
 
 e2e-uc: ## Unmodified databricks-sdk Unity Catalog CRUD with UC OSS attached
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
