@@ -17,6 +17,7 @@ Identity is Databricks-native: a **seeded admin PAT** and this process's own
 ```bash
 make doctor
 make test
+make witnesses
 make run   # https://localhost:8447 — first run prints the admin PAT once
 ```
 
