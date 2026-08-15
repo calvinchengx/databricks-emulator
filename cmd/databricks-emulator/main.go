@@ -46,6 +46,9 @@ func run(args []string) error {
 	fs.BoolVar(&cfg.AKVTLSInsecure, "akv-tls-insecure", cfg.AKVTLSInsecure, "skip TLS when fetching Key Vault secrets")
 	fs.StringVar(&cfg.UCURL, "uc-url", cfg.UCURL, "Unity Catalog OSS sidecar origin")
 	fs.BoolVar(&cfg.UCTLSInsecure, "uc-tls-insecure", cfg.UCTLSInsecure, "skip TLS when talking to UC OSS")
+	fs.StringVar(&cfg.EntraTokenURL, "entra-token-url", cfg.EntraTokenURL, "optional Entra client-credentials URL for a vault-audience token")
+	fs.StringVar(&cfg.EntraClientID, "entra-client-id", cfg.EntraClientID, "confidential client id used to mint the vault-audience token")
+	fs.StringVar(&cfg.EntraClientSecret, "entra-client-secret", cfg.EntraClientSecret, "confidential client secret used to mint the vault-audience token")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

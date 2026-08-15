@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/calvinchengx/databricks-emulator/internal/akv"
+	"github.com/calvinchengx/databricks-emulator/internal/config"
+	"github.com/calvinchengx/databricks-emulator/internal/entra"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
 
@@ -167,6 +169,86 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	blob, _ := json.Marshal(scopes)
 	if !strings.Contains(string(blob), "AZURE_KEYVAULT") {
 		t.Fatalf("list-scopes missing backend: %s", blob)
+	}
+}
+
+func TestAKVScopeUsesVaultAudienceToken(t *testing.T) {
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.Form.Get("scope") != "https://vault.azure.net/.default" {
+			http.Error(w, "wrong scope", http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "vault-aud"})
+	}))
+	t.Cleanup(sts.Close)
+	var sawAuth string
+	vault := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawAuth = r.Header.Get("Authorization")
+		if sawAuth != "Bearer vault-aud" {
+			http.Error(w, "AKV10000", http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"value": "from-vault"})
+	}))
+	t.Cleanup(vault.Close)
+	u, _ := url.Parse(vault.URL)
+
+	h := newHarness(t)
+	h.srv.AKV = akv.New(false, vault.Client(), u.Host)
+	h.srv.AKV.Token = entra.NewMinter(sts.URL, "app", "sec", false, sts.Client()).VaultToken
+	pat := h.srv.Store.AdminPAT
+	if st := h.json("POST", "/api/2.0/secrets/scopes/create", pat, map[string]any{
+		"scope":              "kv",
+		"scope_backend_type": "AZURE_KEYVAULT",
+		"backend_azure_keyvault": map[string]any{
+			"resource_id": "/subscriptions/x/vaults/dev",
+			"dns_name":    vault.URL,
+		},
+	}, nil); st != 200 {
+		t.Fatalf("create %d", st)
+	}
+	_ = h.srv.Store.Workspace.Put("/s.py", []byte("print(1)"), store.ObjectFile, "PYTHON")
+	var created map[string]any
+	h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "s",
+		"tasks": []map[string]any{{
+			"task_key":          "t",
+			"spark_python_task": map[string]any{"python_file": "/s.py"},
+			"new_cluster":       map[string]any{"spark_env_vars": map[string]any{"PW": "{{secrets/kv/pw}}"}},
+		}},
+	}, &created)
+	var run map[string]any
+	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
+	h.waitRun(int64(run["run_id"].(float64)))
+	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "from-vault" {
+		t.Fatalf("resolve %+v", h.exec.Calls)
+	}
+	if sawAuth != "Bearer vault-aud" {
+		t.Fatalf("vault saw %q", sawAuth)
+	}
+}
+
+func TestNewWiresEntraVaultToken(t *testing.T) {
+	s, err := New(&config.Config{
+		DataDir:           t.TempDir(),
+		DisableTLS:        true,
+		EntraTokenURL:     "http://entra/token",
+		EntraClientID:     "app",
+		EntraClientSecret: "sec",
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.AKV == nil || s.AKV.Token == nil {
+		t.Fatal("entra token URL did not wire a vault-audience minter")
+	}
+	plain, err := New(&config.Config{DataDir: t.TempDir(), DisableTLS: true}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.AKV.Token != nil {
+		t.Fatal("make run must not require entra")
 	}
 }
 

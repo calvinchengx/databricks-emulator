@@ -94,6 +94,35 @@ func TestResolveRefusesTraversalName(t *testing.T) {
 	}
 }
 
+func TestResolveSendsVaultAudienceBearer(t *testing.T) {
+	var sawAuth string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawAuth = r.Header.Get("Authorization")
+		if sawAuth != "Bearer vault-aud" {
+			http.Error(w, "AKV10000", http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"value": "from-vault"})
+	}))
+	t.Cleanup(ts.Close)
+	u, _ := url.Parse(ts.URL)
+	c := New(false, ts.Client(), u.Host)
+	c.Token = func() (string, error) { return "vault-aud", nil }
+	v, err := c.ResolveSecret(ts.URL, "pw")
+	if err != nil || v != "from-vault" || sawAuth != "Bearer vault-aud" {
+		t.Fatalf("resolve %q %v auth=%q", v, err, sawAuth)
+	}
+
+	c.Token = func() (string, error) { return "", errors.New("sts down") }
+	if _, err := c.ResolveSecret(ts.URL, "pw"); err == nil || !strings.Contains(err.Error(), "vault-audience") {
+		t.Fatalf("sts error: %v", err)
+	}
+	c.Token = func() (string, error) { return "", nil }
+	if _, err := c.ResolveSecret(ts.URL, "pw"); err == nil || !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("empty token: %v", err)
+	}
+}
+
 func TestResolveVaultError(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nope", http.StatusForbidden)
