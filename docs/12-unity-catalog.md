@@ -27,11 +27,12 @@ Witness: `ci:e2e-uc` — unmodified `databricks-sdk` creates catalog `e2e`, sche
 attaches `unitycatalog/unitycatalog:v0.5.0`. MANAGED create and grants stay
 501 even with the sidecar.
 
-`make e2e-delta` also attaches UC OSS and points an EXTERNAL table's
-`storage_location` at the Sail-written Delta directory. That binds
-metadata to the files. It is not a three-part write attach: Sail has no
-`UCSingleCatalog` plugin, and this process does not rewrite
-`INSERT INTO cat.sch.tbl` into a path.
+`make e2e-delta` attaches UC OSS on the same Compose network as Sail.
+The emulator proxies catalog REST; Sail's unity catalog provider
+(`SAIL_CATALOG__LIST`) resolves `e2e.s.events`. Warehouse
+`INSERT INTO e2e.s.events` writes; **delta-rs** confirms the new row.
+This process does not rewrite the three-part name. Sail is not the JVM
+`UCSingleCatalog` plugin — it is Sail's own Unity provider.
 
 ## What is refused here, even with a sidecar
 

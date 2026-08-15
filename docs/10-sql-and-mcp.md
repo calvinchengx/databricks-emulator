@@ -42,11 +42,16 @@ go down this same warehouse path onto Sail. The witness is **not** a Sail
 `COUNT(*)`. `make e2e-delta` writes to a shared volume and **delta-rs**
 (`deltalake`) reads `_delta_log` and the rows. The engine that wrote is
 never the one that confirms. Standalone `UPDATE` is forwarded; Sail
-answers FAILED (`CommandNode::Update`), never a silent no-op. A UC
-EXTERNAL table can point `storage_location` at the same files; three-part
-`INSERT INTO cat.sch.tbl` is forwarded to Sail and fails until an engine
-that loads `UCSingleCatalog` is attached — this process does not rewrite
-the name.
+answers FAILED (`CommandNode::Update`), never a silent no-op.
+
+Three-part `INSERT INTO cat.sch.tbl` uses the same warehouse path. UC OSS
+and Sail share the e2e Compose network: this process proxies catalog REST
+(`DATABRICKS_UC_URL`); Sail's unity catalog provider
+(`SAIL_CATALOG__LIST`, `UNITY_ALLOW_HTTP_URL`) resolves the name. The
+emulator does not rewrite `cat.sch.tbl` into a path. An EXTERNAL table
+with no `_delta_log` at `storage_location` is not yet a Delta table —
+the LOCATION write in the same job creates that log, then the three-part
+INSERT is the named-table witness.
 
 Photon is not this path. See [parity.md](parity.md).
 
