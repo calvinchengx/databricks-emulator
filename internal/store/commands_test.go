@@ -46,4 +46,22 @@ func TestCommandsContextAndCancel(t *testing.T) {
 	if _, ok := s.Commands.GetCommand(cmd.ID); ok {
 		t.Fatal("destroyed command remains")
 	}
+	if s.Commands.SetContextStatus("missing", "Running") {
+		t.Fatal("set missing")
+	}
+	if s.Commands.DestroyContext("missing") {
+		t.Fatal("destroy missing")
+	}
+	if s.Commands.FinishCommand("missing", "Error", "error", "", "x", "") {
+		t.Fatal("finish missing")
+	}
+	if s.Commands.CancelCommand("missing") {
+		t.Fatal("cancel missing")
+	}
+	if _, ok := s.Commands.GetContext("missing"); ok {
+		t.Fatal("get missing context")
+	}
+	if _, ok := s.Commands.GetCommand("missing"); ok {
+		t.Fatal("get missing command")
+	}
 }
