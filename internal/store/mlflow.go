@@ -316,9 +316,11 @@ func copyMap(in map[string]string) map[string]string {
 
 func ms(now int64) int64 { return now * 1000 }
 
+var readRand = rand.Read
+
 func newRunID() (string, error) {
 	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
+	if _, err := readRand(b[:]); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(b[:]), nil

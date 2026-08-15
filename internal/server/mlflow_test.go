@@ -310,11 +310,114 @@ func TestMLflowRemainingRoutesAndRefusals(t *testing.T) {
 		{"POST", "/api/2.0/mlflow/runs/restore", map[string]any{"run_id": "nope"}, 404},
 		{"PATCH", "/api/2.0/mlflow/model-versions/update", map[string]any{"name": "nope", "version": "1"}, 404},
 		{"GET", "/api/2.0/mlflow/runs/get?run_uuid=nope", nil, 404},
+		{"POST", "/api/2.0/mlflow/experiments/create", "{", 400},
+		{"POST", "/api/2.0/mlflow/experiments/search", "{", 400},
+		{"POST", "/api/2.0/mlflow/experiments/update", "{", 400},
+		{"POST", "/api/2.0/mlflow/experiments/delete", "{", 400},
+		{"POST", "/api/2.0/mlflow/experiments/restore", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/create", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/update", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/delete", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/restore", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/search", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/log-metric", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/log-parameter", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/log-batch", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/set-tag", "{", 400},
+		{"POST", "/api/2.0/mlflow/runs/delete-tag", "{", 400},
+		{"POST", "/api/2.0/mlflow/registered-models/create", "{", 400},
+		{"PATCH", "/api/2.0/mlflow/registered-models/update", "{", 400},
+		{"POST", "/api/2.0/mlflow/registered-models/rename", "{", 400},
+		{"POST", "/api/2.0/mlflow/registered-models/get-latest-versions", "{", 400},
+		{"POST", "/api/2.0/mlflow/model-versions/create", "{", 400},
+		{"PATCH", "/api/2.0/mlflow/model-versions/update", "{", 400},
+		{"POST", "/api/2.0/mlflow/databricks/model-versions/transition-stage", "{", 400},
 	} {
 		var body map[string]any
 		st := h.json(tc.method, tc.path, pat, tc.body, &body)
 		if st != tc.want {
 			t.Fatalf("%s %s: %d want %d %+v", tc.method, tc.path, st, tc.want, body)
 		}
+	}
+}
+
+func TestMLflowOptionalFieldsAndDecode(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+
+	var created map[string]any
+	if st := h.json("POST", "/api/2.0/mlflow/experiments/create", pat, map[string]any{
+		"name": "fields", "artifact_location": "dbfs:/custom",
+	}, &created); st != 200 {
+		t.Fatalf("artifact loc %d %+v", st, created)
+	}
+	expID := str(created["experiment_id"])
+	var listed map[string]any
+	if st := h.json("GET", "/api/2.0/mlflow/experiments/list?filter=name='fields'&view_type=ACTIVE_ONLY&max_results=10", pat, nil, &listed); st != 200 {
+		t.Fatalf("list query %d", st)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/experiments/search", pat, nil, &listed); st != 200 {
+		t.Fatalf("search eof %d", st)
+	}
+	var runCreated map[string]any
+	if st := h.json("POST", "/api/2.0/mlflow/runs/create", pat, map[string]any{
+		"experiment_id": expID, "user_id": "alice", "start_time": 1,
+	}, &runCreated); st != 200 {
+		t.Fatalf("run user %d %+v", st, runCreated)
+	}
+	runID := str(runCreated["run"].(map[string]any)["info"].(map[string]any)["run_id"])
+	if st := h.json("POST", "/api/2.0/mlflow/runs/update", pat, map[string]any{
+		"run_uuid": runID, "run_name": "n", "end_time": 9, "status": "RUNNING",
+	}, nil); st != 200 {
+		t.Fatalf("update uuid %d", st)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/runs/log-parameter", pat, map[string]any{
+		"run_uuid": runID, "key": "p", "value": "1",
+	}, nil); st != 200 {
+		t.Fatalf("param uuid %d", st)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/runs/log-metric", pat, map[string]any{
+		"run_uuid": runID, "key": "m", "value": 1, "timestamp": 1,
+	}, nil); st != 200 {
+		t.Fatalf("metric uuid %d", st)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/runs/search", pat, nil, nil); st != 200 {
+		t.Fatalf("search runs eof %d", st)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/registered-models/create", pat, map[string]any{
+		"name": "desc-model", "description": "hello", "tags": []map[string]string{{"key": "t", "value": "1"}},
+	}, nil); st != 200 {
+		t.Fatalf("desc model %d", st)
+	}
+	var ver map[string]any
+	if st := h.json("POST", "/api/2.0/mlflow/model-versions/create", pat, map[string]any{
+		"name": "desc-model", "source": "dbfs:/m", "run_id": runID, "run_link": "http://r",
+		"description": "v", "tags": []map[string]string{{"key": "t", "value": "1"}},
+	}, &ver); st != 200 {
+		t.Fatalf("full version %d %+v", st, ver)
+	}
+	if st := h.json("POST", "/api/2.0/mlflow/model-versions/transition-stage", pat, map[string]any{
+		"name": "desc-model", "version": "1", "stage": "Production",
+	}, nil); st != 200 {
+		t.Fatalf("oss transition %d", st)
+	}
+	var dbx map[string]any
+	if st := h.json("GET", "/api/2.0/mlflow/databricks/registered-models/get?name=desc-model", pat, nil, &dbx); st != 200 {
+		t.Fatalf("latest prod %d", st)
+	}
+	if st := h.json("DELETE", "/api/2.0/mlflow/registered-models/delete", pat, map[string]any{"name": "desc-model"}, nil); st != 200 {
+		t.Fatalf("delete body %d", st)
+	}
+	var miss map[string]any
+	if st := h.json("POST", "/api/2.0/mlflow/model-versions/create", pat, map[string]any{
+		"name": "nope", "source": "dbfs:/x",
+	}, &miss); st != 404 {
+		t.Fatalf("version missing model %d %+v", st, miss)
+	}
+	if st := h.json("GET", "/api/2.0/mlflow/model-versions/search", pat, nil, &miss); st != 200 {
+		t.Fatalf("search versions all %d", st)
+	}
+	if st := h.json("GET", "/api/2.0/mlflow/model-versions/search?filter=stage='x'", pat, nil, &miss); st != 501 {
+		t.Fatalf("search versions filter %d %+v", st, miss)
 	}
 }
