@@ -4,7 +4,6 @@
 package uc
 
 import (
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,15 +20,12 @@ type Client struct {
 	http *http.Client
 }
 
-// New builds a client. Empty base means no sidecar is attached.
-func New(base string, insecure bool, client *http.Client) *Client {
+// New builds a client. Empty base means no sidecar is attached. client
+// carries the TLS trust for the sidecar — see internal/tlsclient.
+func New(base string, client *http.Client) *Client {
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
 	if client == nil {
-		tr := http.DefaultTransport.(*http.Transport).Clone()
-		if insecure {
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-		client = &http.Client{Transport: tr, Timeout: 30 * time.Second}
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	return &Client{base: base, http: client}
 }

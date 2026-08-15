@@ -9,10 +9,10 @@ import (
 )
 
 func TestAttached(t *testing.T) {
-	if New("", false, nil).Attached() {
+	if New("", nil).Attached() {
 		t.Fatal("empty URL attached")
 	}
-	if !New("http://uc:8080", false, nil).Attached() {
+	if !New("http://uc:8080", nil).Attached() {
 		t.Fatal("set URL not attached")
 	}
 }
@@ -29,7 +29,7 @@ func TestProxyForwardsPathAndStripsAuthorization(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	c := New(upstream.URL, false, upstream.Client())
+	c := New(upstream.URL, upstream.Client())
 	req := httptest.NewRequest(http.MethodGet, "/api/2.1/unity-catalog/catalogs?max_results=10", nil)
 	req.Header.Set("Authorization", "Bearer leaked")
 	rec := httptest.NewRecorder()
@@ -54,7 +54,7 @@ func TestProxyForwardsPathAndStripsAuthorization(t *testing.T) {
 }
 
 func TestProxyUnreachable(t *testing.T) {
-	c := New("http://127.0.0.1:1", false, nil)
+	c := New("http://127.0.0.1:1", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/2.1/unity-catalog/catalogs", nil)
 	if err := c.Proxy(httptest.NewRecorder(), req); err == nil {
 		t.Fatal("expected dial error")
@@ -62,7 +62,7 @@ func TestProxyUnreachable(t *testing.T) {
 }
 
 func TestProxyEmptyBase(t *testing.T) {
-	c := New("", false, nil)
+	c := New("", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/2.1/unity-catalog/catalogs", nil)
 	if err := c.Proxy(httptest.NewRecorder(), req); err == nil {
 		t.Fatal("empty base proxied")
@@ -78,7 +78,7 @@ func TestProxyPostsBody(t *testing.T) {
 		_, _ = w.Write([]byte(`{"name":"c"}`))
 	}))
 	defer upstream.Close()
-	c := New(upstream.URL, false, upstream.Client())
+	c := New(upstream.URL, upstream.Client())
 	req := httptest.NewRequest(http.MethodPost, "/api/2.1/unity-catalog/catalogs", strings.NewReader(`{"name":"c"}`))
 	req.Header.Set("Content-Type", "application/json")
 	if err := c.Proxy(httptest.NewRecorder(), req); err != nil {

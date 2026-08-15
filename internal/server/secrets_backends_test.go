@@ -109,7 +109,7 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 
 	h := newHarness(t)
-	h.srv.AKV = akv.New(false, ts.Client(), u.Host)
+	h.srv.AKV = akv.New(ts.Client(), u.Host)
 	pat := h.srv.Store.AdminPAT
 
 	if st := h.json("POST", "/api/2.0/secrets/scopes/create", pat, map[string]any{
@@ -204,8 +204,8 @@ func TestAKVScopeUsesVaultAudienceToken(t *testing.T) {
 	u, _ := url.Parse(vault.URL)
 
 	h := newHarness(t)
-	h.srv.AKV = akv.New(false, vault.Client(), u.Host)
-	h.srv.AKV.Token = entra.NewMinter(sts.URL, "app", "sec", false, sts.Client()).VaultToken
+	h.srv.AKV = akv.New(vault.Client(), u.Host)
+	h.srv.AKV.Token = entra.NewMinter(sts.URL, "app", "sec", sts.Client()).VaultToken
 	pat := h.srv.Store.AdminPAT
 	if st := h.json("POST", "/api/2.0/secrets/scopes/create", pat, map[string]any{
 		"scope":              "kv",
@@ -266,7 +266,7 @@ func TestNewWiresEntraVaultToken(t *testing.T) {
 
 func TestAKVCreateRejectsHostileDNS(t *testing.T) {
 	h := newHarness(t)
-	h.srv.AKV = akv.New(false, nil, "keyvault-emulator:4997")
+	h.srv.AKV = akv.New(nil, "keyvault-emulator:4997")
 	pat := h.srv.Store.AdminPAT
 	var body map[string]any
 	st := h.json("POST", "/api/2.0/secrets/scopes/create", pat, map[string]any{
