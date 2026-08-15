@@ -46,10 +46,10 @@ point at the same host:
 3. DBFS / Files API — real bytes on a local blob root.
 4. PAT and emulator OIDC. Federated JWT when an issuer is configured.
 
-SQL warehouses, Unity Catalog (attach
-[UC OSS](https://github.com/unitycatalog/unitycatalog), do not invent a
-metastore), and Databricks Connect (Spark Connect) come after that slice is
-witnessed. Clusters as VMs and Photon never.
+Unity Catalog CRUD attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
+(`DATABRICKS_UC_URL`); there is no invented metastore. Grants stay refused
+until they deny. SQL warehouses and Databricks Connect come next. Clusters
+as VMs and Photon never.
 
 ## Reachable, if honest
 
