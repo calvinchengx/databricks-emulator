@@ -77,7 +77,10 @@ func TestJobsRefuseUnsupportedAtCreate(t *testing.T) {
 		{"task_key": "j", "spark_jar_task": map[string]any{"main_class_name": "Foo"}},
 		{"task_key": "d", "dbt_task": map[string]any{"project_directory": "/"}},
 		{"task_key": "p", "pipeline_task": map[string]any{"pipeline_id": "x"}},
-		{"task_key": "s", "sql_task": map[string]any{"file": map[string]any{"path": "/q.sql"}}},
+		{"task_key": "s", "sql_task": map[string]any{"query": map[string]any{"query_id": "q"}}},
+		{"task_key": "dash", "sql_task": map[string]any{"dashboard": map[string]any{"dashboard_id": "d"}}},
+		{"task_key": "alert", "sql_task": map[string]any{"alert": map[string]any{"alert_id": "a"}}},
+		{"task_key": "nopath", "sql_task": map[string]any{"file": map[string]any{}}},
 		{"task_key": "l", "spark_python_task": map[string]any{"python_file": "/x.py"}, "libraries": []any{map[string]any{"pypi": map[string]any{"package": "x"}}}},
 	}
 	for _, task := range cases {
@@ -123,6 +126,41 @@ func TestJobsDiamondALLSUCCESSSkips(t *testing.T) {
 	}
 	if states["a"] != "FAILED" || states["b"] != "SKIPPED" || states["c"] != "SUCCESS" {
 		t.Fatalf("diamond states %+v", states)
+	}
+}
+
+func TestJobsSQLFileRunsOnSparkSQL(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	_ = h.srv.Store.Workspace.Put("/q.sql", []byte("SELECT 42"), "FILE", "")
+	var created map[string]any
+	if st := h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "sql",
+		"tasks": []map[string]any{{
+			"task_key": "q",
+			"sql_task": map[string]any{"file": map[string]any{"path": "/q.sql"}},
+		}},
+	}, &created); st != 200 {
+		t.Fatalf("create %d", st)
+	}
+	var got map[string]any
+	h.json("GET", "/api/2.2/jobs/get?job_id="+itoa(int64(created["job_id"].(float64))), pat, nil, &got)
+	tasks, _ := got["settings"].(map[string]any)["tasks"].([]any)
+	if len(tasks) != 1 {
+		t.Fatalf("settings %+v", got)
+	}
+	sqlTask, _ := tasks[0].(map[string]any)["sql_task"].(map[string]any)
+	if str(sqlTask["file"].(map[string]any)["path"]) != "/q.sql" {
+		t.Fatalf("sql_task echo %+v", got)
+	}
+	var run map[string]any
+	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
+	out := h.waitRun(int64(run["run_id"].(float64)))
+	if out["state"].(map[string]any)["result_state"] != "SUCCESS" {
+		t.Fatalf("run %+v", out)
+	}
+	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Kind != "sql" || !strings.Contains(h.exec.Calls[0].Code, "SELECT 42") {
+		t.Fatalf("sql never reached the engine: %+v", h.exec.Calls)
 	}
 }
 

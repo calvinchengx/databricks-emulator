@@ -38,6 +38,11 @@ Secret scopes are Databricks-backed by default (persisted under `data/secrets/`)
 scopes are refused; rotate the vault secret and the next job run sees the new
 value. There is no sync.
 
+SQL warehouses are a session handle onto the same Spark agent — not a VM and
+not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
+`dialect: spark-sql`. `sql_task.file` jobs take the same path.
+`sql_task.query` / dashboard / alert stay refused.
+
 Unity Catalog CRUD reverse-proxies to a [UC OSS](https://github.com/unitycatalog/unitycatalog)
 sidecar (`DATABRICKS_UC_URL`). Without one those routes are 501 naming the
 missing sidecar. MANAGED table create is refused (UC OSS only creates

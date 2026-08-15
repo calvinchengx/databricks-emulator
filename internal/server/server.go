@@ -145,10 +145,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/2.1/unity-catalog/", s.protect(s.unityCatalog))
 	mux.HandleFunc("/api/2.0/unity-catalog/", s.protect(s.unityCatalog))
 
+	mux.HandleFunc("POST /api/2.0/sql/warehouses", s.protect(s.sqlCreateWarehouse))
+	mux.HandleFunc("GET /api/2.0/sql/warehouses", s.protect(s.sqlListWarehouses))
+	mux.HandleFunc("GET /api/2.0/sql/warehouses/{id}", s.protect(s.sqlGetWarehouse))
+	mux.HandleFunc("DELETE /api/2.0/sql/warehouses/{id}", s.protect(s.sqlDeleteWarehouse))
+	mux.HandleFunc("POST /api/2.0/sql/warehouses/{id}/start", s.protect(s.sqlStartWarehouse))
+	mux.HandleFunc("POST /api/2.0/sql/warehouses/{id}/stop", s.protect(s.sqlStopWarehouse))
+	mux.HandleFunc("POST /api/2.0/sql/statements", s.protect(s.sqlExecuteStatement))
+	mux.HandleFunc("GET /api/2.0/sql/statements/{id}", s.protect(s.sqlGetStatement))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, pattern := mux.Handler(r)
+		_, pattern := mux.Handler(r)
 		if pattern != "" {
-			h.ServeHTTP(w, r)
+			// Serve through the mux so {wildcard} PathValue is populated.
+			mux.ServeHTTP(w, r)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {

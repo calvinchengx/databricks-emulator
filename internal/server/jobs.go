@@ -192,8 +192,16 @@ func parseTask(t map[string]any) (store.Task, error) {
 	if _, ok := t["pipeline_task"]; ok {
 		return task, fmt.Errorf("pipeline_task (DLT) is refused by name")
 	}
-	if raw, ok := t["sql_task"]; ok && raw != nil {
-		return task, fmt.Errorf("sql_task is refused until a SQL warehouse surface exists (sql_task.file included)")
+	if raw, ok := t["sql_task"].(map[string]any); ok {
+		if raw["query"] != nil || raw["dashboard"] != nil || raw["alert"] != nil {
+			return task, fmt.Errorf("sql_task.query/dashboard/alert are refused — only sql_task.file on the Spark SQL warehouse surface")
+		}
+		if f, ok := raw["file"].(map[string]any); ok {
+			task.SQLFile = str(f["path"])
+		}
+		if task.SQLFile == "" {
+			return task, fmt.Errorf("sql_task.file.path is required")
+		}
 	}
 	if nb, ok := t["notebook_task"].(map[string]any); ok {
 		task.NotebookPath = str(nb["notebook_path"])
@@ -211,8 +219,8 @@ func parseTask(t map[string]any) (store.Task, error) {
 		task.SparkEnvVars = stringMap(nc["spark_env_vars"])
 		task.SparkConf = stringMap(nc["spark_conf"])
 	}
-	if task.NotebookPath == "" && task.PythonFile == "" {
-		return task, fmt.Errorf("task %q must be notebook_task or spark_python_task", task.Key)
+	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" {
+		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, or sql_task.file", task.Key)
 	}
 	return task, nil
 }
@@ -352,23 +360,29 @@ func (s *Server) runTask(t store.Task) store.TaskRun {
 		tr.Stderr = err.Error()
 		return tr
 	}
-	var preamble string
-	kind := "python"
-	if t.NotebookPath != "" {
-		pj, _ := json.Marshal(t.NotebookParams)
-		preamble = fmt.Sprintf("import json\nfor __k, __v in json.loads(%q).items():\n    globals()[__k] = __v\n", string(pj))
+	var req spark.Request
+	if t.SQLFile != "" {
+		req = sparkSQLRequest(code, "job-"+t.Key)
+		req.Env, req.Conf = env, conf
 	} else {
-		argv := append([]string{path}, t.PythonParams...)
-		aj, _ := json.Marshal(argv)
-		preamble = fmt.Sprintf("import sys, json\nsys.argv = json.loads(%q)\n", string(aj))
+		var preamble string
+		if t.NotebookPath != "" {
+			pj, _ := json.Marshal(t.NotebookParams)
+			preamble = fmt.Sprintf("import json\nfor __k, __v in json.loads(%q).items():\n    globals()[__k] = __v\n", string(pj))
+		} else {
+			argv := append([]string{path}, t.PythonParams...)
+			aj, _ := json.Marshal(argv)
+			preamble = fmt.Sprintf("import sys, json\nsys.argv = json.loads(%q)\n", string(aj))
+		}
+		req = spark.Request{
+			Session: "job-" + t.Key,
+			Code:    preamble + code,
+			Kind:    "python",
+			Env:     env,
+			Conf:    conf,
+		}
 	}
-	res, err := s.Spark.Run(spark.Request{
-		Session: "job-" + t.Key,
-		Code:    preamble + code,
-		Kind:    kind,
-		Env:     env,
-		Conf:    conf,
-	})
+	res, err := s.Spark.Run(req)
 	if err != nil {
 		tr.ResultState = "FAILED"
 		tr.Stderr = err.Error()
@@ -391,6 +405,9 @@ func (s *Server) loadTaskCode(t store.Task) (code, path string, err error) {
 	p := t.NotebookPath
 	if p == "" {
 		p = t.PythonFile
+	}
+	if p == "" {
+		p = t.SQLFile
 	}
 	path = p
 	if strings.HasPrefix(p, "dbfs:") {
@@ -429,6 +446,9 @@ func jobSettings(job *store.Job) map[string]any {
 		}
 		if t.PythonFile != "" {
 			m["spark_python_task"] = map[string]any{"python_file": t.PythonFile, "parameters": t.PythonParams}
+		}
+		if t.SQLFile != "" {
+			m["sql_task"] = map[string]any{"file": map[string]any{"path": t.SQLFile}}
 		}
 		tasks = append(tasks, m)
 	}
