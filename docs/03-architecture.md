@@ -23,6 +23,7 @@ graph TD
   ws -->|"Databricks Connect gRPC"| sail
   agent --> sail
   ws -->|"optional DATABRICKS_UC_URL"| uc
+  sail -->|"unity provider, Compose network"| uc
   ws -->|"optional AKV read-through"| kv
   entra -.->|"optional DATABRICKS_OIDC_ISSUERS"| ws
   entra -.->|"optional vault-audience mint"| ws
@@ -48,7 +49,7 @@ the persisted TLS pair.
 | Unity Catalog CRUD | UC OSS at `DATABRICKS_UC_URL` | 501 naming the missing sidecar |
 | AKV-backed secrets | Live vault at `DATABRICKS_AKV_VAULT_HOST` | Emulator `dns_name` refused by name |
 | Federated JWT | Issuer list in `DATABRICKS_OIDC_ISSUERS` | Only PAT and emulator OIDC work |
-| Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log | No write witness — a Sail `COUNT(*)` is not one |
+| Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log. Three-part names: Sail's unity provider dials UC OSS on the Compose network | No write witness — a Sail `COUNT(*)` is not one |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.

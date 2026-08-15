@@ -93,7 +93,16 @@
     "section": "Compute",
     "claim": "Delta writes — Sail",
     "witnesses": [
-      "ci:e2e-delta"
+      "ci:e2e-delta",
+      "go:TestSQLWarehouseForwardsDeltaDML"
+    ]
+  },
+  "delta-writes-uc-three-part-names": {
+    "section": "Compute",
+    "claim": "Delta writes — UC three-part names",
+    "witnesses": [
+      "ci:e2e-delta",
+      "go:TestSQLWarehouseForwardsThreePartNames"
     ]
   },
   "sql-warehouses": {

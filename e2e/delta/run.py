@@ -2,7 +2,9 @@
 """Sail writes Delta through the warehouse API; delta-rs confirms the log.
 
 The engine that wrote is never the one that confirms. A warehouse COUNT(*)
-after INSERT is not a witness.
+after INSERT is not a witness. Three-part INSERT INTO cat.sch.tbl is the
+same rule: Sail's unity provider resolves the name against UC OSS on the
+Compose network; delta-rs reads the files.
 """
 
 from __future__ import annotations
@@ -162,19 +164,22 @@ def main() -> int:
         # Standalone UPDATE: Sail must fail loudly or actually write. A
         # SUCCEEDED no-op is the lookalike this slice refuses.
         after_dml = [(1, "alice"), (3, "carol-upd"), (4, "dave")]
+        head = v4
         state, err = exec_sql(w, wh.id, "UPDATE events SET name = 'zed' WHERE id = 1")
         if state in {"SUCCEEDED", "SUCCESS"}:
             after_dml = [(1, "zed"), (3, "carol-upd"), (4, "dave")]
-            v_upd = confirm(host_table, after_dml, min_version=v4 + 1)
-            dml = f"{v1} then {v2} then DELETE {v3} then MERGE {v4} then UPDATE {v_upd}"
+            head = confirm(host_table, after_dml, min_version=head + 1)
+            dml = f"{v1} then {v2} then DELETE {v3} then MERGE {v4} then UPDATE {head}"
         else:
-            confirm(host_table, after_dml, min_version=v4)
+            confirm(host_table, after_dml, min_version=head)
             if "SUCCEEDED" in err:
                 raise SystemExit(f"UPDATE failed but named success: {err}")
             dml = f"{v1} then {v2} then DELETE {v3} then MERGE {v4}; UPDATE refused ({err})"
 
-        # UC metadata points at the same files. Sail has no UCSingleCatalog
-        # attach, so three-part INSERT must fail loudly or actually write.
+        # Same files, three-part name. SDK registers the EXTERNAL table in
+        # UC OSS; Sail's unity provider resolves e2e.s.events on the Compose
+        # network. The LOCATION write above created _delta_log; an empty
+        # UC location is not a Delta table yet.
         from databricks.sdk.service.catalog import ColumnInfo, ColumnTypeName, DataSourceFormat, TableType
 
         w.catalogs.create(name="e2e")
@@ -207,18 +212,14 @@ def main() -> int:
         if loc != TABLE.rstrip("/"):
             raise SystemExit(f"UC storage_location {got.storage_location!r} != {TABLE}")
 
-        state, err = exec_sql(w, wh.id, "INSERT INTO e2e.s.events VALUES (5, 'erin')")
-        if state in {"SUCCEEDED", "SUCCESS"}:
-            confirm(host_table, after_dml + [(5, "erin")], min_version=v4 + 1)
-            print(f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; UC three-part INSERT wrote")
-        else:
-            confirm(host_table, after_dml, min_version=v4)
-            if "SUCCEEDED" in err:
-                raise SystemExit(f"three-part INSERT failed but named success: {err}")
-            print(
-                f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
-                f"UC location bound, three-part INSERT refused ({err})"
-            )
+        sql(w, wh.id, "INSERT INTO e2e.s.events VALUES (5, 'erin')")
+        v_uc = confirm(host_table, after_dml + [(5, "erin")], min_version=head + 1)
+        if v_uc <= head:
+            raise SystemExit(f"three-part INSERT did not advance the log: {head} -> {v_uc}")
+        print(
+            f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
+            f"UC three-part INSERT {v_uc}"
+        )
         return 0
     finally:
         stop(proc)

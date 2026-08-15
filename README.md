@@ -77,6 +77,8 @@ and MCP `execute_sql`. Run it with `uv` (`.python-version` is 3.12).
 
 `make e2e-delta` writes a Delta table through the warehouse API onto Sail
 and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.
+The same job attaches UC OSS on Sail's Compose network so
+`INSERT INTO cat.sch.tbl` resolves through Sail's unity catalog provider.
 
 `make e2e-uc` attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
 `v0.5.0` and drives catalog / schema / EXTERNAL table create through the
