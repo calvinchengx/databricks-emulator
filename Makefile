@@ -42,9 +42,8 @@ e2e: ## Unmodified databricks-sdk against a local server
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	$(UV) run --frozen --group sdk python e2e/sdk/run.py
 
-e2e-cli: ## Unmodified databricks CLI against a local server
+e2e-cli: ## Unmodified Databricks CLI v1.12.1 against a local server
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
-	@command -v databricks >/dev/null || { echo "the databricks CLI is required on PATH (https://docs.databricks.com/dev-tools/cli/)" >&2; exit 1; }
 	$(PY) e2e/cli/run.py
 
 e2e-terraform: ## Unmodified databricks/databricks provider against a local server

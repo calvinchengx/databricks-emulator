@@ -47,12 +47,12 @@ clone/commit/pull against a local git remote; cluster policy mismatch is
 cluster-create **without** an engine must fail naming
 `DATABRICKS_SPARK_CONNECT_URL`.
 
-**`e2e-cli`** — `current-user me` / `token=dev`; workspace
-import/list/export; `fs` mkdir/cp/cat/ls; secrets scope + put with the value
-**withheld** from `list-secrets`; `tokens create`; warehouse create/list;
-`clusters spark-versions`; job **create** (not execution). A second opinion
-on the same REST: the CLI resolves auth and shapes requests its own way, so
-a surface the SDK accepts can still fail here.
+**`e2e-cli`** — pinned Databricks CLI `v1.12.1` (not PATH). `current-user me`
+/ `token=dev`; workspace SOURCE notebook + RAW file import/export; `fs`
+mkdir/cp/cat/ls; secrets persist across restart with the value **withheld**;
+`tokens create`; warehouse create/list; `clusters spark-versions`; job
+**create** (not execution). That is the CLI half of the DAB pair.
+`bundle deploy` is not this job.
 
 **`e2e-terraform`** — PAT / `token=dev`; notebook; workspace file; job
 **create** (not execution). That is the DAB pair.

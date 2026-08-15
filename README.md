@@ -68,9 +68,12 @@ EXTERNAL tables at a filesystem location). Grants stay 501 until they deny.
 `poll_response` wrap the warehouse statements handler after PAT/OIDC.
 Genie, AI Search, and UC function MCP paths stay 501.
 
-The official Terraform provider (`databricks/databricks`) applies a notebook,
-a workspace file, and a job against the seeded PAT — the DAB pair. `token=dev`
-is refused. `make e2e-terraform` is the witness.
+The official Terraform provider (`databricks/databricks`) and the unmodified
+Databricks CLI `v1.12.1` apply a notebook, a workspace file, and a job
+against the seeded PAT — the DAB pair. `token=dev` is refused.
+`make e2e-terraform` and `make e2e-cli` are the witnesses. `bundle deploy`
+is not claimed: current DAB schema also demands a cluster, and Permissions
+stay 501.
 
 `make e2e-engine` attaches Sail + the family's spark-agent (and entra +
 keyvault) and drives cluster create, unmodified `databricks-connect`
