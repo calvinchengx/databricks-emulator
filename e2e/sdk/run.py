@@ -269,6 +269,52 @@ def main() -> int:
         else:
             raise SystemExit("cluster create succeeded without an engine")
 
+        pol = w.cluster_policies.create(
+            name="session-only",
+            definition=json.dumps({
+                "node_type_id": {"type": "fixed", "value": "emulator.session"},
+                "spark_version": {"type": "fixed", "value": "emulator-spark"},
+            }),
+        )
+        try:
+            w.clusters.create(
+                cluster_name="denied",
+                spark_version="emulator-spark",
+                node_type_id="i3.xlarge",
+                num_workers=0,
+                policy_id=pol.policy_id,
+            )
+        except DatabricksError as exc:
+            if "node_type_id" not in str(exc):
+                raise SystemExit(f"policy mismatch: {exc}")
+        else:
+            raise SystemExit("policy mismatch was accepted")
+        try:
+            w.clusters.create(
+                cluster_name="allowed",
+                spark_version="emulator-spark",
+                node_type_id="emulator.session",
+                num_workers=0,
+                policy_id=pol.policy_id,
+            )
+        except DatabricksError as exc:
+            if "DATABRICKS_SPARK_CONNECT_URL" not in str(exc):
+                raise SystemExit(f"matching policy without engine: {exc}")
+        else:
+            raise SystemExit("matching policy created a cluster without an engine")
+        families = list(w.policy_families.list())
+        if not any(f.policy_family_id == "emulator-session" for f in families):
+            raise SystemExit(f"policy families {families!r}")
+        try:
+            w.cluster_policies.create(
+                name="dbus",
+                definition=json.dumps({"dbus_per_hour": {"type": "range", "maxValue": 1}}),
+            )
+        except DatabricksError:
+            pass
+        else:
+            raise SystemExit("unenforced policy attribute was stored")
+
         foreign = ForeignIssuer(data_dir)
         good = foreign.mint(HOST)
         try:
@@ -305,7 +351,7 @@ def main() -> int:
                 continue
             raise SystemExit(f"federated {why} was accepted")
 
-        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + secrets-persist + cluster-refuse ok")
+        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + cluster-policies + secrets-persist + cluster-refuse ok")
         return 0
     finally:
         stop(proc)

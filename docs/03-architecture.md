@@ -51,6 +51,7 @@ git credentials, the persisted TLS pair.
 | Federated JWT | Issuer list in `DATABRICKS_OIDC_ISSUERS` | Only PAT and emulator OIDC work |
 | Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log. Three-part names: Sail's unity provider dials UC OSS on the Compose network | No write witness — a Sail `COUNT(*)` is not one |
 | Git Credentials / Repos | `git` on PATH clones into `{dataDir}/workspace` | 501 naming the missing binary |
+| Cluster policies | Enforced on `clusters/create`; unknown attributes 501 | — |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.

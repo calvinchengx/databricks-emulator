@@ -49,7 +49,9 @@ not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
 
 Clusters are a session handle onto that same engine — not a VM.
 `POST /api/2.0/clusters/create` starts a Sail session or fails naming the
-missing engine; it never sleeps to `RUNNING`. Databricks Connect is Spark
+missing engine; it never sleeps to `RUNNING`. Cluster policies persist and
+are enforced on create; attributes this process cannot check are 501.
+Databricks Connect is Spark
 Connect gRPC reverse-proxied to `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail
 `:50051`) after PAT/OIDC and a `x-databricks-cluster-id` that names a
 RUNNING handle. The HTTP statement agent is not that backend. Autoscale and

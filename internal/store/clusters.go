@@ -15,6 +15,7 @@ type Cluster struct {
 	State        string
 	StateMessage string
 	Creator      string
+	PolicyID     string
 }
 
 // Clusters holds session handles.
@@ -30,7 +31,7 @@ func newClusters() *Clusters {
 
 // Create inserts a PENDING handle. The HTTP layer starts the Sail session
 // and then marks it RUNNING — a timer must not do that.
-func (c *Clusters) Create(name, sparkVersion, nodeType string, workers int, creator string) *Cluster {
+func (c *Clusters) Create(name, sparkVersion, nodeType string, workers int, creator, policyID string) *Cluster {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.nextID++
@@ -43,6 +44,7 @@ func (c *Clusters) Create(name, sparkVersion, nodeType string, workers int, crea
 		State:        "PENDING",
 		StateMessage: "starting a session on the attached Spark engine",
 		Creator:      creator,
+		PolicyID:     policyID,
 	}
 	c.all[cl.ID] = cl
 	return cl

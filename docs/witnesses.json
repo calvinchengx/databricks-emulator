@@ -137,6 +137,14 @@
       "go:TestClustersCreateStartsSailSession"
     ]
   },
+  "cluster-policies-policy-families-compliance": {
+    "section": "Compute",
+    "claim": "Cluster Policies / Policy Families / compliance",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestClusterPoliciesEnforceAndFamilies"
+    ]
+  },
   "databricks-connect": {
     "section": "Compute",
     "claim": "Databricks Connect",

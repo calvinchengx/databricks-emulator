@@ -212,6 +212,14 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET "+p+"list-node-types", s.protect(s.clustersNodeTypes))
 	}
 
+	mux.HandleFunc("POST /api/2.0/policies/clusters/create", s.protect(s.policiesCreate))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/get", s.protect(s.policiesGet))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/list", s.protect(s.policiesList))
+	mux.HandleFunc("POST /api/2.0/policies/clusters/edit", s.protect(s.policiesEdit))
+	mux.HandleFunc("POST /api/2.0/policies/clusters/delete", s.protect(s.policiesDelete))
+	mux.HandleFunc("GET /api/2.0/policies/clusters/get-compliance", s.protect(s.policiesGetCompliance))
+	mux.HandleFunc("GET /api/2.0/policy-families", s.protect(s.policyFamiliesList))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {
