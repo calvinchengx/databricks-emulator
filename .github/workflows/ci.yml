@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build, vet & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -coverpkg=./... -coverprofile=cover.out ./...
+      - name: Coverage floor (80%)
+        run: |
+          total=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
+          echo "total coverage: ${total}%"
+          awk -v t="$total" 'BEGIN { exit (t < 80) ? 1 : 0 }'
+
+  e2e-sdk:
+    name: Unmodified databricks-sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install databricks-sdk
+      - run: python3 e2e/sdk/run.py

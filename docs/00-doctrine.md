@@ -22,23 +22,29 @@ boundary the way inlining Key Vault would have.
 - A Databricks Runtime replacement. "DBR 15.4 LTS compatible" is a claim this
   repo will not make.
 - An extension of Fabric's Databricks *activities*. Those already terminate
-  locally and refuse `dbfs:` / `/Workspace` / `/Repos` by name. This repo is
-  the host those paths resolve against.
+  locally and refuse `dbfs:` / `/Workspace` / `/Repos` paths by name unless
+  `FABRIC_DATABRICKS_URL` points here. This repo is the host those paths
+  resolve against.
 - A lookalike. A cluster create that does not run Spark, a SQL warehouse that
   answers Photon with DuckDB and does not say so, or a Permissions API that
   stores grants and always allows, are refused — not shipped as green.
+
+## Identity
+
+Identity is **PAT + Databricks OIDC**. Entra is an optional federated issuer
+(`DATABRICKS_OIDC_ISSUERS`). The binary `make run`s with no entra-emulator.
+Any-token-accepted is not identity: `"dev"` is 401 unless that exact value was
+minted as a PAT (the seeder will not).
 
 ## First honest slice
 
 Enough that `databricks-sdk` and fabric-emulator's Databricks activities can
 point at the same host:
 
-1. Jobs API 2.1 (`runs/submit`, poll) — Python / notebook on an attached Spark
-   engine.
-2. Workspace files / notebooks — file-backed store.
-3. DBFS / Files API — real bytes (Azurite or a local blob).
-4. Tokens from [entra-emulator](https://github.com/calvinchengx/entra-emulator).
-   Any-token-accepted is not identity.
+1. Jobs API 2.2 (2.1 aliased) — Python / notebook on an attached Spark engine.
+2. Workspace files / notebooks — file-backed store, including workspace-files.
+3. DBFS / Files API — real bytes on a local blob root.
+4. PAT and emulator OIDC. Federated JWT when an issuer is configured.
 
 SQL warehouses, Unity Catalog (attach
 [UC OSS](https://github.com/unitycatalog/unitycatalog), do not invent a
@@ -50,14 +56,14 @@ witnessed. Clusters as VMs and Photon never.
 | Surface | Honest attach |
 |---|---|
 | Workspace files / notebooks | File-backed store |
-| Jobs 2.1 | Python / notebook on Sail or JVM Spark |
-| DBFS / Files API | Azurite or local blob |
-| Secrets | Real store; values only in job env |
+| Jobs 2.2 | Python / notebook on Sail or JVM Spark |
+| DBFS / Files API | Local blob under `data/dbfs/` |
+| Secrets | Databricks-backed persist; AKV-backed is a live vault read-through, not a sync |
 | SQL warehouses | Spark SQL, dialect named in the output |
 | Clusters | Session handle onto the attached engine, not a VM |
 | Unity Catalog CRUD | UC OSS sidecar |
 | Databricks Connect | Spark Connect |
-| Identity | entra-emulator PAT / OAuth |
+| Identity | PAT + emulator OIDC; Entra optional |
 
 ## Permanently red
 

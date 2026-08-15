@@ -1,0 +1,109 @@
+package server
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/calvinchengx/databricks-emulator/internal/clock"
+	"github.com/calvinchengx/databricks-emulator/internal/config"
+	"github.com/calvinchengx/databricks-emulator/internal/spark"
+)
+
+type harness struct {
+	t      *testing.T
+	srv    *Server
+	http   *httptest.Server
+	exec   *spark.Scripted
+	client *http.Client
+}
+
+func newHarness(t *testing.T) *harness {
+	t.Helper()
+	exec := &spark.Scripted{}
+	cfg := &config.Config{
+		Addr:       ":0",
+		DataDir:    t.TempDir(),
+		DisableTLS: true,
+		PublicURL:  "http://dbx.test",
+	}
+	clk := clock.New()
+	s, err := New(cfg, clk, exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(s.Handler())
+	t.Cleanup(ts.Close)
+	return &harness{t: t, srv: s, http: ts, exec: exec, client: ts.Client()}
+}
+
+func (h *harness) do(method, path, token string, body any) *http.Response {
+	h.t.Helper()
+	var rdr io.Reader
+	if body != nil {
+		switch b := body.(type) {
+		case []byte:
+			rdr = bytes.NewReader(b)
+		case string:
+			rdr = bytes.NewReader([]byte(b))
+		default:
+			raw, _ := json.Marshal(b)
+			rdr = bytes.NewReader(raw)
+		}
+	}
+	req, err := http.NewRequest(method, h.http.URL+path, rdr)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if body != nil {
+		if _, ok := body.([]byte); ok {
+			req.Header.Set("Content-Type", "application/octet-stream")
+		} else {
+			req.Header.Set("Content-Type", "application/json")
+		}
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return resp
+}
+
+func (h *harness) json(method, path, token string, body any, dest any) int {
+	h.t.Helper()
+	resp := h.do(method, path, token, body)
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if dest != nil && len(raw) > 0 {
+		if err := json.Unmarshal(raw, dest); err != nil {
+			h.t.Fatalf("decode %s: %v body=%s", path, err, raw)
+		}
+	}
+	return resp.StatusCode
+}
+
+func (h *harness) waitRun(runID int64) map[string]any {
+	h.t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var out map[string]any
+		st := h.json("GET", "/api/2.2/jobs/runs/get?run_id="+itoa(runID), h.srv.Store.AdminPAT, nil, &out)
+		if st != 200 {
+			h.t.Fatalf("runs/get %d", st)
+		}
+		state, _ := out["state"].(map[string]any)
+		if str(state["life_cycle_state"]) == "TERMINATED" {
+			return out
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.t.Fatal("run did not terminate")
+	return nil
+}

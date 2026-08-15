@@ -1,0 +1,15 @@
+{
+  "supported": 10,
+  "claims": {
+    "identity-pat": "internal/server/identity_test.go:TestSeededPATMeAndDevRejected",
+    "identity-oidc": "internal/server/identity_test.go:TestOIDCClientCredentialsMe",
+    "identity-federated": "internal/server/identity_test.go:TestFederatedJWTDoors",
+    "workspace-source-python": "internal/server/workspace_test.go:TestWorkspaceImportExportAndRefuseFormats",
+    "workspace-files-raw": "internal/server/workspace_test.go:TestWorkspaceFilesRawBytesAnd404",
+    "dbfs-files": "internal/server/dbfs_test.go:TestDBFSPutGetListMoveDeleteAndTraversal",
+    "jobs-python-mutation": "internal/server/jobs_test.go:TestJobsPythonRunsAndMutation",
+    "secrets-injection": "internal/server/secrets_test.go:TestSecretsCRUDGetRefusedAndJobInjection",
+    "secrets-persist": "internal/store/store_test.go:TestSecretsPersistAcrossOpen",
+    "secrets-akv-readthrough": "internal/server/secrets_backends_test.go:TestAKVScopeReadThroughAndRotate"
+  }
+}
