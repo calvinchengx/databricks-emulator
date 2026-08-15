@@ -87,7 +87,7 @@ function tallyLine(t) {
   if (t['🟢']) parts.push(`${t['🟢']} 🟢 Real`);
   if (t['🟡']) parts.push(`${t['🟡']} 🟡 Emulated`);
   if (t['🟠']) parts.push(`${t['🟠']} 🟠 BYO-engine`);
-  if (t['🔴']) parts.push(`${t['🔴']} 🔴 refuse`);
+  if (t['🔴']) parts.push(`${t['🔴']} 🔴 Not implemented`);
   return parts.join(' · ');
 }
 
