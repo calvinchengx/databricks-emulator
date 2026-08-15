@@ -18,7 +18,7 @@ clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
 Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
-delta-rs shim, ZORDER refused).
+delta-rs shim, ZORDER refused; concurrent `INSERT OVERWRITE` serialises).
 
 ## Next honest attaches
 
@@ -37,18 +37,10 @@ Parity history is generated from every `v*` tag that carries `docs/parity.md`
 (`v0.1.0` is the first). Live map, snapshots, and changelog live on the docs
 site — not a numbered chapter.
 
-## Permanently red
+## Not implemented
 
-From [Doctrine](00-doctrine.md) — shipping any of these as green would change
-the project's character:
-
-- Photon and any "DBR compatible" claim
-- Full `dbutils` / `spark.databricks.*` runtime
-- Cluster autoscaling, instance pools, serverless SQL as real VMs
-- Lakeflow / DLT
-- Model Serving, Vector Search, Dashboards
-- JAR main on a Python-only agent
-- Fine-grained Unity Catalog grants, if the Permissions API does not enforce them
-
-The rest of the workspace REST catalog is enumerated as 🔴 Not implemented in
-[parity.md](parity.md) until a witness exists. 501, never a silent 200.
+Photon, DBR version strings, full `dbutils`, cluster VMs, Lakeflow / DLT,
+Model Serving, Vector Search, Dashboards, JAR main on a Python-only agent,
+and Unity Catalog grants until they deny. The rest of the workspace REST
+catalog is the same grade in [parity.md](parity.md) until a witness exists.
+501, never a silent 200.

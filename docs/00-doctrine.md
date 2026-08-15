@@ -49,7 +49,7 @@ point at the same host:
 Unity Catalog CRUD attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
 (`DATABRICKS_UC_URL`); there is no invented metastore. Grants stay refused
 until they deny. SQL warehouses and Databricks Connect attach the same Spark
-engine. Clusters as VMs and Photon never.
+engine. Clusters as VMs and Photon are not implemented.
 
 ## Reachable, if honest
 
@@ -65,7 +65,7 @@ engine. Clusters as VMs and Photon never.
 | Databricks Connect | Spark Connect |
 | Identity | PAT + emulator OIDC; Entra optional |
 
-## Permanently red
+## Not implemented
 
 - Photon and any "DBR compatible" claim
 - Full `dbutils` / `spark.databricks.*` runtime

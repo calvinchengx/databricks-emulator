@@ -60,7 +60,9 @@ advances). Standalone `UPDATE` is FAILED (`CommandNode::Update`). Sail
 Sail's unity catalog provider (same Compose network as UC OSS) and
 delta-rs confirms the new row. `OPTIMIZE` / `VACUUM` use
 `delta.\`file://…\`` through the spark-agent's delta-rs shim (Sail has no
-grammar); `OPTIMIZE … ZORDER` is refused.
+grammar); `OPTIMIZE … ZORDER` is refused. Two concurrent `INSERT OVERWRITE`s
+on a second table: each success has its own log version; rows are one
+overwrite, not a silent merge.
 
 **`e2e-uc`** — `catalogs.create` / `schemas.create` / EXTERNAL `tables.create`
 plus `tables.get`; MANAGED create and `grants.get` are 501. The sidecar is

@@ -104,7 +104,7 @@ function writeIndex() {
       `- [Unity Catalog](12-unity-catalog.md) — UC OSS proxy; grants stay 501\n` +
       `- [Testing](13-testing.md) — what \`e2e-sdk\` / \`e2e-terraform\` / \`e2e-engine\` / \`e2e-delta\` / \`e2e-uc\` each prove\n` +
       `- [Family integration](14-family-integration.md) — entra, keyvault, fabric activities, chain test\n` +
-      `- [Roadmap](15-roadmap.md) — next honest attaches; permanently red\n` +
+      `- [Roadmap](15-roadmap.md) — next honest attaches; not implemented\n` +
       `- [Parity ledger](parity.md) — catalog is the workspace REST API reference\n` +
       `- [Parity history](${BASE}parity-history/) — snapshots from git tags\n`,
     'index',
