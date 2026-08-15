@@ -27,8 +27,12 @@ close red rows.
 
 ## Docs still to write
 
-P2: parity-history from git tags (v0.1.0 already exists), release notes on the
-next tag, platform-setup after `make up` / `make status` exist.
+P2 leftover: release notes on the next tag; platform-setup after `make up` /
+`make status` exist.
+
+Parity history is generated from every `v*` tag that carries `docs/parity.md`
+(`v0.1.0` is the first). Live map, snapshots, and changelog live on the docs
+site — not a numbered chapter.
 
 ## Permanently red
 

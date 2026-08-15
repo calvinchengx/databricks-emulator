@@ -2,6 +2,7 @@
 import { readdirSync, readFileSync, writeFileSync, rmSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { collectParity, writeParityHistory, parityManifest } from './parity-versions.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(here, '..', '..');
@@ -9,6 +10,10 @@ const DOCS_SRC = join(REPO_ROOT, 'docs');
 const OUT = join(here, '..', 'src', 'content', 'docs');
 export const BASE = '/databricks-emulator/';
 const REPO = 'https://github.com/calvinchengx/databricks-emulator';
+
+const PARITY = collectParity(REPO_ROOT);
+const IS_RELEASE = /^v\d+\.\d+\.\d+$/.test(PARITY.version);
+const PARITY_RE = /(^|\/)parity\.md$/;
 
 const DOC_RE = /^(\d{2}-[a-z0-9-]+|parity)\.md$/;
 const LINK_RE = /\]\((?:\.\/|docs\/)?(\d{2}-[a-z0-9-]+|parity)\.md(#[^)]*)?\)/g;
@@ -44,17 +49,31 @@ function yamlEscape(s) {
   return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 }
 
-function convert(srcPath, name) {
-  const raw = readFileSync(srcPath, 'utf8');
+function convertBody(raw, where = 'docs') {
   const lines = raw.split('\n');
   const h1Index = lines.findIndex((l) => /^#\s+/.test(l));
-  const title = h1Index >= 0
-    ? cleanTitle(lines[h1Index].replace(/^#\s+/, ''))
-    : name.replace(/\.md$/, '');
   if (h1Index >= 0) {
     lines.splice(h1Index, lines[h1Index + 1]?.trim() === '' ? 2 : 1);
   }
-  const body = rewriteLinks(lines.join('\n').replace(/^\n+/, ''), name);
+  return rewriteLinks(lines.join('\n').replace(/^\n+/, ''), where);
+}
+
+function parityStamp() {
+  const what = IS_RELEASE
+    ? `release **${PARITY.version}**`
+    : `**${PARITY.version}** (the live tip of \`main\`)`;
+  return (
+    `_Parity map as of ${what} — tracked by git release tags. ` +
+    `See the [version history](${BASE}parity-history/) and [parity changelog](${BASE}parity-history/changelog/)._\n\n`
+  );
+}
+
+function convert(srcPath, name) {
+  const raw = readFileSync(srcPath, 'utf8');
+  const h1 = raw.split('\n').find((l) => /^#\s+/.test(l));
+  const title = h1 ? cleanTitle(h1.replace(/^#\s+/, '')) : name.replace(/\.md$/, '');
+  let body = convertBody(raw, name);
+  if (PARITY_RE.test(name)) body = parityStamp() + body;
   const editUrl = `${REPO}/edit/main/docs/${name}`;
   return `---\ntitle: ${yamlEscape(title)}\neditUrl: ${yamlEscape(editUrl)}\n---\n\n` + body;
 }
@@ -86,7 +105,8 @@ function writeIndex() {
       `- [Testing](13-testing.md) — what \`e2e-sdk\` / \`e2e-terraform\` / \`e2e-engine\` / \`e2e-uc\` each prove\n` +
       `- [Family integration](14-family-integration.md) — entra, keyvault, fabric activities, chain test\n` +
       `- [Roadmap](15-roadmap.md) — next honest attaches; permanently red\n` +
-      `- [Parity ledger](parity.md) — catalog is the workspace REST API reference\n`,
+      `- [Parity ledger](parity.md) — catalog is the workspace REST API reference\n` +
+      `- [Parity history](${BASE}parity-history/) — snapshots from git tags\n`,
     'index',
   );
   const frontmatter =
@@ -102,5 +122,11 @@ for (const name of names) {
   writeFileSync(join(OUT, name), convert(join(DOCS_SRC, name), name));
 }
 writeIndex();
-
-console.log(`sync-docs: wrote ${names.length} docs + index to src/content/docs/`);
+const info = writeParityHistory(OUT, PARITY, { convertBody });
+const DATA = join(here, '..', 'src', 'data');
+mkdirSync(DATA, { recursive: true });
+writeFileSync(join(DATA, 'parity-versions.json'), JSON.stringify(parityManifest(PARITY), null, 2) + '\n');
+console.log(
+  `sync-docs: wrote ${names.length} docs + index to src/content/docs/ ` +
+    `(parity ${info.version}; ${info.snapshots.length} tagged snapshot(s))`,
+);

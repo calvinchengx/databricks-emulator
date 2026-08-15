@@ -13,6 +13,7 @@ export default defineConfig({
       title: 'Databricks Emulator',
       components: {
         Head: './src/components/Head.astro',
+        Search: './src/components/Search.astro',
       },
       description:
         'A local emulator of a Databricks workspace — PAT and OIDC identity, workspace files, Jobs, and an attached Spark engine — refuse what you cannot compute.',
@@ -64,6 +65,8 @@ export default defineConfig({
           label: 'Parity',
           items: [
             { slug: 'parity', label: 'Parity ledger' },
+            { slug: 'parity-history' },
+            { slug: 'parity-history/changelog' },
           ],
         },
       ],
