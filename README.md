@@ -58,6 +58,10 @@ sidecar (`DATABRICKS_UC_URL`). Without one those routes are 501 naming the
 missing sidecar. MANAGED table create is refused (UC OSS only creates
 EXTERNAL tables at a filesystem location). Grants stay 501 until they deny.
 
+`POST /api/2.0/mcp/sql` is the Databricks SQL MCP server: `execute_sql` /
+`poll_response` wrap the warehouse statements handler after PAT/OIDC.
+Genie, AI Search, and UC function MCP paths stay 501.
+
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 
 See [docs/00-doctrine.md](docs/00-doctrine.md) and [docs/parity.md](docs/parity.md).

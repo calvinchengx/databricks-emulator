@@ -15,6 +15,10 @@ func TestSQLWarehouseAndStatementCRUD(t *testing.T) {
 	if len(s.ListWarehouses()) != 1 {
 		t.Fatal("list")
 	}
+	gotRun, ok := s.FirstRunning()
+	if !ok || gotRun.ID != w.ID {
+		t.Fatalf("first running %+v %v", gotRun, ok)
+	}
 	if !s.SetWarehouseState(w.ID, "STOPPED") || s.wh[w.ID].State != "STOPPED" {
 		t.Fatal("stop")
 	}
@@ -36,5 +40,8 @@ func TestSQLWarehouseAndStatementCRUD(t *testing.T) {
 	}
 	if s.SetWarehouseState("missing", "RUNNING") {
 		t.Fatal("missing state")
+	}
+	if _, ok := s.FirstRunning(); ok {
+		t.Fatal("stopped still running")
 	}
 }

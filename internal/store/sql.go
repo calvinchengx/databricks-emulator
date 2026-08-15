@@ -60,6 +60,18 @@ func (s *SQL) GetWarehouse(id string) (*Warehouse, bool) {
 	return w, ok
 }
 
+// FirstRunning returns one RUNNING warehouse, if any.
+func (s *SQL) FirstRunning() (*Warehouse, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range s.wh {
+		if w.State == "RUNNING" {
+			return w, true
+		}
+	}
+	return nil, false
+}
+
 // ListWarehouses returns every warehouse.
 func (s *SQL) ListWarehouses() []*Warehouse {
 	s.mu.Lock()
