@@ -20,6 +20,7 @@ type Task struct {
 	NotebookParams map[string]string
 	PythonFile     string
 	PythonParams   []string
+	SQLFile        string
 	SparkEnvVars   map[string]string
 	SparkConf      map[string]string
 }
