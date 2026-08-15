@@ -12,7 +12,7 @@ is set.
 | `--addr` | `DATABRICKS_ADDR` | `:8447` | Listen address. |
 | `--data-dir` | `DATABRICKS_DATA_DIR` | `./data` | State directory: identity, TLS, OIDC key, workspace, DBFS, secrets. The distroless image sets `/data`. |
 | `--public-url` | `DATABRICKS_PUBLIC_URL` | derived | Advertised origin for OIDC discovery and `/.well-known/databricks-config`. Derived as `https://localhost{addr}` (or `http://` when TLS is off) when unset. Set this on compose so tokens carry the in-network issuer. |
-| `--disable-tls` | `DATABRICKS_DISABLE_TLS` | off | Serve plain HTTP. Truthy: `1`, `true`, `yes`, `on`. |
+| `--disable-tls` | `DATABRICKS_DISABLE_TLS` | off | Serve plain HTTP. REST stays HTTP/1; Databricks Connect uses h2c prior knowledge on the same port. Truthy: `1`, `true`, `yes`, `on`. |
 | `--spark-connect-url` | `DATABRICKS_SPARK_CONNECT_URL` | *(unset)* | Statement-agent origin Jobs, SQL, and cluster-create drive (`{url}/statements`). Empty: those paths fail naming the missing engine. |
 | `--spark-connect-grpc-url` | `DATABRICKS_SPARK_CONNECT_GRPC_URL` | *(unset)* | Spark Connect gRPC origin Databricks Connect is reverse-proxied to (Sail `:50051`). An HTTP agent is not this URL. Empty: Connect is 501 naming this variable. |
 | — | `DATABRICKS_OIDC_ISSUERS` | *(unset)* | Comma-separated federated issuer URLs (entra or any OIDC). Empty: only PAT and this process's OIDC work. No flag. |

@@ -109,6 +109,7 @@
     "section": "Compute",
     "claim": "Databricks Connect",
     "witnesses": [
+      "ci:e2e-engine",
       "go:TestSparkConnectProxiesAfterPATAndClusterID"
     ]
   },
@@ -116,6 +117,7 @@
     "section": "Catalog",
     "claim": "Unity Catalog CRUD",
     "witnesses": [
+      "ci:e2e-uc",
       "go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants"
     ]
   },

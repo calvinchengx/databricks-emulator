@@ -60,7 +60,7 @@ jobs:
       - run: python3 e2e/terraform/run.py
 
   e2e-engine:
-    name: Unmodified SDK + Sail
+    name: Unmodified SDK + Connect + Sail
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -72,5 +72,19 @@ jobs:
           python-version: '3.12'
       - name: GHCR login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-      - run: pip install -r e2e/sdk/requirements.txt
+      - run: pip install -r e2e/engine/requirements.txt
       - run: python3 e2e/engine/run.py
+
+  e2e-uc:
+    name: Unmodified SDK + UC OSS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -r e2e/sdk/requirements.txt
+      - run: python3 e2e/uc/run.py

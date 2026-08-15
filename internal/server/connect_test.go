@@ -4,10 +4,19 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestConnectTransportIsH2COnly(t *testing.T) {
+	tr, ok := connectTransport().(*http.Transport)
+	if !ok || tr.Protocols == nil {
+		t.Fatal("expected *http.Transport with Protocols")
+	}
+	if tr.Protocols.HTTP1() || !tr.Protocols.UnencryptedHTTP2() {
+		t.Fatal("Sail is h2c; HTTP/1 on the transport disables unencrypted HTTP/2")
+	}
+}
 
 func TestSparkConnectProxiesAfterPATAndClusterID(t *testing.T) {
 	h := newHarness(t)
@@ -17,7 +26,7 @@ func TestSparkConnectProxiesAfterPATAndClusterID(t *testing.T) {
 	id := str(created["cluster_id"])
 
 	var sawPath, sawAuth, sawCluster string
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h.srv.Cfg.SparkConnectGRPCURL = h2cURL(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sawPath = r.URL.Path
 		sawAuth = r.Header.Get("Authorization")
 		sawCluster = r.Header.Get("x-databricks-cluster-id")
@@ -25,8 +34,6 @@ func TestSparkConnectProxiesAfterPATAndClusterID(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("plan-ok"))
 	}))
-	t.Cleanup(backend.Close)
-	h.srv.Cfg.SparkConnectGRPCURL = backend.URL
 	h.srv.Cfg.SparkAgentURL = "http://127.0.0.1:9" // HTTP agent must not be the Connect backend
 
 	req, err := http.NewRequest(http.MethodPost, h.http.URL+"/spark.connect.SparkConnectService/AnalyzePlan", strings.NewReader("plan"))
@@ -53,6 +60,49 @@ func TestSparkConnectProxiesAfterPATAndClusterID(t *testing.T) {
 	}
 	if sawCluster != id {
 		t.Fatalf("cluster header %s", sawCluster)
+	}
+}
+
+func TestSparkConnectProxiesH2CClient(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/clusters/create", pat, map[string]any{"cluster_name": "dev"}, &created)
+	id := str(created["cluster_id"])
+
+	var sawPath string
+	h.srv.Cfg.SparkConnectGRPCURL = h2cURL(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/grpc")
+		_, _ = w.Write([]byte("h2c-ok"))
+	}))
+
+	tr := &http.Transport{}
+	p := new(http.Protocols)
+	p.SetUnencryptedHTTP2(true)
+	tr.Protocols = p
+	client := &http.Client{Transport: tr}
+	req, err := http.NewRequest(http.MethodPost, h.http.URL+"/spark.connect.SparkConnectService/ExecutePlan", strings.NewReader("plan"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+pat)
+	req.Header.Set("Content-Type", "application/grpc")
+	req.Header.Set("x-databricks-cluster-id", id)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.ProtoMajor != 2 {
+		t.Fatalf("client proto %s", resp.Proto)
+	}
+	if resp.StatusCode != 200 || string(body) != "h2c-ok" {
+		t.Fatalf("h2c proxy %d %s", resp.StatusCode, body)
+	}
+	if sawPath != "/spark.connect.SparkConnectService/ExecutePlan" {
+		t.Fatalf("path %s", sawPath)
 	}
 }
 

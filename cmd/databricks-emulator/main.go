@@ -80,7 +80,20 @@ func run(args []string) error {
 		ln = tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}})
 	}
 	fmt.Printf("databricks-emulator listening on %s://%s\n", scheme, ln.Addr())
-	return http.Serve(ln, srv.Handler())
+	return newHTTPServer(srv.Handler(), cfg.DisableTLS).Serve(ln)
+}
+
+// newHTTPServer is the production listener. When TLS is off, Databricks
+// Connect still needs h2c prior knowledge on the same port as REST HTTP/1.
+func newHTTPServer(handler http.Handler, disableTLS bool) *http.Server {
+	hs := &http.Server{Handler: handler}
+	if disableTLS {
+		p := new(http.Protocols)
+		p.SetHTTP1(true)
+		p.SetUnencryptedHTTP2(true)
+		hs.Protocols = p
+	}
+	return hs
 }
 
 func healthcheck(cfg *config.Config) error {

@@ -62,12 +62,11 @@ func (s *Server) sparkConnect(w http.ResponseWriter, r *http.Request, _ *auth.Pr
 	proxy.ServeHTTP(w, r)
 }
 
-// connectTransport speaks HTTP/1 (tests, httptest backends) and h2c
-// (Sail's Spark Connect port). DefaultTransport is HTTP/1-only on http://.
+// connectTransport speaks h2c to Sail. Go only uses unencrypted HTTP/2 when
+// HTTP/1 is off; leaving both on silently stays HTTP/1 and Sail RSTs.
 func connectTransport() http.RoundTripper {
 	tr := &http.Transport{}
 	p := new(http.Protocols)
-	p.SetHTTP1(true)
 	p.SetUnencryptedHTTP2(true)
 	tr.Protocols = p
 	return tr

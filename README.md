@@ -69,13 +69,15 @@ a workspace file, and a job against the seeded PAT — the DAB pair. `token=dev`
 is refused. `make e2e-terraform` is the witness.
 
 `make e2e-engine` attaches Sail + the family's spark-agent (and entra +
-keyvault) and drives cluster create, a Python job whose logs contain
-`REACHED`, `{{secrets}}` printed from `os.environ`, an AKV-backed scope
-whose rotate is visible on the next run, a SQL warehouse `SELECT 1` that
-names `dialect: spark-sql`, and MCP `execute_sql` through the unmodified
-SDK. It does not witness Databricks Connect — that still needs a stranger
-`databricks-connect` client; the gRPC URL is split so the HTTP agent is
-no longer the Connect backend.
+keyvault) and drives cluster create, unmodified `databricks-connect`
+`SELECT 1`, a Python job whose logs contain `REACHED`, `{{secrets}}`
+printed from `os.environ`, an AKV-backed scope whose rotate is visible on
+the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
+and MCP `execute_sql`. Python 3.12 is required.
+
+`make e2e-uc` attaches [UC OSS](https://github.com/unitycatalog/unitycatalog)
+`v0.5.0` and drives catalog / schema / EXTERNAL table create through the
+unmodified SDK. MANAGED create and grants stay 501.
 
 Unmapped `/api/*` is **501** `NOT_IMPLEMENTED`, never a silent 200.
 

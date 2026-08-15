@@ -14,7 +14,9 @@ make run            # https://localhost:8447
 ```
 
 `make doctor` checks for Go. Python is required for `make e2e` /
-`make witnesses`; Docker is required for `make e2e-engine`.
+`make witnesses`; Docker and **Python 3.12** are required for
+`make e2e-engine` (`databricks-connect==19.1`). Docker is required for
+`make e2e-uc` (UC OSS).
 
 ## Docker / GHCR
 

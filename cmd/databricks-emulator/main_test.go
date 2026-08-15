@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/tls"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -78,6 +80,43 @@ func TestRunUnlistenableAddr(t *testing.T) {
 	t.Setenv("DATABRICKS_DATA_DIR", t.TempDir())
 	if err := run([]string{"-disable-tls", "-addr", "999.999.999.999:1"}); err == nil {
 		t.Fatal("unlistenable addr accepted")
+	}
+}
+
+func TestPlainHTTPServerAcceptsH2CAndHTTP1(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hs := newHTTPServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(r.Proto))
+	}), true)
+	go func() { _ = hs.Serve(ln) }()
+	t.Cleanup(func() { _ = hs.Close() })
+	base := "http://" + ln.Addr().String()
+
+	tr := &http.Transport{}
+	p := new(http.Protocols)
+	p.SetUnencryptedHTTP2(true)
+	tr.Protocols = p
+	h2, err := (&http.Client{Transport: tr}).Get(base + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := io.ReadAll(h2.Body)
+	h2.Body.Close()
+	if h2.StatusCode != 200 || string(raw) != "HTTP/2.0" {
+		t.Fatalf("h2c %d %s", h2.StatusCode, raw)
+	}
+
+	h1, err := http.Get(base + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = io.ReadAll(h1.Body)
+	h1.Body.Close()
+	if h1.StatusCode != 200 || string(raw) != "HTTP/1.1" {
+		t.Fatalf("http1 %d %s", h1.StatusCode, raw)
 	}
 }
 

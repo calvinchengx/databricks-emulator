@@ -46,8 +46,13 @@ The `Authorization` header is stripped before the backend sees it. Missing
 cluster id is 400; unknown cluster is 404; not RUNNING is 400; no gRPC URL
 is 501 even when the HTTP agent is set.
 
-Witness: `go:TestSparkConnectProxiesAfterPATAndClusterID`. A
-`databricks-connect` stranger in CI is still the missing `ci:`.
+When TLS is off, the same port accepts REST HTTP/1 and Connect h2c (prior
+knowledge). The outbound hop to Sail is h2c-only.
+
+Witness: `ci:e2e-engine` — unmodified `databricks-connect==19.1` runs
+`spark.sql("SELECT 1 AS n").collect()` through this proxy. The connection
+string uses host `localhost` (not `127.0.0.1`): with a token, the client's
+ChannelBuilder only skips TLS for that name.
 
 See [Jobs and the Spark attach](08-jobs-and-spark.md) for the HTTP attach
 `make e2e-engine` uses.

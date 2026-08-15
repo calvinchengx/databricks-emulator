@@ -1,0 +1,6 @@
+# Pinned witnesses: unmodified SDK (Jobs/SQL/clusters) and unmodified
+# databricks-connect (Spark Connect through the emulator proxy).
+# databricks-connect 19.1 Requires-Python ==3.12.* — CI is setup-python 3.12.
+# A floating pip install is not a witness.
+-r ../sdk/requirements.txt
+databricks-connect==19.1

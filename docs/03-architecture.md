@@ -9,7 +9,7 @@ Vault would have. The founding constraint is [Doctrine](00-doctrine.md).
 
 ```mermaid
 graph TD
-  clients["databricks-sdk / CLI / Terraform / fabric activities"]
+  clients["databricks-sdk / CLI / Terraform / databricks-connect / fabric activities"]
   ws["databricks-emulator :8447"]
   store["file store: workspace, DBFS, secrets, identity"]
   agent["spark-agent HTTP /statements"]
@@ -20,6 +20,7 @@ graph TD
   clients --> ws
   ws --> store
   ws -->|"jobs, SQL, cluster session"| agent
+  ws -->|"Databricks Connect gRPC"| sail
   agent --> sail
   ws -->|"optional DATABRICKS_UC_URL"| uc
   ws -->|"optional AKV read-through"| kv

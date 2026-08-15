@@ -16,9 +16,10 @@ make e2e-engine
 That script `docker compose`s [`e2e/engine/docker-compose.yml`](../e2e/engine/docker-compose.yml),
 builds this binary, sets `DATABRICKS_SPARK_CONNECT_URL=http://127.0.0.1:8099`
 (HTTP agent) and `DATABRICKS_SPARK_CONNECT_GRPC_URL=http://127.0.0.1:50051`
-(Sail), and drives unmodified `databricks-sdk`. `ENTRA_TOKEN_URL` is
+(Sail), and drives unmodified `databricks-sdk` plus pinned
+`databricks-connect==19.1`. `ENTRA_TOKEN_URL` is
 deliberately unset on Sail so the launcher execs the server instead of
-waiting on a Storage-audience mint.
+waiting on a Storage-audience mint. Python 3.12 is required (`Requires-Python ==3.12.*`).
 
 To attach by hand:
 
@@ -53,23 +54,24 @@ refused. See [Doctrine](00-doctrine.md).
 
 ## What `e2e-engine` proves
 
-Unmodified `databricks-sdk` 0.129:
+Unmodified `databricks-sdk` 0.129 and `databricks-connect` 19.1:
 
 1. `clusters.create` waits until `RUNNING` (session handle, not a VM).
-2. Upload `/Shared/reached.py`, `jobs.create` + `run_now_and_wait`;
+2. `DatabricksSession.builder.remote("sc://localhost:18449/;…")` then
+   `spark.sql("SELECT 1 AS n").collect()` is `[Row(n=1)]`.
+3. Upload `/Shared/reached.py`, `jobs.create` + `run_now_and_wait`;
    `get_run_output` logs contain `REACHED`.
-3. Missing `{{secrets/kv/nope}}` fails the run.
-4. Warehouse `SELECT 1` succeeds and the wire names `dialect: spark-sql`.
-5. MCP `execute_sql` takes the same warehouse handler.
+4. Missing `{{secrets/kv/nope}}` fails the run.
+5. Warehouse `SELECT 1` succeeds and the wire names `dialect: spark-sql`.
+6. MCP `execute_sql` takes the same warehouse handler.
 
-Witness: `ci:e2e-engine` on clusters-as-session, Jobs Python, SQL warehouses,
-and MCP SQL.
+Witness: `ci:e2e-engine` on clusters-as-session, Databricks Connect, Jobs
+Python, SQL warehouses, and MCP SQL.
 
 ## What it does not prove
 
 | Claim | Why not |
 |---|---|
-| Databricks Connect | Connect reverse-proxies to `DATABRICKS_SPARK_CONNECT_GRPC_URL`, not the HTTP agent. Witness is still `go:` until a stranger drives `databricks-connect`. See [Clusters and Connect](11-clusters-and-connect.md). |
 | JAR / dbt / DLT / `sql_task.query` | Refused at job create. |
 
 Create a Python job without an engine to see the refusal:

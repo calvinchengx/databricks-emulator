@@ -14,21 +14,16 @@ Terraform/DAB pair. Green rows and their witnesses: [parity.md](parity.md).
 
 Independently evidenced (`ci:`) as of this writing: identity, workspace, DBFS,
 secret persist and injection, AKV read-through + vault-audience, Terraform/DAB,
-clusters-as-session, Jobs Python, SQL warehouses, MCP SQL. Leftover `go:`
-rows: Databricks Connect and Unity Catalog CRUD.
+clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
+Unity Catalog CRUD.
 
 ## Next honest attaches
 
-These are already graded green with a Go witness. They need a real sidecar
-or stranger client in CI before `ci:` is honest:
-
-| Claim | Needs |
-|---|---|
-| Databricks Connect | A stranger `databricks-connect` client. The gRPC URL is already split (`DATABRICKS_SPARK_CONNECT_GRPC_URL` → Sail `:50051`); an HTTP agent is not that backend. |
-| Unity Catalog CRUD | UC OSS sidecar (`DATABRICKS_UC_URL`). Grants stay 501 until they deny. |
+The first-slice greens that needed a sidecar now have `ci:`. Grants stay 501
+until they deny — that is refuse, not a leftover green.
 
 Do not invent a fake statement agent, metastore, or Permissions allow-all to
-close those rows.
+close red rows.
 
 ## Docs still to write
 

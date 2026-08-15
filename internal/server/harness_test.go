@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -37,9 +38,29 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts := httptest.NewServer(s.Handler())
+	ts := httptest.NewUnstartedServer(s.Handler())
+	p := new(http.Protocols)
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	ts.Config.Protocols = p
+	ts.Start()
 	t.Cleanup(ts.Close)
 	return &harness{t: t, srv: s, http: ts, exec: exec, client: ts.Client()}
+}
+
+// h2cURL serves h on prior-knowledge HTTP/2 only — Sail's Spark Connect shape.
+func h2cURL(t *testing.T, h http.Handler) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := new(http.Protocols)
+	p.SetUnencryptedHTTP2(true)
+	srv := &http.Server{Handler: h, Protocols: p}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	return "http://" + ln.Addr().String()
 }
 
 func (h *harness) do(method, path, token string, body any) *http.Response {

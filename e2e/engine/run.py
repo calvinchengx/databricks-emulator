@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive unmodified databricks-sdk against the emulator with Sail attached."""
+"""Drive unmodified databricks-sdk and databricks-connect with Sail attached."""
 
 from __future__ import annotations
 
@@ -104,36 +104,24 @@ def vault_unauthenticated_is_401() -> None:
     raise SystemExit("vault accepted an unauthenticated GET")
 
 
-def connect_not_501(pat: str, cluster_id: str) -> None:
-    """gRPC URL is wired. urllib is this repo's client — not a Connect witness."""
-    req = urllib.request.Request(
-        HOST + "/spark.connect.SparkConnectService/AnalyzePlan",
-        data=b"\x00\x00\x00\x00\x00",
-        headers={
-            "Authorization": "Bearer " + pat,
-            "Content-Type": "application/grpc",
-            "x-databricks-cluster-id": cluster_id,
-            "TE": "trailers",
-        },
-        method="POST",
-    )
+def connect_select_one(pat: str, cluster_id: str) -> None:
+    """Unmodified databricks-connect through the emulator proxy. urllib is not a witness.
+
+    Host is the literal name localhost: with a token, pyspark's ChannelBuilder
+    only skips TLS for that name (not 127.0.0.1). The emulator still binds
+    127.0.0.1:18449; REST stays on HOST.
+    """
+    from databricks.connect import DatabricksSession
+
+    spark = DatabricksSession.builder.remote(
+        f"sc://localhost:18449/;use_ssl=false;token={pat};x-databricks-cluster-id={cluster_id}"
+    ).getOrCreate()
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            raw = resp.read()
-            code = resp.status
-            ct = resp.headers.get("Content-Type", "")
-    except urllib.error.HTTPError as exc:
-        raw = exc.read()
-        code = exc.code
-        ct = exc.headers.get("Content-Type", "")
-    except (urllib.error.URLError, TimeoutError, ConnectionError):
-        # Empty gRPC frame may RST at Sail. Not 501 means the gRPC URL is wired.
-        return
-    if code == 501:
-        raise SystemExit("connect 501 — DATABRICKS_SPARK_CONNECT_GRPC_URL not wired")
-    text = raw.decode(errors="replace")
-    if "json" in ct.lower() and "DATABRICKS_SPARK_CONNECT" in text:
-        raise SystemExit(f"connect hit the HTTP-agent refusal: {text[:200]}")
+        rows = spark.sql("SELECT 1 AS n").collect()
+    finally:
+        spark.stop()
+    if not rows or int(rows[0]["n"]) != 1:
+        raise SystemExit(f"databricks-connect SELECT 1: {rows!r}")
 
 
 def stop(proc: subprocess.Popen[bytes] | None) -> None:
@@ -164,6 +152,9 @@ def mcp(pat: str, body: dict, session: str = "") -> tuple[int, dict, str]:
 
 
 def main() -> int:
+    if sys.version_info[:2] != (3, 12):
+        raise SystemExit("e2e/engine needs Python 3.12 (databricks-connect==19.1)")
+
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.core import DatabricksError
     from databricks.sdk.service.compute import ClusterSpec
@@ -193,7 +184,7 @@ def main() -> int:
         ).result()
         if created.state is None or created.state.value != "RUNNING":
             raise SystemExit(f"cluster state {created.state}")
-        connect_not_501(pat, created.cluster_id)
+        connect_select_one(pat, created.cluster_id)
 
         w.workspace.upload("/Shared/reached.py", b"print('REACHED')\n", overwrite=True, format=ImportFormat.AUTO)
         job = w.jobs.create(
@@ -318,7 +309,7 @@ def main() -> int:
         if st != 200 or "SUCCEEDED" not in blob or "spark-sql" not in blob:
             raise SystemExit(f"mcp execute {st} {execd}")
 
-        print("e2e/engine: cluster + REACHED + secret print + AKV rotate + sql + mcp ok")
+        print("e2e/engine: cluster + connect SELECT 1 + REACHED + secret print + AKV rotate + sql + mcp ok")
         return 0
     finally:
         stop(proc)

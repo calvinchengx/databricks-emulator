@@ -22,8 +22,10 @@ curl -s -X POST "$HOST/api/2.1/unity-catalog/tables" \
   -d '{"name":"t","catalog_name":"main","schema_name":"default","table_type":"EXTERNAL","storage_location":"file:///tmp/t"}'
 ```
 
-Witness: `go:TestUnityCatalogProxiesCatalogSchemaTableAndRefusesManagedAndGrants`.
-No UC OSS sidecar in this repo's CI yet, so there is no `ci:`.
+Witness: `ci:e2e-uc` — unmodified `databricks-sdk` creates catalog `e2e`, schema
+`s`, and an EXTERNAL Delta table, then `tables.get` returns it. `make e2e-uc`
+attaches `unitycatalog/unitycatalog:v0.5.0`. MANAGED create and grants stay
+501 even with the sidecar.
 
 ## What is refused here, even with a sidecar
 
