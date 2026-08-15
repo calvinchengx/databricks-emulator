@@ -4,7 +4,8 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
-	"io"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -78,6 +79,25 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		UC:     uc.New(cfg.UCURL, cfg.UCTLSInsecure, nil),
 		Origin: origin,
 	}, nil
+}
+
+// Request bodies are read fully into memory, so an unbounded one is a denial
+// of service. Raw file uploads get a larger ceiling than the JSON control
+// plane. Spark Connect is exempt: its gRPC streams are framed, not buffered.
+const (
+	MaxJSONBody   int64 = 16 << 20  // 16 MiB
+	MaxUploadBody int64 = 256 << 20 // 256 MiB
+)
+
+// bodyLimit is the ceiling for a request the mux will route.
+func bodyLimit(r *http.Request) int64 {
+	switch {
+	case strings.HasPrefix(r.URL.Path, "/api/2.0/fs/files/"),
+		strings.HasPrefix(r.URL.Path, "/api/2.0/workspace-files/import-file/"):
+		return MaxUploadBody
+	default:
+		return MaxJSONBody
+	}
 }
 
 // Handler returns the mux. Unmapped /api/* is 501, never 404.
@@ -184,6 +204,7 @@ func (s *Server) Handler() http.Handler {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {
 			// Serve through the mux so {wildcard} PathValue is populated.
+			r.Body = http.MaxBytesReader(w, r.Body, bodyLimit(r))
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -354,9 +375,15 @@ func pathFromURL(u *url.URL, prefix string) string {
 	return p
 }
 
-func readAll(r io.Reader) []byte {
-	b, _ := io.ReadAll(r)
-	return b
+// writeBodyErr reports a body that failed to read. Over the ceiling is 413.
+func writeBodyErr(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "MAX_REQUEST_SIZE_EXCEEDED",
+			fmt.Sprintf("request body exceeds %d bytes", tooLarge.Limit))
+		return
+	}
+	writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
 }
 
 func parseInt64(s string) int64 {

@@ -85,8 +85,11 @@ func run(args []string) error {
 
 // newHTTPServer is the production listener. When TLS is off, Databricks
 // Connect still needs h2c prior knowledge on the same port as REST HTTP/1.
+//
+// ReadHeaderTimeout bounds the header phase only. A read or write deadline
+// would cut off long Spark Connect streams and slow statement polls.
 func newHTTPServer(handler http.Handler, disableTLS bool) *http.Server {
-	hs := &http.Server{Handler: handler}
+	hs := &http.Server{Handler: handler, ReadHeaderTimeout: 20 * time.Second}
 	if disableTLS {
 		p := new(http.Protocols)
 		p.SetHTTP1(true)

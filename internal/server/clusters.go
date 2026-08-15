@@ -28,7 +28,7 @@ func (s *Server) clustersCreate(w http.ResponseWriter, r *http.Request, p *auth.
 		Libraries    any    `json:"libraries"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.ClusterName == "" {
@@ -83,7 +83,7 @@ func (s *Server) clustersStart(w http.ResponseWriter, r *http.Request, _ *auth.P
 		ClusterID string `json:"cluster_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	cl, ok := s.Store.Clusters.Get(body.ClusterID)
@@ -103,7 +103,7 @@ func (s *Server) clustersDelete(w http.ResponseWriter, r *http.Request, _ *auth.
 		ClusterID string `json:"cluster_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if !s.Store.Clusters.Delete(body.ClusterID) {

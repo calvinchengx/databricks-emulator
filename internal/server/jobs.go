@@ -28,7 +28,7 @@ func (s *Server) jobsCreate(w http.ResponseWriter, r *http.Request, _ *auth.Prin
 func (s *Server) jobsReset(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
 	var raw map[string]json.RawMessage
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	id := int64From(raw["job_id"])

@@ -252,7 +252,13 @@ func (s *Server) workspaceDelete(w http.ResponseWriter, r *http.Request, _ *auth
 
 func (s *Server) workspaceFilesImport(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
 	p := pathFromURL(r.URL, "/api/2.0/workspace-files/import-file/")
-	if err := s.Store.Workspace.Put(p, readAll(r.Body), store.ObjectFile, ""); err != nil {
+	// Not io.ReadAll-and-ignore: past the ceiling that writes a truncated file.
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeBodyErr(w, err)
+		return
+	}
+	if err := s.Store.Workspace.Put(p, raw, store.ObjectFile, ""); err != nil {
 		writeWorkspaceErr(w, err)
 		return
 	}

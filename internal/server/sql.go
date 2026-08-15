@@ -15,7 +15,7 @@ func (s *Server) sqlCreateWarehouse(w http.ResponseWriter, r *http.Request, _ *a
 		ClusterSize string `json:"cluster_size"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.Name == "" {
@@ -77,7 +77,7 @@ func (s *Server) sqlExecuteStatement(w http.ResponseWriter, r *http.Request, _ *
 		Statement   string `json:"statement"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "BAD_REQUEST", err.Error())
+		writeBodyErr(w, err)
 		return
 	}
 	if body.Statement == "" || body.WarehouseID == "" {
