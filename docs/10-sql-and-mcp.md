@@ -63,6 +63,9 @@ table as `OPTIMIZE delta.\`uri\`` (self-describing). `OPTIMIZE … ZORDER` /
 Two concurrent warehouse `INSERT OVERWRITE`s: each success advances its own
 log version; the rows are one overwrite, not a silent merge.
 
+`OPTIMIZE … ZORDER` is the JVM overlay (`make e2e-delta-jvm`): Apache Spark
+3.5.5 + delta-spark, same delta-rs confirmer. That row is 🟠.
+
 Photon is not this path. See [parity.md](parity.md).
 
 Witness: `ci:e2e-delta`.

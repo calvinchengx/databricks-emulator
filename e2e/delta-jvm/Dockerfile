@@ -4,6 +4,8 @@
 FROM apache/spark:3.5.5-scala2.12-java11-python3-ubuntu
 USER root
 COPY agent.py /opt/spark/work-dir/agent.py
+RUN mkdir -p /home/spark/.ivy2/cache /home/spark/.ivy2/jars \
+    && chown -R spark:spark /home/spark/.ivy2
 USER spark
 EXPOSE 8099
 CMD ["/opt/spark/bin/spark-submit", \
