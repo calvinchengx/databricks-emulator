@@ -95,11 +95,14 @@ def confirm(host_table: Path, want_rows: list[tuple[int, str]], min_version: int
     version = dt.version()
     if version < min_version:
         raise SystemExit(f"delta log version {version} < {min_version}")
-    pdf = dt.to_pandas()
-    cols = {c.lower(): c for c in pdf.columns}
+    # PyArrow is a deltalake dependency. pandas is not; to_pandas() dies in CI.
+    table = dt.to_pyarrow_table()
+    cols = {c.lower(): c for c in table.column_names}
     if "id" not in cols or "name" not in cols:
-        raise SystemExit(f"delta-rs columns {list(pdf.columns)} missing id/name")
-    got = sorted((int(row[0]), str(row[1])) for row in pdf[[cols["id"], cols["name"]]].itertuples(index=False, name=None))
+        raise SystemExit(f"delta-rs columns {list(table.column_names)} missing id/name")
+    ids = table.column(cols["id"]).to_pylist()
+    names = table.column(cols["name"]).to_pylist()
+    got = sorted((int(i), str(n)) for i, n in zip(ids, names))
     want = sorted(want_rows)
     if got != want:
         raise SystemExit(f"delta-rs rows {got} != {want}")
