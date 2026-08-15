@@ -209,7 +209,7 @@ func (s *Server) workspaceStatus(w http.ResponseWriter, r *http.Request, _ *auth
 		writeWorkspaceErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, obj)
+	writeJSON(w, http.StatusOK, s.overlayRepo(obj))
 }
 
 func (s *Server) workspaceList(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -221,6 +221,9 @@ func (s *Server) workspaceList(w http.ResponseWriter, r *http.Request, _ *auth.P
 	if err != nil {
 		writeWorkspaceErr(w, err)
 		return
+	}
+	for i := range objs {
+		objs[i] = s.overlayRepo(objs[i])
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"objects": objs})
 }
@@ -247,6 +250,7 @@ func (s *Server) workspaceDelete(w http.ResponseWriter, r *http.Request, _ *auth
 		writeWorkspaceErr(w, err)
 		return
 	}
+	s.Store.Git.DropRepoByPath(body.Path)
 	writeJSON(w, http.StatusOK, map[string]any{})
 }
 

@@ -38,7 +38,7 @@ needs no entra-emulator.
 
 State lives under `DATABRICKS_DATA_DIR` (`./data` by default): hashed PATs,
 the OIDC signing key, workspace files, DBFS bytes, Databricks-backed secrets,
-the persisted TLS pair.
+git credentials, the persisted TLS pair.
 
 ## What it attaches, and refuses to invent
 
@@ -50,6 +50,7 @@ the persisted TLS pair.
 | AKV-backed secrets | Live vault at `DATABRICKS_AKV_VAULT_HOST` | Emulator `dns_name` refused by name |
 | Federated JWT | Issuer list in `DATABRICKS_OIDC_ISSUERS` | Only PAT and emulator OIDC work |
 | Delta files | Sail `CREATE`/`INSERT` on a shared volume; **delta-rs** confirms the log. Three-part names: Sail's unity provider dials UC OSS on the Compose network | No write witness — a Sail `COUNT(*)` is not one |
+| Git Credentials / Repos | `git` on PATH clones into `{dataDir}/workspace` | 501 naming the missing binary |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.

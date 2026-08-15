@@ -44,7 +44,7 @@ A green Jobs row is not every Jobs endpoint; a red Pipelines row is the
 whole Lakeflow/DLT group.
 
 The first honest slice is identity (PAT + emulator OIDC), Workspace files,
-DBFS, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Connect /
+DBFS, Git Credentials / Repos, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Connect /
 clusters-as-session on that same engine, and Unity Catalog CRUD through UC
 OSS. Everything else from the catalog is enumerated below as Not
 implemented until a witness exists.
@@ -67,6 +67,7 @@ claim are 🔴 Not implemented even though the docs mention them.
 |---|---|---|
 | Workspace — SOURCE/PYTHON | File-backed store. Classic `/workspace/import` SOURCE/PYTHON notebook round-trip. Other formats refused by name. | 🟢 Real |
 | Workspace — raw files | workspace-files raw bytes, including `RAW`/`FILE` import. | 🟢 Real |
+| Git Credentials / Repos | Git credentials persist (token never returned after create). `repos.create` **git clone**s a real remote into the workspace store; `repos.update` fetch/checkout; workspace export of a cloned file is those bytes. Sparse checkout is 501. | 🟢 Real |
 | DBFS / Files API | Real bytes under `data/dbfs/`. Read length capped (1 MiB) before allocate. Traversal refused. | 🟢 Real |
 
 ## Jobs
@@ -121,7 +122,6 @@ same style as the greens — not a product-page promise.
 
 | Feature | Emulator | Type |
 |---|---|---|
-| Git Credentials / Repos | Would need an unmodified CLI/SDK clone and commit against a real git remote. | 🔴 Not implemented |
 | Cluster Policies / Policy Families / compliance | Would need enforcement, not stored-and-ignored. | 🔴 Not implemented |
 | Command Execution | Would need a context-id session that runs on the attached Sail agent. | 🔴 Not implemented |
 | Global Init Scripts | Applied to a real cluster VM — we have no VMs. | 🔴 Not implemented |
