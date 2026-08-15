@@ -43,6 +43,8 @@ func run(args []string) error {
 	fs.BoolVar(&cfg.DisableTLS, "disable-tls", cfg.DisableTLS, "serve plain HTTP")
 	fs.StringVar(&cfg.SparkAgentURL, "spark-connect-url", cfg.SparkAgentURL, "statement agent URL (Jobs / SQL / cluster session)")
 	fs.StringVar(&cfg.SparkConnectGRPCURL, "spark-connect-grpc-url", cfg.SparkConnectGRPCURL, "Spark Connect gRPC origin for Databricks Connect")
+	fs.StringVar(&cfg.SiblingCAFile, "sibling-ca-file", cfg.SiblingCAFile,
+		"PEM file or directory of the sibling emulators' certificates; pins those hops and overrides every -*-tls-insecure below")
 	fs.BoolVar(&cfg.OIDCTLSInsecure, "oidc-tls-insecure", cfg.OIDCTLSInsecure, "skip TLS when fetching federated JWKS")
 	fs.StringVar(&cfg.AKVVaultHost, "akv-vault-host", cfg.AKVVaultHost, "keyvault-emulator host:port accepted as a Key Vault (empty = Azure suffixes only)")
 	fs.BoolVar(&cfg.AKVTLSInsecure, "akv-tls-insecure", cfg.AKVTLSInsecure, "skip TLS when fetching Key Vault secrets")

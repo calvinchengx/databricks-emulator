@@ -3,7 +3,6 @@
 package entra
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,14 +26,11 @@ type Minter struct {
 }
 
 // NewMinter builds a minter. Empty tokenURL means no STS is attached.
-func NewMinter(tokenURL, clientID, secret string, insecure bool, client *http.Client) *Minter {
+// client carries the TLS trust for the STS — see internal/tlsclient.
+func NewMinter(tokenURL, clientID, secret string, client *http.Client) *Minter {
 	tokenURL = strings.TrimSpace(tokenURL)
 	if client == nil {
-		tr := http.DefaultTransport.(*http.Transport).Clone()
-		if insecure {
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-		client = &http.Client{Transport: tr, Timeout: 15 * time.Second}
+		client = &http.Client{Timeout: 15 * time.Second}
 	}
 	return &Minter{TokenURL: tokenURL, ClientID: clientID, Secret: secret, HTTP: client}
 }

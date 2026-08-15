@@ -11,7 +11,7 @@ import (
 )
 
 func TestCheckURIAllowlist(t *testing.T) {
-	c := New(false, nil, "keyvault-emulator:4997")
+	c := New(nil, "keyvault-emulator:4997")
 	if _, err := c.CheckURI("https://dev.vault.azure.net/"); err != nil {
 		t.Fatalf("azure suffix: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestCheckURIAllowlist(t *testing.T) {
 }
 
 func TestCheckURINoExtraHostRefusesEmulator(t *testing.T) {
-	c := New(false, nil, "")
+	c := New(nil, "")
 	if _, err := c.CheckURI("https://keyvault-emulator:4997"); !errors.Is(err, ErrVaultNotAllowed) {
 		t.Fatalf("emulator host without DATABRICKS_AKV_VAULT_HOST: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestResolveAndList(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 	u, _ := url.Parse(ts.URL)
-	c := New(false, ts.Client(), u.Host)
+	c := New(ts.Client(), u.Host)
 	v, err := c.ResolveSecret(ts.URL, "pw")
 	if err != nil || v != "from-vault" || gotName != "pw" {
 		t.Fatalf("resolve %q %v name=%q", v, err, gotName)
@@ -88,7 +88,7 @@ func TestResolveRefusesTraversalName(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 	u, _ := url.Parse(ts.URL)
-	c := New(false, ts.Client(), u.Host)
+	c := New(ts.Client(), u.Host)
 	if _, err := c.ResolveSecret(ts.URL, "../../certificates/evil"); err == nil || !strings.Contains(err.Error(), "INVALID_PARAMETER_VALUE") {
 		t.Fatalf("traversal name: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestResolveSendsVaultAudienceBearer(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 	u, _ := url.Parse(ts.URL)
-	c := New(false, ts.Client(), u.Host)
+	c := New(ts.Client(), u.Host)
 	c.Token = func() (string, error) { return "vault-aud", nil }
 	v, err := c.ResolveSecret(ts.URL, "pw")
 	if err != nil || v != "from-vault" || sawAuth != "Bearer vault-aud" {
@@ -129,7 +129,7 @@ func TestResolveVaultError(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 	u, _ := url.Parse(ts.URL)
-	c := New(false, ts.Client(), u.Host)
+	c := New(ts.Client(), u.Host)
 	if _, err := c.ResolveSecret(ts.URL, "pw"); err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("err = %v", err)
 	}

@@ -55,6 +55,13 @@ type Config struct {
 	EntraTokenURL     string
 	EntraClientID     string
 	EntraClientSecret string
+
+	// SiblingCAFile is a PEM bundle, or a directory of .pem/.crt files,
+	// holding the self-signed certificates the sibling emulators serve.
+	// Setting it verifies those hops for real and overrides every
+	// *_TLS_INSECURE above, which are man-in-the-middle risks kept only
+	// because sibling containers do not publish their certificates.
+	SiblingCAFile string
 }
 
 // FromEnvPartial reads the environment without validating.
@@ -76,6 +83,7 @@ func FromEnvPartial() *Config {
 		EntraTokenURL:       os.Getenv("DATABRICKS_ENTRA_TOKEN_URL"),
 		EntraClientID:       os.Getenv("DATABRICKS_ENTRA_CLIENT_ID"),
 		EntraClientSecret:   os.Getenv("DATABRICKS_ENTRA_CLIENT_SECRET"),
+		SiblingCAFile:       os.Getenv("DATABRICKS_SIBLING_CA_FILE"),
 	}
 }
 

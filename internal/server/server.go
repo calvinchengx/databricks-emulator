@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/calvinchengx/databricks-emulator/internal/akv"
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
@@ -19,6 +20,7 @@ import (
 	"github.com/calvinchengx/databricks-emulator/internal/oidc"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
+	"github.com/calvinchengx/databricks-emulator/internal/tlsclient"
 	"github.com/calvinchengx/databricks-emulator/internal/uc"
 )
 
@@ -60,13 +62,33 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 	if err != nil {
 		return nil, err
 	}
-	au := auth.New(st.Identity, iss, cfg.OIDCIssuers, cfg.OIDCTLSInsecure, clk.Now, nil)
+	// One place decides how far each sibling hop is trusted. Pinning the
+	// sibling's CA beats skipping verification, and a bad CA path fails
+	// startup rather than quietly downgrading to no verification at all.
+	oidcClient, err := tlsclient.Trust{CAFile: cfg.SiblingCAFile, Insecure: cfg.OIDCTLSInsecure}.Client(0)
+	if err != nil {
+		return nil, err
+	}
+	akvClient, err := tlsclient.Trust{CAFile: cfg.SiblingCAFile, Insecure: cfg.AKVTLSInsecure}.Client(0)
+	if err != nil {
+		return nil, err
+	}
+	ucClient, err := tlsclient.Trust{CAFile: cfg.SiblingCAFile, Insecure: cfg.UCTLSInsecure}.Client(30 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+	entraClient, err := tlsclient.Trust{CAFile: cfg.SiblingCAFile, Insecure: cfg.OIDCTLSInsecure}.Client(15 * time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	au := auth.New(st.Identity, iss, cfg.OIDCIssuers, clk.Now, oidcClient)
 	if exec == nil && cfg.SparkAgentURL != "" {
 		exec = spark.NewAgent(cfg.SparkAgentURL)
 	}
-	vault := akv.New(cfg.AKVTLSInsecure, nil, cfg.AKVVaultHost)
+	vault := akv.New(akvClient, cfg.AKVVaultHost)
 	if cfg.EntraTokenURL != "" {
-		vault.Token = entra.NewMinter(cfg.EntraTokenURL, cfg.EntraClientID, cfg.EntraClientSecret, cfg.OIDCTLSInsecure, nil).VaultToken
+		vault.Token = entra.NewMinter(cfg.EntraTokenURL, cfg.EntraClientID, cfg.EntraClientSecret, entraClient).VaultToken
 	}
 	return &Server{
 		Cfg:    cfg,
@@ -76,7 +98,7 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		Clock:  clk,
 		Spark:  exec,
 		AKV:    vault,
-		UC:     uc.New(cfg.UCURL, cfg.UCTLSInsecure, nil),
+		UC:     uc.New(cfg.UCURL, ucClient),
 		Origin: origin,
 	}, nil
 }

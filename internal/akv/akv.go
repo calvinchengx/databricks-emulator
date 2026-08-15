@@ -5,7 +5,6 @@
 package akv
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,16 +45,13 @@ var AzureVaultSuffixes = []string{
 // pointing at an arbitrary URL is SSRF.
 var ErrVaultNotAllowed = errors.New("dns_name must be an Azure Key Vault (https://<name>.vault.azure.net) or the configured DATABRICKS_AKV_VAULT_HOST")
 
-// New builds a client. insecure skips TLS verification (the emulator's
-// self-signed cert); client overrides when non-nil (tests). extraHost is the
-// one non-Azure host:port to accept — the family's keyvault-emulator.
-func New(insecure bool, client *http.Client, extraHost string) *Client {
+// New builds a client. client carries the TLS trust for the vault — see
+// internal/tlsclient; nil means the system roots, which is what a real
+// Azure vault needs. extraHost is the one non-Azure host:port to accept —
+// the family's keyvault-emulator.
+func New(client *http.Client, extraHost string) *Client {
 	if client == nil {
-		tr := http.DefaultTransport.(*http.Transport).Clone()
-		if insecure {
-			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-		}
-		client = &http.Client{Transport: tr}
+		client = &http.Client{}
 	}
 	scheme := "https"
 	if i := strings.Index(extraHost, "://"); i >= 0 {
