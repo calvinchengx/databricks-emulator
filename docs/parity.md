@@ -45,8 +45,9 @@ whole Lakeflow/DLT group.
 
 The first honest slice is identity (PAT + emulator OIDC), Workspace files,
 DBFS, Git Credentials / Repos, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Connect /
-clusters-as-session on that same engine, and Unity Catalog CRUD through UC
-OSS. Everything else from the catalog is enumerated below as Not
+clusters-as-session on that same engine, Command Execution, Unity Catalog
+CRUD through UC OSS, and MLflow experiments / model registry on the
+file-backed tracking store. Everything else from the catalog is enumerated below as Not
 implemented until a witness exists.
 
 This is not a Databricks Runtime. Photon, DBR version strings, full
@@ -109,6 +110,12 @@ claim are 🔴 Not implemented even though the docs mention them.
 | Unity Catalog CRUD | Reverse-proxy to UC OSS (`DATABRICKS_UC_URL`) after PAT/OIDC. Without a sidecar those routes are 501 naming the missing URL. MANAGED table create is refused (UC OSS only creates EXTERNAL tables at a filesystem location). Three-part SQL against those tables is the Delta writes row, not this one. | 🟢 Real |
 | Unity Catalog grants | Enforcement, not allow-all CRUD. Not shipped until they deny. | 🔴 Not implemented |
 
+## Tracking
+
+| Feature | Emulator | Type |
+|---|---|---|
+| MLflow Experiments / Model Registry | File-backed tracking store under `data/mlflow/`. Experiments, runs (params / metrics / tags), registered models and versions persist across restart. Duplicate experiment names are 409. Artifact list / `log-model` / traces / logged-models are 501 — metadata only, not a model binary store. Model Serving is a different row. | 🟢 Real |
+
 ## Clients
 
 | Feature | Emulator | Type |
@@ -127,7 +134,6 @@ same style as the greens — not a product-page promise.
 | Global Init Scripts | Applied to a real cluster VM — we have no VMs. | 🔴 Not implemented |
 | Instance Pools / Instance Profiles | Real VMs / cloud instance profiles. | 🔴 Not implemented |
 | Managed Libraries | Installed on a real cluster VM. JARs on Sail have no classloader (fabric's JVM overlay is the 🟠 path; this repo does not ship one). | 🔴 Not implemented |
-| MLflow Experiments / Model Registry | Would need a tracking store + registry, not a 200 stub. | 🔴 Not implemented |
 | Apps | Would need a deployed app process. | 🔴 Not implemented |
 | SCIM Groups / Users / Service Principals | Directory mutations that then deny. | 🔴 Not implemented |
 | Permissions | Enforcement, not allow-all. | 🔴 Not implemented |

@@ -1,5 +1,5 @@
 // Package store is the emulator's durable state: identity, workspace files,
-// DBFS, jobs and secrets.
+// DBFS, jobs, secrets, and the MLflow tracking store.
 package store
 
 import (
@@ -24,6 +24,7 @@ type Store struct {
 	Git       *Git
 	Policies  *Policies
 	Commands  *Commands
+	MLflow    *MLflow
 }
 
 // Open creates dataDir, seeds identity on first run, and opens file stores.
@@ -58,6 +59,10 @@ func Open(dataDir string, now int64) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	mlflow, err := openMLflow(dataDir)
+	if err != nil {
+		return nil, err
+	}
 	return &Store{
 		DataDir:    dataDir,
 		AdminPAT:   adminPAT,
@@ -73,5 +78,6 @@ func Open(dataDir string, now int64) (*Store, error) {
 		Git:        git,
 		Policies:   policies,
 		Commands:   newCommands(),
+		MLflow:     mlflow,
 	}, nil
 }

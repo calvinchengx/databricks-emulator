@@ -64,6 +64,11 @@ sidecar (`DATABRICKS_UC_URL`). Without one those routes are 501 naming the
 missing sidecar. MANAGED table create is refused (UC OSS only creates
 EXTERNAL tables at a filesystem location). Grants stay 501 until they deny.
 
+MLflow experiments, runs, and the model registry persist under `data/mlflow/`.
+The unmodified SDK logs params and metrics and registers a model version.
+Artifact list / `log-model` stay 501 — tracking metadata, not model binaries.
+Model Serving is a different row.
+
 `POST /api/2.0/mcp/sql` is the Databricks SQL MCP server: `execute_sql` /
 `poll_response` wrap the warehouse statements handler after PAT/OIDC.
 Genie, AI Search, and UC function MCP paths stay 501.

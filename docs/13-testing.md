@@ -42,8 +42,9 @@ drive.
 doors (unconfigured / wrong aud / expired / garbage → 401, good JWT → `Me`);
 workspace AUTO upload/download; DBFS put/read; git-credentials + repos
 clone/commit/pull against a local git remote; cluster policy mismatch is
-400 (unknown attributes 501); secrets persist across restart;
-cluster-create **without** an engine must fail naming
+400 (unknown attributes 501); MLflow experiment + run metrics + registered
+model version persist across restart (artifact list is 501); secrets persist
+across restart; cluster-create **without** an engine must fail naming
 `DATABRICKS_SPARK_CONNECT_URL`.
 
 **`e2e-terraform`** — PAT / `token=dev`; notebook; workspace file; job

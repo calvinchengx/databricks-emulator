@@ -149,6 +149,7 @@ def init_bare_remote(work: Path) -> str:
 def main() -> int:
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.core import DatabricksError
+    from databricks.sdk.service.ml import UpdateRunStatus
     from databricks.sdk.service.workspace import ImportFormat, ObjectType
 
     data_dir = Path(tempfile.mkdtemp(prefix="dbx-e2e-"))
@@ -253,6 +254,46 @@ def main() -> int:
         if "pw" not in keys:
             raise SystemExit(f"secret keys {keys}")
 
+        created_exp = w.experiments.create_experiment(name="/Users/admin/e2e-ml")
+        try:
+            w.experiments.create_experiment(name="/Users/admin/e2e-ml")
+        except DatabricksError:
+            pass
+        else:
+            raise SystemExit("duplicate experiment was accepted")
+        exp = w.experiments.get_by_name("/Users/admin/e2e-ml")
+        if exp.experiment.experiment_id != created_exp.experiment_id:
+            raise SystemExit(f"get-by-name {exp.experiment.experiment_id}")
+        created_run = w.experiments.create_run(experiment_id=created_exp.experiment_id, run_name="trial")
+        run_id = created_run.run.info.run_id
+        w.experiments.log_param(run_id=run_id, key="lr", value="0.01")
+        w.experiments.log_metric(run_id=run_id, key="acc", value=0.91, timestamp=int(time.time() * 1000), step=1)
+        w.experiments.update_run(run_id=run_id, status=UpdateRunStatus.FINISHED)
+        got_run = w.experiments.get_run(run_id)
+        params = {p.key: p.value for p in (got_run.run.data.params or [])}
+        metrics = {m.key: m.value for m in (got_run.run.data.metrics or [])}
+        if params.get("lr") != "0.01" or metrics.get("acc") != 0.91:
+            raise SystemExit(f"run data params={params} metrics={metrics}")
+        status = getattr(got_run.run.info.status, "value", got_run.run.info.status)
+        if status != "FINISHED":
+            raise SystemExit(f"run status {got_run.run.info.status}")
+        w.model_registry.create_model(name="e2e-model")
+        version = w.model_registry.create_model_version(name="e2e-model", source="dbfs:/models/e2e", run_id=run_id)
+        if version.model_version.version != "1":
+            raise SystemExit(f"model version {version.model_version.version}")
+        w.model_registry.transition_stage(
+            name="e2e-model", version="1", stage="Staging", archive_existing_versions=False,
+        )
+        got_ver = w.model_registry.get_model_version(name="e2e-model", version="1")
+        if got_ver.model_version.current_stage != "Staging":
+            raise SystemExit(f"stage {got_ver.model_version.current_stage}")
+        try:
+            list(w.experiments.list_artifacts(run_id=run_id))
+        except DatabricksError:
+            pass
+        else:
+            raise SystemExit("artifact list was accepted")
+
         versions = w.clusters.spark_versions()
         if not versions.versions or versions.versions[0].key != "emulator-spark":
             raise SystemExit(f"spark versions {versions!r}")
@@ -333,6 +374,16 @@ def main() -> int:
         keys = [s.key for s in w2.secrets.list_secrets(scope="kv")]
         if "pw" not in keys:
             raise SystemExit(f"secrets after restart {keys}")
+        persisted = w2.experiments.get_by_name("/Users/admin/e2e-ml")
+        if persisted.experiment.experiment_id != created_exp.experiment_id:
+            raise SystemExit(f"experiment after restart {persisted.experiment.experiment_id}")
+        persisted_run = w2.experiments.get_run(run_id)
+        persisted_metrics = {m.key: m.value for m in (persisted_run.run.data.metrics or [])}
+        if persisted_metrics.get("acc") != 0.91:
+            raise SystemExit(f"run after restart {persisted_metrics}")
+        persisted_ver = w2.model_registry.get_model_version(name="e2e-model", version="1")
+        if persisted_ver.model_version.current_stage != "Staging":
+            raise SystemExit(f"registry after restart {persisted_ver.model_version.current_stage}")
 
         stop(proc)
         env["DATABRICKS_OIDC_ISSUERS"] = foreign.issuer
@@ -351,7 +402,7 @@ def main() -> int:
                 continue
             raise SystemExit(f"federated {why} was accepted")
 
-        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + cluster-policies + secrets-persist + cluster-refuse ok")
+        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + cluster-policies + mlflow + secrets-persist + cluster-refuse ok")
         return 0
     finally:
         stop(proc)
