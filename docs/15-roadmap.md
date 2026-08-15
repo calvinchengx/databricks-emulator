@@ -20,7 +20,7 @@ Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm).
 ## Next honest attaches
 
 The first-slice greens that needed a sidecar now have `ci:`. Grants stay 501
-until they deny — that is refuse, not a leftover green.
+until they deny — that is 🔴 Not implemented, not a leftover green.
 
 Do not invent a fake statement agent, metastore, or Permissions allow-all to
 close red rows.
@@ -47,5 +47,5 @@ the project's character:
 - JAR main on a Python-only agent
 - Fine-grained Unity Catalog grants, if the Permissions API does not enforce them
 
-The rest of the workspace REST catalog is enumerated as refuse in
+The rest of the workspace REST catalog is enumerated as 🔴 Not implemented in
 [parity.md](parity.md) until a witness exists. 501, never a silent 200.

@@ -35,7 +35,7 @@ attaches `unitycatalog/unitycatalog:v0.5.0`. MANAGED create and grants stay
 | `/permissions` and `/grants` | Not shipped until they deny. 501. |
 
 Volumes, functions, locations, credentials, monitors, Delta Sharing — the
-sidecar must speak them. Until a witness exists they stay refuse on the
+sidecar must speak them. Until a witness exists they stay 🔴 Not implemented on the
 [parity ledger](parity.md).
 
 `DATABRICKS_UC_TLS_INSECURE` skips TLS verification when dialing a
