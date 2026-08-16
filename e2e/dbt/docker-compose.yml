@@ -7,6 +7,8 @@ services:
     environment:
       SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
       RUST_LOG: "info"
+    volumes:
+      - ${DBT_DATA}:/data/dbt
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
       interval: 3s
@@ -22,6 +24,8 @@ services:
       - "18103:8099"
     environment:
       SPARK_REMOTE: "sc://sail:50051"
+    volumes:
+      - ${DBT_DATA}:/data/dbt
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
       interval: 3s

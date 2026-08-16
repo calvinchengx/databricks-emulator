@@ -403,6 +403,7 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dbt = [
     { name = "dbt-databricks" },
+    { name = "deltalake" },
 ]
 delta = [
     { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
@@ -428,7 +429,10 @@ target = [
 [package.metadata]
 
 [package.metadata.requires-dev]
-dbt = [{ name = "dbt-databricks", specifier = "==1.12.4" }]
+dbt = [
+    { name = "dbt-databricks", specifier = "==1.12.4" },
+    { name = "deltalake", specifier = "==0.25.5" },
+]
 delta = [
     { name = "databricks-sdk", specifier = "==0.129.0" },
     { name = "deltalake", specifier = "==0.25.5" },
