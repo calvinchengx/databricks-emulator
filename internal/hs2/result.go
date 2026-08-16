@@ -415,6 +415,119 @@ func (t *table) schema() *cliservice.TTableSchema {
 	return &cliservice.TTableSchema{Columns: cols}
 }
 
+func stringTable(names []string, rows [][]string) *table {
+	grid := make([][]any, len(rows))
+	for i, row := range rows {
+		vals := make([]any, len(names))
+		for j := range names {
+			if j < len(row) {
+				vals[j] = row[j]
+			}
+		}
+		grid[i] = vals
+	}
+	kinds := make([]cliservice.TTypeId, len(names))
+	for i := range kinds {
+		kinds[i] = cliservice.TTypeId_STRING_TYPE
+	}
+	tab, err := buildTable(names, kinds, grid)
+	if err != nil {
+		return emptyTable()
+	}
+	return tab
+}
+
+func (t *table) rowCount() int {
+	if t == nil {
+		return 0
+	}
+	for _, c := range t.cols {
+		if c == nil {
+			continue
+		}
+		switch {
+		case c.StringVal != nil:
+			return len(c.StringVal.Values)
+		case c.BoolVal != nil:
+			return len(c.BoolVal.Values)
+		case c.I32Val != nil:
+			return len(c.I32Val.Values)
+		case c.I64Val != nil:
+			return len(c.I64Val.Values)
+		case c.DoubleVal != nil:
+			return len(c.DoubleVal.Values)
+		}
+	}
+	return 0
+}
+
+func (t *table) colIndex(name string) int {
+	if t == nil {
+		return -1
+	}
+	for i, n := range t.names {
+		if strings.EqualFold(n, name) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (t *table) namedCell(row int, names ...string) string {
+	for _, name := range names {
+		if i := t.colIndex(name); i >= 0 {
+			return t.cell(row, i)
+		}
+	}
+	return ""
+}
+
+func (t *table) cell(row, col int) string {
+	if t == nil || col < 0 || col >= len(t.cols) || t.cols[col] == nil {
+		return ""
+	}
+	c := t.cols[col]
+	switch {
+	case c.StringVal != nil && row < len(c.StringVal.Values):
+		if nullAt(c.StringVal.Nulls, row) {
+			return ""
+		}
+		return c.StringVal.Values[row]
+	case c.BoolVal != nil && row < len(c.BoolVal.Values):
+		if nullAt(c.BoolVal.Nulls, row) {
+			return ""
+		}
+		if c.BoolVal.Values[row] {
+			return "true"
+		}
+		return "false"
+	case c.I32Val != nil && row < len(c.I32Val.Values):
+		if nullAt(c.I32Val.Nulls, row) {
+			return ""
+		}
+		return strconv.FormatInt(int64(c.I32Val.Values[row]), 10)
+	case c.I64Val != nil && row < len(c.I64Val.Values):
+		if nullAt(c.I64Val.Nulls, row) {
+			return ""
+		}
+		return strconv.FormatInt(c.I64Val.Values[row], 10)
+	case c.DoubleVal != nil && row < len(c.DoubleVal.Values):
+		if nullAt(c.DoubleVal.Nulls, row) {
+			return ""
+		}
+		return strconv.FormatFloat(c.DoubleVal.Values[row], 'f', -1, 64)
+	default:
+		return ""
+	}
+}
+
+func nullAt(bits []byte, i int) bool {
+	if i/8 >= len(bits) {
+		return false
+	}
+	return bits[i/8]&(1<<(i%8)) != 0
+}
+
 func (t *table) rowSet() *cliservice.TRowSet {
 	count := int32(len(t.names))
 	return &cliservice.TRowSet{

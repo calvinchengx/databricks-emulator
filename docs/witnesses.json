@@ -205,5 +205,12 @@
       "ci:e2e-terraform",
       "ci:e2e-cli"
     ]
+  },
+  "dbt-databricks-warehouse-run": {
+    "section": "Clients",
+    "claim": "dbt-databricks warehouse run",
+    "witnesses": [
+      "ci:e2e-dbt"
+    ]
   }
 }

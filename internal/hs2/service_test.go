@@ -129,8 +129,6 @@ func TestServiceRefusals(t *testing.T) {
 	}
 	s.GetTypeInfo(ctx, &cliservice.TGetTypeInfoReq{})
 	s.GetCatalogs(ctx, &cliservice.TGetCatalogsReq{})
-	s.GetSchemas(ctx, &cliservice.TGetSchemasReq{})
-	s.GetTables(ctx, &cliservice.TGetTablesReq{})
 	s.GetTableTypes(ctx, &cliservice.TGetTableTypesReq{})
 	s.GetColumns(ctx, &cliservice.TGetColumnsReq{})
 	s.GetFunctions(ctx, &cliservice.TGetFunctionsReq{})
@@ -161,6 +159,75 @@ func TestServeHTTPOpenSession(t *testing.T) {
 	opened, err := client.OpenSession(context.Background(), &cliservice.TOpenSessionReq{})
 	if err != nil || opened.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
 		t.Fatalf("http open %v %+v", err, opened)
+	}
+}
+
+type scriptBackend struct{}
+
+func (scriptBackend) Lookup(string) (bool, bool) { return true, true }
+func (scriptBackend) Run(_ string, sql string) (string, error) {
+	u := strings.ToUpper(strings.TrimSpace(sql))
+	switch {
+	case strings.HasPrefix(u, "SHOW SCHEMAS"):
+		return `[{"namespace":"default"}]`, nil
+	case strings.HasPrefix(u, "SHOW TABLES"):
+		return `[{"namespace":"default","tableName":"one","isTemporary":false}]`, nil
+	default:
+		return "", errors.New("unexpected sql: " + sql)
+	}
+}
+
+func TestServiceGetSchemasAndTables(t *testing.T) {
+	s := New(scriptBackend{})
+	ctx := withWarehouse(context.Background(), "wh-1")
+	opened, err := s.OpenSession(ctx, &cliservice.TOpenSessionReq{})
+	if err != nil || opened.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
+		t.Fatalf("open %v %+v", err, opened)
+	}
+	direct := &cliservice.TSparkGetDirectResults{MaxRows: 100}
+	hive := cliservice.TIdentifier("hive_metastore")
+	hivePat := cliservice.TPatternOrIdentifier("hive_metastore")
+	def := cliservice.TPatternOrIdentifier("default")
+	schemas, err := s.GetSchemas(ctx, &cliservice.TGetSchemasReq{
+		SessionHandle:    opened.SessionHandle,
+		CatalogName:      &hive,
+		GetDirectResults: direct,
+	})
+	if err != nil || schemas.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
+		t.Fatalf("schemas %v %+v", err, schemas)
+	}
+	if schemas.DirectResults == nil || schemas.DirectResults.ResultSet == nil {
+		t.Fatalf("no schema rows %+v", schemas)
+	}
+	got := schemas.DirectResults.ResultSet.Results.Columns[0].StringVal.Values
+	if len(got) != 1 || got[0] != "default" {
+		t.Fatalf("schemas %v", got)
+	}
+	tables, err := s.GetTables(ctx, &cliservice.TGetTablesReq{
+		SessionHandle:    opened.SessionHandle,
+		CatalogName:      &hivePat,
+		SchemaName:       &def,
+		GetDirectResults: direct,
+	})
+	if err != nil || tables.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
+		t.Fatalf("tables %v %+v", err, tables)
+	}
+	names := tables.DirectResults.ResultSet.Results.Columns[2].StringVal.Values
+	if len(names) != 1 || names[0] != "one" {
+		t.Fatalf("tables %v", names)
+	}
+	miss, _ := s.GetSchemas(ctx, &cliservice.TGetSchemasReq{})
+	if miss.Status.StatusCode != cliservice.TStatusCode_ERROR_STATUS {
+		t.Fatalf("missing session %+v", miss)
+	}
+	if quoteIdent("a`b") != "`a``b`" {
+		t.Fatalf("quote %s", quoteIdent("a`b"))
+	}
+	if !likeMatch("default", "%") || !likeMatch("one", "o%") || likeMatch("one", "two") {
+		t.Fatal("like")
+	}
+	if wantTableType([]string{"VIEW"}, "TABLE") || !wantTableType(nil, "TABLE") {
+		t.Fatal("types")
 	}
 }
 
