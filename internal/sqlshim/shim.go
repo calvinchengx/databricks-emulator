@@ -341,7 +341,10 @@ func sparkToUC(spark, name string) (string, string) {
 	case strings.HasPrefix(spark, "timestamp"):
 		kind, ucName = "timestamp", "TIMESTAMP"
 	case strings.HasPrefix(spark, "decimal"):
-		kind, ucName = "decimal", "DECIMAL"
+		kind, ucName = spark, "DECIMAL"
+		if spark == "decimal" {
+			kind = "decimal(10,0)"
+		}
 	}
 	js, _ := json.Marshal(map[string]any{
 		"name": name, "type": kind, "nullable": true, "metadata": map[string]any{},

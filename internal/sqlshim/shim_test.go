@@ -130,6 +130,19 @@ func TestColumnsFromDescribe(t *testing.T) {
 	if _, ok := got["# Partition"]; ok {
 		t.Fatal("kept partition meta row")
 	}
+	var amtJSON string
+	for _, c := range env {
+		if c["name"] == "amt" {
+			amtJSON, _ = c["type_json"].(string)
+		}
+	}
+	if !strings.Contains(amtJSON, `"type":"decimal(19,4)"`) {
+		t.Fatalf("decimal type_json %s", amtJSON)
+	}
+	bareDec := ColumnsFromDescribe(`[["p","decimal"]]`)
+	if len(bareDec) != 1 || !strings.Contains(bareDec[0]["type_json"].(string), `"type":"decimal(10,0)"`) {
+		t.Fatalf("bare decimal %+v", bareDec)
+	}
 	skip := ColumnsFromDescribe(`[{"col_name":1,"data_type":"int"}]`)
 	if len(skip) != 0 {
 		t.Fatalf("non-string name: %+v", skip)
