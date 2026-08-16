@@ -1,7 +1,7 @@
 # Sail + spark-agent only. Ports sit above the sql/thrift band.
 services:
   sail:
-    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:807adeb978f85e1c8da25bf0ba85d7eea75cef2532b922284a0b70d879d57237}
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:0d2fe3c7a5a844c939f23ef0930e293e131da10ec0c3ff41022b1e1e4ab77ce2}
     ports:
       - "15053:50051"
     environment:
@@ -16,7 +16,7 @@ services:
       retries: 30
 
   spark-agent:
-    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:-0.22.0}
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:7af93f6d5d1c4588bf535db785dab6f7fcd02a2efd60d4991c0c6593005ee16d}
     depends_on:
       sail:
         condition: service_healthy
