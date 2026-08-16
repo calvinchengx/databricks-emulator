@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "databricks-target"
+version = "0.1.0"
+description = "One toggle between databricks-emulator and a real Databricks workspace: DATABRICKS_TARGET=emulator|real resolves host, token, warehouse-by-name, catalog, and vault; code holds names."
+requires-python = ">=3.9"
+# Core is stdlib-only. workspace_client() lazily imports databricks-sdk
+# (`uv add 'databricks-target[sdk]'`).
+dependencies = []
+
+[project.optional-dependencies]
+sdk = ["databricks-sdk>=0.40"]
+
+[project.urls]
+Homepage = "https://github.com/calvinchengx/databricks-emulator"
+Documentation = "https://calvinchengx.github.io/databricks-emulator/21-real-databricks-toggle/"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["databricks_target*"]

@@ -94,6 +94,7 @@ function writeIndex() {
       `- [Installation](02-installation.md) — source, GHCR, family compose\n` +
       `- [Architecture](03-architecture.md) — this process vs Sail vs UC vs vault\n` +
       `- [Configuration](04-configuration.md) — every \`DATABRICKS_*\` variable\n` +
+      `- [One toggle](21-real-databricks-toggle.md) — \`DATABRICKS_TARGET=emulator\\|real\`, names in, ids out\n` +
       `- [TLS and hosts](05-tls-and-hosts.md) — self-signed cert, HTTP opt-out\n` +
       `- [Identity](06-identity.md) — PAT, emulator OIDC, federated JWT\n` +
       `- [Workspace and files](07-workspace-and-files.md) — SOURCE/PYTHON, workspace-files, DBFS\n` +

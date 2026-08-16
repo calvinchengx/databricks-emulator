@@ -43,6 +43,13 @@ Family compose in azure-emulators wires federated Entra, the vault host, and
 the vault-audience mint. It does not set `--spark-connect-url`. See
 [Family integration](14-family-integration.md).
 
+## Client toggle (not this binary)
+
+A consumer that must also run against a real workspace does not restate
+these URLs. It installs the published `databricks-target` package and
+sets `DATABRICKS_TARGET=emulator|real`. See
+[21 — one toggle](21-real-databricks-toggle.md).
+
 ## What is not configured here
 
 - The seeded admin PAT and OIDC client are written on first start under the

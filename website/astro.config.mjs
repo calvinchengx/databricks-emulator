@@ -33,6 +33,7 @@ export default defineConfig({
             { slug: '02-installation' },
             { slug: '03-architecture' },
             { slug: '04-configuration' },
+            { slug: '21-real-databricks-toggle' },
             { slug: '05-tls-and-hosts' },
           ],
         },

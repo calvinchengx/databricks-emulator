@@ -1,0 +1,29 @@
+# Sail + spark-agent only. Ports sit above the dbt/sql bands.
+services:
+  sail:
+    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION:-0.22.0}
+    ports:
+      - "15054:50051"
+    environment:
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+      RUST_LOG: "info"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  spark-agent:
+    image: ghcr.io/calvinchengx/fabric-emulator-spark-agent:${SPARK_AGENT_VERSION:-0.22.0}
+    depends_on:
+      sail:
+        condition: service_healthy
+    ports:
+      - "18104:8099"
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

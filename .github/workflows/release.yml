@@ -40,3 +40,24 @@ jobs:
           build-args: VERSION=${{ github.ref_name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  target-wheel:
+    name: databricks-target wheel → the release
+    needs: make-targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Build and prove the wheel
+        run: python3 scripts/build_target_wheel.py
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+      - name: Attach the wheel to the GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.ref_name }}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --generate-notes --verify-tag
+          gh release upload "$tag" dist/target/*.whl --clobber
