@@ -44,7 +44,7 @@ A green Jobs row is not every Jobs endpoint; a red Pipelines row is the
 whole Lakeflow/DLT group.
 
 The first honest slice is identity (PAT + emulator OIDC), Workspace files,
-DBFS, Git Credentials / Repos, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Connect /
+DBFS, Git Credentials / Repos, Jobs 2.2 Python/notebook on Sail, secrets, SQL warehouses / Queries / Connect /
 clusters-as-session on that same engine, Command Execution, Unity Catalog
 CRUD through UC OSS, and MLflow experiments / model registry on the
 file-backed tracking store. Everything else from the catalog is enumerated below as Not
@@ -92,6 +92,7 @@ claim are 🔴 Not implemented even though the docs mention them.
 | Feature | Emulator | Type |
 |---|---|---|
 | SQL warehouses | Session handle, not a VM and not Photon. `POST /api/2.0/sql/statements` sends the SQL as `kind: sql` (the code **is** Spark SQL). Wire names `dialect: spark-sql`; `executedBy` says Spark SQL, not Photon. Without `DATABRICKS_SPARK_CONNECT_URL`, execute is `FAILED` naming the engine. | 🟢 Real |
+| SQL Queries / Query History | Stored query CRUD (`/api/2.0/sql/queries`). Execute is the warehouse statements path with that `query_text` (same Sail attach). History lists those executions. Alerts and visualizations stay 501. | 🟢 Real |
 | SQL warehouses — Thrift / HiveServer2 | Same warehouse handle and Sail attach. `POST /sql/1.0/endpoints/{id}` (and `/sql/protocolv1/o/{org}/{id}` when `{id}` is a warehouse) is TBinary HiveServer2. Unmodified `databricks-sql-connector==4.4.0` `SELECT 1` returns one typed cell. GetSchemas / GetTables are `SHOW` on that engine. Cloud Fetch / Arrow+LZ4 / GetCatalogs stay refused. Missing engine fails naming `DATABRICKS_SPARK_CONNECT_URL`. | 🟢 Real |
 | Delta writes — Sail | Warehouse SQL `CREATE TABLE … USING delta LOCATION` + `INSERT` + `DELETE` + `MERGE INTO` on a shared volume. Sail writes; **delta-rs** reads `_delta_log` and the rows. A Sail `COUNT(*)` after DML is not a witness. Standalone `UPDATE` is forwarded and Sail answers FAILED (`CommandNode::Update`) — never a silent no-op. Two concurrent `INSERT OVERWRITE`s: each success has its own log version; rows are one overwrite, not a silent merge. Photon is not this row. | 🟢 Real |
 | Delta writes — UC three-part names | SDK creates an EXTERNAL table in UC OSS (Docker sidecar). Sail's unity catalog provider (`SAIL_CATALOG__LIST`, same Compose network) resolves `cat.sch.tbl`. Warehouse `INSERT` writes; **delta-rs** confirms the log. This process forwards the name unchanged — it is not a path rewrite. | 🟢 Real |
@@ -140,7 +141,7 @@ same style as the greens — not a product-page promise.
 | Apps | Would need a deployed app process. | 🔴 Not implemented |
 | SCIM Groups / Users / Service Principals | Directory mutations that then deny. | 🔴 Not implemented |
 | Permissions | Enforcement, not allow-all. | 🔴 Not implemented |
-| SQL Alerts / Queries / Query History | Stored queries that execute on the warehouse (same Sail attach as statements). | 🔴 Not implemented |
+| SQL Alerts | Would evaluate a stored query on a schedule. No alert evaluator is attached. | 🔴 Not implemented |
 | Unity Catalog beyond CRUD | Volumes, functions, locations, credentials, monitors — sidecar must speak them. | 🔴 Not implemented |
 | Delta Sharing | Providers / Recipients / Shares against a real share. | 🔴 Not implemented |
 | Marketplace | Consumer + provider listing APIs. | 🔴 Not implemented |

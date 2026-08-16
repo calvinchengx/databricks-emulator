@@ -44,7 +44,9 @@ without it, `make run` still works against a stand-in vault.
 
 SQL warehouses are a session handle onto the same Spark agent — not a VM and
 not Photon. `POST /api/2.0/sql/statements` runs Spark SQL; the response names
-`dialect: spark-sql`. `sql_task.file` jobs take the same path.
+`dialect: spark-sql`. Stored queries (`/api/2.0/sql/queries`) persist that
+text; execute is still the statements path; query history lists those
+runs. `sql_task.file` jobs take the same path.
 `sql_task.query` / dashboard / alert stay refused.
 
 Clusters are a session handle onto that same engine — not a VM.
@@ -85,7 +87,8 @@ keyvault) and drives cluster create, unmodified `databricks-connect`
 `SELECT 1`, a Python job whose logs contain `REACHED`, `{{secrets}}`
 printed from `os.environ`, an AKV-backed scope whose rotate is visible on
 the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
-and MCP `execute_sql`. Run it with `uv` (`.python-version` is 3.12).
+a stored query plus query history, and MCP `execute_sql`. Run it with
+`uv` (`.python-version` is 3.12).
 
 `make e2e-sql` attaches the same Sail + spark-agent and drives unmodified
 `databricks-sql-connector==4.4.0` `SELECT 1` over HiveServer2 Thrift
