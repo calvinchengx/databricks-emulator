@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,7 @@ func parseStdout(stdout string) (*table, error) {
 			return emptyTable(), nil
 		}
 		if obj, ok := body[0].(map[string]any); ok {
-			return tableFromObjects(body, obj)
+			return tableFromObjects(body, obj, firstRowKeys(raw, ""))
 		}
 		if _, ok := body[0].([]any); ok {
 			return tableFromArrays(body, nil)
@@ -58,7 +59,7 @@ func parseStdout(stdout string) (*table, error) {
 			return tableFromArrays(nil, &colSpec{names: names, types: types})
 		}
 		if obj, ok := rows[0].(map[string]any); ok {
-			return tableFromObjects(rows, obj)
+			return tableFromObjects(rows, obj, firstRowKeys(raw, "data"))
 		}
 		return tableFromArrays(rows, &colSpec{names: names, types: types})
 	default:
@@ -121,37 +122,82 @@ func sparkType(v any) cliservice.TTypeId {
 	}
 }
 
-func tableFromObjects(rows []any, first map[string]any) (*table, error) {
-	names := make([]string, 0, len(first))
-	for k := range first {
-		names = append(names, k)
+// firstRowKeys returns the first row object's keys in the order the engine
+// wrote them. field names the envelope member holding the rows, or "" when
+// the rows are the top-level array.
+//
+// The order cannot come from the decoded rows: they are map[string]any, and
+// Go both randomises map iteration and sorts map keys on marshal. Only the
+// source bytes still know what the engine sent.
+func firstRowKeys(raw, field string) []string {
+	rows := []json.RawMessage(nil)
+	if field == "" {
+		if json.Unmarshal([]byte(raw), &rows) != nil {
+			return nil
+		}
+	} else {
+		var env map[string]json.RawMessage
+		if json.Unmarshal([]byte(raw), &env) != nil {
+			return nil
+		}
+		if json.Unmarshal(env[field], &rows) != nil {
+			return nil
+		}
 	}
-	// Stable order: first object's key iteration is random. Sort by appearance
-	// in the first object via a second pass over a json decoder? For SELECT 1
-	// there is one key. Keep map iteration for the first row then reuse.
-	if len(names) > 1 {
-		// Re-read first object keys in JSON order by encoding then scanning.
-		raw, err := json.Marshal(first)
-		if err == nil {
-			var ordered []string
-			dec := json.NewDecoder(bytes.NewReader(raw))
-			if tok, err := dec.Token(); err == nil && tok == json.Delim('{') {
-				for dec.More() {
-					k, err := dec.Token()
-					if err != nil {
-						break
-					}
-					if ks, ok := k.(string); ok {
-						ordered = append(ordered, ks)
-					}
-					var skip any
-					_ = dec.Decode(&skip)
-				}
-			}
-			if len(ordered) == len(names) {
-				names = ordered
+	if len(rows) == 0 {
+		return nil
+	}
+	return objectKeys(rows[0])
+}
+
+// objectKeys walks one JSON object and returns its keys in document order.
+func objectKeys(raw json.RawMessage) []string {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	tok, err := dec.Token()
+	if err != nil || tok != json.Delim('{') {
+		return nil
+	}
+	var keys []string
+	for dec.More() {
+		k, err := dec.Token()
+		if err != nil {
+			return nil
+		}
+		name, ok := k.(string)
+		if !ok {
+			return nil
+		}
+		keys = append(keys, name)
+		var skip json.RawMessage
+		if err := dec.Decode(&skip); err != nil {
+			return nil
+		}
+	}
+	return keys
+}
+
+// tableFromObjects builds a table from object-shaped rows. order carries the
+// engine's own column order; when it is unavailable the keys are sorted, so
+// the result is at least stable rather than following map iteration.
+func tableFromObjects(rows []any, first map[string]any, order []string) (*table, error) {
+	names := make([]string, 0, len(first))
+	if len(order) == len(first) {
+		ok := true
+		for _, k := range order {
+			if _, present := first[k]; !present {
+				ok = false
+				break
 			}
 		}
+		if ok {
+			names = append(names, order...)
+		}
+	}
+	if len(names) == 0 {
+		for k := range first {
+			names = append(names, k)
+		}
+		sort.Strings(names)
 	}
 	grid := make([][]any, len(rows))
 	for i, row := range rows {
