@@ -49,6 +49,11 @@ type Config struct {
 	// UCTLSInsecure skips TLS verification when dialing UC OSS.
 	UCTLSInsecure bool
 
+	// DeltaRoot is the engine-visible URI prefix for warehouse CREATE TABLE
+	// that has no LOCATION (managed shape). Sail writes Delta there; UC OSS
+	// gets an EXTERNAL table at the same path. Default file:///data/delta/managed.
+	DeltaRoot string
+
 	// EntraTokenURL, when set, is the client-credentials endpoint used to
 	// mint a vault-audience token for AKV-backed secret resolve. Empty
 	// means resolve stays unauthenticated (stand-in vault / make run).
@@ -80,6 +85,7 @@ func FromEnvPartial() *Config {
 		AKVTLSInsecure:      truthy(os.Getenv("DATABRICKS_AKV_TLS_INSECURE")),
 		UCURL:               os.Getenv("DATABRICKS_UC_URL"),
 		UCTLSInsecure:       truthy(os.Getenv("DATABRICKS_UC_TLS_INSECURE")),
+		DeltaRoot:           os.Getenv("DATABRICKS_DELTA_ROOT"),
 		EntraTokenURL:       os.Getenv("DATABRICKS_ENTRA_TOKEN_URL"),
 		EntraClientID:       os.Getenv("DATABRICKS_ENTRA_CLIENT_ID"),
 		EntraClientSecret:   os.Getenv("DATABRICKS_ENTRA_CLIENT_SECRET"),

@@ -21,6 +21,7 @@ is set.
 | `--akv-tls-insecure` | `DATABRICKS_AKV_TLS_INSECURE` | off | Skip TLS verification when dialing the vault. |
 | `--uc-url` | `DATABRICKS_UC_URL` | *(unset)* | Unity Catalog OSS origin. Empty: `/unity-catalog` routes are 501 naming the missing sidecar. |
 | `--uc-tls-insecure` | `DATABRICKS_UC_TLS_INSECURE` | off | Skip TLS verification when dialing UC OSS. |
+| — | `DATABRICKS_DELTA_ROOT` | `file:///data/delta/managed` | Engine-visible URI prefix for warehouse `CREATE TABLE cat.sch.t` with no `LOCATION`. |
 | `--entra-token-url` | `DATABRICKS_ENTRA_TOKEN_URL` | *(unset)* | Client-credentials endpoint used to mint a vault-audience token (`https://vault.azure.net/.default`) for AKV-backed secret resolve. Empty: resolve stays unauthenticated (stand-in vault / `make run`). |
 | `--entra-client-id` | `DATABRICKS_ENTRA_CLIENT_ID` | *(unset)* | Confidential client id for that mint. Required together with the secret when the token URL is set. |
 | `--entra-client-secret` | `DATABRICKS_ENTRA_CLIENT_SECRET` | *(unset)* | Confidential client secret for that mint. |

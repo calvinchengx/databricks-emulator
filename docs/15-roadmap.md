@@ -17,7 +17,7 @@ Git Credentials / Repos (git clone into the workspace store), cluster
 policies (enforced on create), Command Execution (context on Sail),
 MLflow experiments / model registry (file-backed tracking store), secret persist
 and injection, AKV read-through + vault-audience, Terraform/DAB,
-clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, SQL Queries / Query History, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), dbt-databricks warehouse run, MCP SQL,
+clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, SQL Queries / Query History, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), dbt-databricks warehouse run (UC catalog + hive_metastore), MCP SQL,
 Unity Catalog CRUD, the `databricks-target` emulator/real toggle,
 Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
@@ -34,8 +34,7 @@ close red rows.
 
 ## Docs still to write
 
-P2 leftover: release notes on the next tag; platform-setup after `make up` /
-`make status` exist.
+P2 leftover: platform-setup after `make up` / `make status` exist.
 
 Parity history is generated from every `v*` tag that carries `docs/parity.md`
 (`v0.1.0` is the first). Live map, snapshots, and changelog live on the docs

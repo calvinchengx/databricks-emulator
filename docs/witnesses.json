@@ -115,7 +115,8 @@
     "claim": "Delta writes — UC three-part names",
     "witnesses": [
       "ci:e2e-delta",
-      "go:TestSQLWarehouseForwardsThreePartNames"
+      "go:TestSQLWarehouseForwardsThreePartNames",
+      "go:TestSQLWarehouseRewritesManagedCreateAndSkipsRowFilters"
     ]
   },
   "delta-maintenance-optimize-vacuum": {
@@ -225,6 +226,7 @@
     "section": "Clients",
     "claim": "dbt-databricks warehouse run",
     "witnesses": [
+      "ci:e2e-dbt-uc",
       "ci:e2e-dbt"
     ]
   }

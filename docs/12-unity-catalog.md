@@ -38,7 +38,7 @@ This process does not rewrite the three-part name. Sail is not the JVM
 
 | Call | Why |
 |---|---|
-| `table_type=MANAGED` on `POST …/tables` | UC OSS only creates EXTERNAL tables at a filesystem location. Inventing a managed table Spark cannot see is a lookalike. 501. |
+| `table_type=MANAGED` on `POST …/tables` | UC OSS only creates EXTERNAL tables at a filesystem location. Inventing a managed table Spark cannot see is a lookalike. 501. Warehouse `CREATE TABLE cat.sch.t` with no `LOCATION` is rewritten to EXTERNAL (see [SQL](10-sql-and-mcp.md)). |
 | `/permissions` and `/grants` | Not shipped until they deny. 501. |
 
 Volumes, functions, locations, credentials, monitors, Delta Sharing — the

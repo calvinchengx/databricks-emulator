@@ -88,3 +88,59 @@ func TestProxyPostsBody(t *testing.T) {
 		t.Fatalf("body = %q", got)
 	}
 }
+
+func TestJSONCreateAndAlreadyThere(t *testing.T) {
+	var method, path, body string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		method, path = r.Method, r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error_code":"ALREADY_EXISTS"}`))
+	}))
+	defer upstream.Close()
+	c := New(upstream.URL, upstream.Client())
+	st, raw, err := c.JSON(http.MethodPost, "/api/2.1/unity-catalog/schemas", map[string]string{
+		"name": "gold", "catalog_name": "contoso",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != http.MethodPost || path != "/api/2.1/unity-catalog/schemas" {
+		t.Fatalf("%s %s", method, path)
+	}
+	if !strings.Contains(body, `"gold"`) {
+		t.Fatalf("body %s", body)
+	}
+	if !AlreadyThere(st, raw) {
+		t.Fatalf("status %d %s", st, raw)
+	}
+	if _, _, err := New("", nil).JSON(http.MethodGet, "/x", nil); err == nil {
+		t.Fatal("empty base")
+	}
+	if _, _, err := c.JSON("GET /nope", "/x", nil); err == nil {
+		t.Fatal("bad method")
+	}
+	if _, _, err := c.JSON(http.MethodGet, "/x", map[string]any{"ch": make(chan int)}); err == nil {
+		t.Fatal("marshal")
+	}
+	down := New("http://127.0.0.1:1", nil)
+	if _, _, err := down.JSON(http.MethodGet, "/api/2.1/unity-catalog/catalogs", nil); err == nil {
+		t.Fatal("dial")
+	}
+	if st, _, err := c.JSON(http.MethodGet, "/api/2.1/unity-catalog/schemas", nil); err != nil || st != http.StatusConflict {
+		t.Fatalf("nil body %d %v", st, err)
+	}
+	if !AlreadyThere(http.StatusOK, nil) || !AlreadyThere(http.StatusCreated, nil) {
+		t.Fatal("2xx")
+	}
+	if !AlreadyThere(http.StatusBadRequest, []byte("already")) {
+		t.Fatal("already")
+	}
+	if !AlreadyThere(http.StatusBadRequest, []byte("exists")) {
+		t.Fatal("exists only")
+	}
+	if AlreadyThere(http.StatusBadRequest, []byte("nope")) || AlreadyThere(http.StatusInternalServerError, nil) {
+		t.Fatal("not already")
+	}
+}

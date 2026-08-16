@@ -100,7 +100,9 @@ published `databricks-target` package and sets
 **names**; the resolver turns them into ids. `make e2e-databricks-target`
 is the witness. See [docs/21-real-databricks-toggle.md](docs/21-real-databricks-toggle.md).
 `make e2e-dbt` drives unmodified `dbt-databricks==1.12.4` `dbt run` of a
-table model over that same Thrift attach. Jobs `dbt_task` stays refused.
+table model over that same Thrift attach (hive_metastore). `make e2e-dbt-uc`
+is the gold-shaped gate: catalog set, no post-hook, delta-rs on the managed
+path. Jobs `dbt_task` stays refused.
 
 `make e2e-delta` writes a Delta table through the warehouse API onto Sail
 and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.

@@ -15,17 +15,17 @@ make run            # https://localhost:8447
 
 `make doctor` checks for Go and [uv](https://docs.astral.sh/uv/) (the same
 Python toolchain as fabric-emulator). `make e2e` / `e2e-engine` / `e2e-delta`
-/ `e2e-uc` run through `uv run --frozen --group …` against `pyproject.toml`
-and `uv.lock`. Docker is required for the engine, Delta, and UC attaches.
+/ `e2e-uc` / `e2e-dbt-uc` run through `uv run --frozen --group …` against `pyproject.toml`
+and `uv.lock`. Docker is required for the engine, Delta, UC, and dbt attaches.
 `databricks-connect==19.1` needs Python 3.12; uv reads `.python-version`.
 
 ## Docker / GHCR
 
 ```bash
-docker pull ghcr.io/calvinchengx/databricks-emulator:0.2.0
+docker pull ghcr.io/calvinchengx/databricks-emulator:0.2.2
 docker run --rm -p 8447:8447 \
   -e DATABRICKS_DISABLE_TLS=1 \
-  ghcr.io/calvinchengx/databricks-emulator:0.2.0
+  ghcr.io/calvinchengx/databricks-emulator:0.2.2
 ```
 
 The image is distroless. Its `HEALTHCHECK` runs the binary's own

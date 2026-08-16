@@ -19,13 +19,11 @@ percentage scores. Both run in CI.
 | `make e2e-uc` | Unmodified `databricks-sdk==0.129.0` with UC OSS (`e2e/uc/run.py`, CI job `e2e-uc`). Needs Docker. |
 | `make e2e-sql` | Unmodified `databricks-sql-connector==4.4.0` over HiveServer2 Thrift (`e2e/sql/run.py`, CI job `e2e-sql`). Needs Docker. |
 | `make e2e-databricks-target` | Published `databricks-target` resolver (`e2e/databricks-target/run.py`, CI job `e2e-databricks-target`). Warehouse by name + `SELECT 1`. Needs Docker. |
+| `make e2e-dbt` | Unmodified `dbt-databricks==1.12.4` hive_metastore Thrift smoke (`e2e/dbt/run.py`, CI job `e2e-dbt`). Needs Docker. |
+| `make e2e-dbt-uc` | Unmodified `dbt-databricks==1.12.4` against a Unity Catalog catalog (`e2e/dbt-uc/run.py`, CI job `e2e-dbt-uc`). Gold-shaped: catalog set, no post-hook. Needs Docker. |
 
 Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
-`delta`, `sql`, `target` groups). A floating `pip install databricks-sdk` is not a witness —
-| `make e2e-dbt` | Unmodified `dbt-databricks==1.12.4` `dbt run` of a table model over that same Thrift attach (`e2e/dbt/run.py`, CI job `e2e-dbt`). Needs Docker. |
-
-Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
-`delta`, `sql`, `dbt` groups). A floating `pip install databricks-sdk` is not a witness —
+`delta`, `sql`, `target`, `dbt` groups). A floating `pip install databricks-sdk` is not a witness —
 it is whatever PyPI shipped the morning CI ran. Same toolchain as
 fabric-emulator: `uv run --frozen --group <name>`. The `dbt` group
 conflicts with the others (`dbt-databricks==1.12.4` needs
@@ -80,14 +78,17 @@ pyarrow extra). Warehouse create via REST; `sql.connect` to
 `/sql/1.0/endpoints/{id}`; `SELECT 1` fetches one typed cell. `token=dev`
 is refused. That is HiveServer2, not `POST /api/2.0/sql/statements`.
 
-**`e2e-dbt`** — pinned `dbt-databricks==1.12.4`. `dbt debug` + `dbt run`
-of `one` (`select 1 as id`) and `two` (`select id from {{ ref('one') }}`)
-over HiveServer2, then **delta-rs** reads both models back. dbt exiting 0
-is not the witness: each model publishes an external Delta copy onto a
-mounted volume, and the confirmer never speaks to dbt or to Sail. A copy
-rather than `+location_root`, which makes dbt qualify the name and this
-attach refuses a three-part name once a LOCATION is attached. `token=dev`
-is refused. Jobs `dbt_task` is not this job.
+**`e2e-dbt`** — pinned `dbt-databricks==1.12.4`. hive_metastore Thrift
+smoke: `dbt debug` + `dbt run` of `one` / `two` over HiveServer2, then
+**delta-rs** reads a post-hook copy on a mounted volume. `token=dev` is
+refused. Jobs `dbt_task` is not this job.
+
+**`e2e-dbt-uc`** — the gold-shaped gate. Same adapter pin; `catalog: e2e`,
+`schema: gold`, `+file_format: delta`, no post-hook. UC OSS + Sail's
+unity catalog provider share the Compose network. The warehouse shim
+writes `managed/e2e/gold/{one,two}`; **delta-rs** confirms those
+directories, then `SELECT id FROM e2e.gold.two` through the warehouse.
+`token=dev` is refused.
 
 **`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + `INSERT`
 + `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation
@@ -96,7 +97,9 @@ advances). Standalone `UPDATE` is FAILED (`CommandNode::Update`). Sail
 `COUNT(*)` is not the witness. A UC EXTERNAL table then names that
 `storage_location`; three-part `INSERT INTO e2e.s.events` writes through
 Sail's unity catalog provider (same Compose network as UC OSS) and
-delta-rs confirms the new row. `OPTIMIZE` / `VACUUM` use
+delta-rs confirms the new row. `CREATE TABLE e2e.s.from_shim … AS SELECT`
+with no `LOCATION` is rewritten to an EXTERNAL path; delta-rs confirms
+that directory, then a three-part INSERT. `OPTIMIZE` / `VACUUM` use
 `delta.\`file://…\`` through the spark-agent's delta-rs shim (Sail has no
 grammar); `OPTIMIZE … ZORDER` is refused. Two concurrent `INSERT OVERWRITE`s
 on a second table: each success has its own log version; rows are one
