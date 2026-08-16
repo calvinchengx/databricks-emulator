@@ -17,6 +17,7 @@ import (
 	"github.com/calvinchengx/databricks-emulator/internal/clock"
 	"github.com/calvinchengx/databricks-emulator/internal/config"
 	"github.com/calvinchengx/databricks-emulator/internal/entra"
+	"github.com/calvinchengx/databricks-emulator/internal/hs2"
 	"github.com/calvinchengx/databricks-emulator/internal/oidc"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
@@ -34,6 +35,7 @@ type Server struct {
 	Spark  spark.Executor
 	AKV    *akv.Client
 	UC     *uc.Client
+	HS2    *hs2.Service
 	Origin string
 }
 
@@ -90,7 +92,7 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 	if cfg.EntraTokenURL != "" {
 		vault.Token = entra.NewMinter(cfg.EntraTokenURL, cfg.EntraClientID, cfg.EntraClientSecret, entraClient).VaultToken
 	}
-	return &Server{
+	srv := &Server{
 		Cfg:    cfg,
 		Store:  st,
 		Auth:   au,
@@ -100,7 +102,9 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		AKV:    vault,
 		UC:     uc.New(cfg.UCURL, ucClient),
 		Origin: origin,
-	}, nil
+	}
+	srv.HS2 = hs2.New(srv)
+	return srv, nil
 }
 
 // Request bodies are read fully into memory, so an unbounded one is a denial
@@ -216,6 +220,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/2.0/sql/warehouses/{id}/stop", s.protect(s.sqlStopWarehouse))
 	mux.HandleFunc("POST /api/2.0/sql/statements", s.protect(s.sqlExecuteStatement))
 	mux.HandleFunc("GET /api/2.0/sql/statements/{id}", s.protect(s.sqlGetStatement))
+	mux.HandleFunc("POST /sql/1.0/endpoints/{id}", s.protect(s.sqlThrift))
+	mux.HandleFunc("POST /sql/protocolv1/o/{org}/{id}", s.protect(s.sqlThrift))
 
 	mux.HandleFunc("POST /api/2.0/mcp/sql", s.protect(s.mcpSQL))
 	mux.HandleFunc("GET /api/2.0/mcp/sql", s.protect(s.mcpSQL))

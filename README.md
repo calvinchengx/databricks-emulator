@@ -87,6 +87,10 @@ printed from `os.environ`, an AKV-backed scope whose rotate is visible on
 the next run, a SQL warehouse `SELECT 1` that names `dialect: spark-sql`,
 and MCP `execute_sql`. Run it with `uv` (`.python-version` is 3.12).
 
+`make e2e-sql` attaches the same Sail + spark-agent and drives unmodified
+`databricks-sql-connector==4.4.0` `SELECT 1` over HiveServer2 Thrift
+(`/sql/1.0/endpoints/{id}`). That is not the REST statements API.
+
 `make e2e-delta` writes a Delta table through the warehouse API onto Sail
 and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.
 The same job attaches UC OSS on Sail's Compose network so

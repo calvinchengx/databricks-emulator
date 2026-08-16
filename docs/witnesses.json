@@ -134,6 +134,14 @@
       "go:TestSQLWarehouseStatementDialectAndMutation"
     ]
   },
+  "sql-warehouses-thrift-hiveserver2": {
+    "section": "Compute",
+    "claim": "SQL warehouses — Thrift / HiveServer2",
+    "witnesses": [
+      "ci:e2e-sql",
+      "go:TestThriftWarehouseSelect1AndRefusals"
+    ]
+  },
   "clusters-as-session-handle": {
     "section": "Compute",
     "claim": "Clusters as session handle",

@@ -35,6 +35,19 @@ alert are refused at job create.
 
 Witness: `ci:e2e-engine`.
 
+## Thrift / HiveServer2
+
+The warehouse connector does not call the statements API. Unmodified
+`databricks-sql-connector==4.4.0` POSTs `application/x-thrift`
+(`TBinaryProtocol`) to `/sql/1.0/endpoints/{warehouse_id}` after PAT.
+`/sql/protocolv1/o/{org}/{id}` is the same processor when `{id}` is a
+known warehouse. OpenSession binds the session to that id; ExecuteStatement
+reuses `runSQLStatement` (same Sail `kind: sql` attach). Tiny results are
+inline `COLUMN_BASED_SET`. Cloud Fetch, Arrow+LZ4, and metadata RPCs are
+refused by name. Missing engine fails naming `DATABRICKS_SPARK_CONNECT_URL`.
+
+Witness: `ci:e2e-sql`.
+
 ## Delta writes
 
 `CREATE TABLE … USING delta LOCATION`, `INSERT`, `DELETE`, and `MERGE INTO`
