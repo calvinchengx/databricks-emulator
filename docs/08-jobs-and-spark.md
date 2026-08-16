@@ -33,8 +33,17 @@ DATABRICKS_DISABLE_TLS=1 \
 ```
 
 The agent listens on `:8099` (`POST /statements`, `GET /health`). Sail is
-`:50051`. Images are `ghcr.io/calvinchengx/fabric-emulator-sail:0.22.0` and
+`:50051`. Images are `ghcr.io/calvinchengx/emulator-sail:0.7.0` and
 `…/fabric-emulator-spark-agent:0.22.0`.
+
+The two are named and versioned differently on purpose, and it is not an
+oversight mid-rename. `emulator-sail` is tagged with the **engine** version it
+carries, which is what a consumer pins it for; the agent still carries
+fabric-emulator's release number and moves to `emulator-spark-agent:<client
+version>` once the MERGE regression in its 0.25.0–0.26.0 line is released fixed
+(fabric-emulator#281). Pairing this engine with that older agent is the
+supported direction — Sail 0.7.0 accepts an older client, while the reverse
+pairing breaks — so the halves are deliberately not moving together.
 
 Family compose in azure-emulators does **not** set this URL. A job created
 from a Fabric Databricks activity against that stack fails naming the missing

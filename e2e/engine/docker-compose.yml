@@ -38,7 +38,7 @@ services:
       retries: 20
 
   sail:
-    image: ghcr.io/calvinchengx/fabric-emulator-sail:${SAIL_VERSION:-0.22.0}
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:807adeb978f85e1c8da25bf0ba85d7eea75cef2532b922284a0b70d879d57237}
     ports:
       - "50051:50051"
     environment:
