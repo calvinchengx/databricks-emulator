@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -226,14 +227,29 @@ func buildTable(names []string, hinted []cliservice.TTypeId, grid [][]any) (*tab
 	return &table{names: names, types: kinds, cols: cols}, nil
 }
 
+// inferType reads the whole column, not just its first non-null value. One
+// small number at the top used to fix the column at INT, and every later
+// value wider than int32 was then silently truncated by packColumn.
 func inferType(grid [][]any, col int) cliservice.TTypeId {
+	kind := cliservice.TTypeId_STRING_TYPE
+	found := false
 	for _, row := range grid {
 		if col >= len(row) || row[col] == nil {
 			continue
 		}
-		return valueType(row[col])
+		got := valueType(row[col])
+		if !found {
+			kind, found = got, true
+			continue
+		}
+		// Widen INT to BIGINT the moment one value needs 64 bits. Other
+		// mixes are left alone: packColumn still refuses them by name,
+		// which is a loud failure rather than a wrong number.
+		if kind == cliservice.TTypeId_INT_TYPE && got == cliservice.TTypeId_BIGINT_TYPE {
+			kind = got
+		}
 	}
-	return cliservice.TTypeId_STRING_TYPE
+	return kind
 }
 
 func valueType(v any) cliservice.TTypeId {
@@ -289,6 +305,12 @@ func packColumn(kind cliservice.TTypeId, grid [][]any, col int) (*cliservice.TCo
 			n, err := asInt64(row[col])
 			if err != nil {
 				return nil, fmt.Errorf("column %d row %d: %w", col, i, err)
+			}
+			// Reachable when the engine's own schema declared INT: buildTable
+			// trusts that hint and never calls inferType. Refuse rather than
+			// hand the client a truncated number.
+			if n > math.MaxInt32 || n < math.MinInt32 {
+				return nil, fmt.Errorf("column %d row %d: %d does not fit the INT column the engine declared", col, i, n)
 			}
 			vals[i] = int32(n)
 		}
