@@ -24,7 +24,7 @@ graph LR
 docker compose --profile databricks up   # :8447
 ```
 
-The profile (image `ghcr.io/calvinchengx/databricks-emulator:0.1.0`) sets:
+The profile (image `ghcr.io/calvinchengx/databricks-emulator:0.2.0`) sets:
 
 | Variable | Value |
 |---|---|

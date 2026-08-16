@@ -22,10 +22,10 @@ and `uv.lock`. Docker is required for the engine, Delta, and UC attaches.
 ## Docker / GHCR
 
 ```bash
-docker pull ghcr.io/calvinchengx/databricks-emulator:0.1.0
+docker pull ghcr.io/calvinchengx/databricks-emulator:0.2.0
 docker run --rm -p 8447:8447 \
   -e DATABRICKS_DISABLE_TLS=1 \
-  ghcr.io/calvinchengx/databricks-emulator:0.1.0
+  ghcr.io/calvinchengx/databricks-emulator:0.2.0
 ```
 
 The image is distroless. Its `HEALTHCHECK` runs the binary's own
