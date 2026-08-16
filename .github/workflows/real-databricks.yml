@@ -1,0 +1,44 @@
+# Secret-gated real-workspace conformance for databricks-target.
+# Not a PR check. Mirrors fabric-emulator's real-fabric.yml: the same
+# unit suite plus warehouse-by-name resolution, with only
+# DATABRICKS_TARGET and credentials differing from e2e/databricks-target.
+#
+# Required repository secrets: DATABRICKS_HOST, DATABRICKS_TOKEN,
+# DATABRICKS_WAREHOUSE. Optional: DATABRICKS_CATALOG.
+
+name: Real Databricks
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: databricks-target against a real workspace
+    if: ${{ secrets.DATABRICKS_HOST != '' && secrets.DATABRICKS_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+      - run: uv run --frozen --group target pytest python/databricks-target/tests -q
+      - name: Resolve the named warehouse
+        env:
+          DATABRICKS_TARGET: real
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_WAREHOUSE: ${{ secrets.DATABRICKS_WAREHOUSE }}
+          DATABRICKS_CATALOG: ${{ secrets.DATABRICKS_CATALOG }}
+        run: |
+          uv run --frozen --group target python -c "
+          from databricks_target import target
+          t = target(fresh=True)
+          assert t.is_real and t.tls_verify
+          wh = t.warehouse()
+          print('resolved', t.host, wh.name, wh.id, wh.http_path)
+          "

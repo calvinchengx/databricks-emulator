@@ -89,3 +89,8 @@ A row is green only when a witness exists: an unmodified client (`databricks-sdk
 `databricks/databricks` Terraform, Databricks CLI, `databricks-sql-connector`, or fabric-emulator's Databricks activity) drove the call, and
 the engine or store actually did the work. Status without a witness is not
 support. See [parity.md](parity.md), then the [quickstart](01-quickstart.md).
+
+A consumer that must also run against a real workspace installs
+`databricks-target` and sets `DATABRICKS_TARGET=emulator|real` — it does
+not restate hosts or seed a PAT. See
+[21 — one toggle](21-real-databricks-toggle.md).

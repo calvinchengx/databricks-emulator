@@ -123,6 +123,7 @@ claim are 🔴 Not implemented even though the docs mention them.
 |---|---|---|
 | MCP — Databricks SQL | `POST /api/2.0/mcp/sql` JSON-RPC after PAT/OIDC. `execute_sql` / `poll_response` wrap the warehouse statements handler (same Sail attach, same `dialect: spark-sql`). Genie / AI Search / UC function MCP paths stay 501. | 🟢 Real |
 | Terraform / DAB pair | Unmodified `databricks/databricks` and Databricks CLI `v1.12.1`: current_user + notebook + workspace_file + job create. `token=dev` refused. `bundle deploy` is not this row — current DAB schema also demands a cluster, and Permissions stay 501. Job *execution* is the engine row, not this one. | 🟢 Real |
+| databricks-target toggle | Published `databricks-target` package. `DATABRICKS_TARGET=emulator\|real` resolves host, token, warehouse-by-name, catalog, vault. Consumer code holds names. `make e2e-databricks-target` creates `contoso_warehouse`, resolves it, `SELECT 1`. Real mode refuses localhost and seed secrets. | 🟢 Real |
 
 ## Published APIs outside this slice
 

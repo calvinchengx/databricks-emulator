@@ -9,7 +9,7 @@ Vault would have. The founding constraint is [Doctrine](00-doctrine.md).
 
 ```mermaid
 graph TD
-  clients["databricks-sdk / CLI / Terraform / databricks-connect / databricks-sql-connector / fabric activities"]
+  clients["databricks-sdk / CLI / Terraform / databricks-connect / databricks-sql-connector / databricks-target / fabric activities"]
   ws["databricks-emulator :8447"]
   store["file store: workspace, DBFS, secrets, identity, MLflow"]
   agent["spark-agent HTTP /statements"]

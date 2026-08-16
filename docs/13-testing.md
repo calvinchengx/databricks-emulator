@@ -18,9 +18,10 @@ percentage scores. Both run in CI.
 | `make e2e-delta-jvm` | Warehouse SQL writes Delta via JVM Spark + delta-spark; **delta-rs** confirms (`e2e/delta-jvm/run.py`, CI job `e2e-delta-jvm`). 🟠 overlay. Needs Docker. |
 | `make e2e-uc` | Unmodified `databricks-sdk==0.129.0` with UC OSS (`e2e/uc/run.py`, CI job `e2e-uc`). Needs Docker. |
 | `make e2e-sql` | Unmodified `databricks-sql-connector==4.4.0` over HiveServer2 Thrift (`e2e/sql/run.py`, CI job `e2e-sql`). Needs Docker. |
+| `make e2e-databricks-target` | Published `databricks-target` resolver (`e2e/databricks-target/run.py`, CI job `e2e-databricks-target`). Warehouse by name + `SELECT 1`. Needs Docker. |
 
 Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
-`delta`, `sql` groups). A floating `pip install databricks-sdk` is not a witness —
+`delta`, `sql`, `target` groups). A floating `pip install databricks-sdk` is not a witness —
 it is whatever PyPI shipped the morning CI ran. Same toolchain as
 fabric-emulator: `uv run --frozen --group <name>`. The 85% `go test` floor
 excludes `internal/hs2/cliservice` (generated Spark-fork TCLIService).
@@ -92,6 +93,12 @@ is this job.
 plus `tables.get`; MANAGED create and `grants.get` are 501. The sidecar is
 `unitycatalog/unitycatalog:v0.5.0`. Missing sidecar is the Go test, not this
 job.
+
+**`e2e-databricks-target`** — the published consumer toggle
+(`python/databricks-target`). Unit suite plus a live emulator: resolve
+`DATABRICKS_TARGET=emulator`, create warehouse `contoso_warehouse`,
+resolve it by name, `SELECT 1`. Real-target conformance is
+secret-gated, not this job.
 
 ## Not a witness
 
