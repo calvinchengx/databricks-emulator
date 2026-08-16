@@ -355,12 +355,6 @@ func (s *Service) GetTypeInfo(context.Context, *cliservice.TGetTypeInfoReq) (*cl
 func (s *Service) GetCatalogs(context.Context, *cliservice.TGetCatalogsReq) (*cliservice.TGetCatalogsResp, error) {
 	return &cliservice.TGetCatalogsResp{Status: refused("GetCatalogs")}, nil
 }
-func (s *Service) GetSchemas(context.Context, *cliservice.TGetSchemasReq) (*cliservice.TGetSchemasResp, error) {
-	return &cliservice.TGetSchemasResp{Status: refused("GetSchemas")}, nil
-}
-func (s *Service) GetTables(context.Context, *cliservice.TGetTablesReq) (*cliservice.TGetTablesResp, error) {
-	return &cliservice.TGetTablesResp{Status: refused("GetTables")}, nil
-}
 func (s *Service) GetTableTypes(context.Context, *cliservice.TGetTableTypesReq) (*cliservice.TGetTableTypesResp, error) {
 	return &cliservice.TGetTableTypesResp{Status: refused("GetTableTypes")}, nil
 }

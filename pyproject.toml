@@ -34,9 +34,40 @@ target = [
     "databricks-sdk==0.129.0",
     "pytest>=8.3,<10",
 ]
+# dbt-databricks 1.12.4 pins databricks-sdk<0.118 and
+# databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
+dbt = [
+    "dbt-databricks==1.12.4",
+]
 
 [tool.uv]
 package = false
+# 1.12.4 needs databricks-sdk<0.118; the other groups pin 0.129.0.
+conflicts = [
+    [
+        { group = "sdk" },
+        { group = "dbt" },
+    ],
+    # target pins databricks-sdk==0.129.0 directly, so it is mutually
+    # exclusive with dbt for the same reason the others are. Neither branch
+    # needed this pair; it exists only because both groups now do.
+    [
+        { group = "target" },
+        { group = "dbt" },
+    ],
+    [
+        { group = "engine" },
+        { group = "dbt" },
+    ],
+    [
+        { group = "delta" },
+        { group = "dbt" },
+    ],
+    [
+        { group = "sql" },
+        { group = "dbt" },
+    ],
+]
 
 [tool.uv.sources]
 databricks-target = { path = "python/databricks-target" }

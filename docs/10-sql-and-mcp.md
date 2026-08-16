@@ -43,10 +43,21 @@ The warehouse connector does not call the statements API. Unmodified
 `/sql/protocolv1/o/{org}/{id}` is the same processor when `{id}` is a
 known warehouse. OpenSession binds the session to that id; ExecuteStatement
 reuses `runSQLStatement` (same Sail `kind: sql` attach). Tiny results are
-inline `COLUMN_BASED_SET`. Cloud Fetch, Arrow+LZ4, and metadata RPCs are
-refused by name. Missing engine fails naming `DATABRICKS_SPARK_CONNECT_URL`.
+inline `COLUMN_BASED_SET`. GetSchemas / GetTables forward `SHOW SCHEMAS` /
+`SHOW TABLES` and remap JDBC column names. Cloud Fetch, Arrow+LZ4, and
+GetCatalogs stay refused. Missing engine fails naming `DATABRICKS_SPARK_CONNECT_URL`.
 
 Witness: `ci:e2e-sql`.
+
+## dbt-databricks
+
+Unmodified `dbt-databricks==1.12.4` is a warehouse stranger, not a Jobs
+task type. `dbt run` of `one` plus downstream `two` (`ref('one')`) uses
+the same HiveServer2 attach (`_connection_uri` so the connector does not
+force `https://`). The adapter defaults `catalog` to `hive_metastore` and
+lists via GetTables. Jobs `dbt_task` stays refused by name.
+
+Witness: `ci:e2e-dbt`.
 
 ## Delta writes
 
