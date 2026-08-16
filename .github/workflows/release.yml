@@ -61,3 +61,26 @@ jobs:
           tag="${{ github.ref_name }}"
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "$tag" --generate-notes --verify-tag
           gh release upload "$tag" dist/target/*.whl --clobber
+
+  dispatch:
+    name: Tell contoso-databricks-platform to verify this release
+    needs: [image, target-wheel]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fire repository_dispatch
+        env:
+          GH_TOKEN: ${{ secrets.ACCEPTANCE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::ACCEPTANCE_DISPATCH_TOKEN is not set — the release " \
+                 "shipped but nothing downstream was told. The consumer's daily " \
+                 "cron still verifies the pin. Add a PAT with contents:write on " \
+                 "calvinchengx/contoso-databricks-platform to dispatch."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          gh api repos/calvinchengx/contoso-databricks-platform/dispatches \
+            -f event_type=databricks-emulator-release \
+            -F "client_payload[version]=$version" \
+            -F "client_payload[tag]=${GITHUB_REF_NAME}"
+          echo "dispatched databricks-emulator-release for $version"
