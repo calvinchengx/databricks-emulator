@@ -22,8 +22,14 @@ percentage scores. Both run in CI.
 
 Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
 `delta`, `sql`, `target` groups). A floating `pip install databricks-sdk` is not a witness —
+| `make e2e-dbt` | Unmodified `dbt-databricks==1.12.4` `dbt run` of a table model over that same Thrift attach (`e2e/dbt/run.py`, CI job `e2e-dbt`). Needs Docker. |
+
+Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
+`delta`, `sql`, `dbt` groups). A floating `pip install databricks-sdk` is not a witness —
 it is whatever PyPI shipped the morning CI ran. Same toolchain as
-fabric-emulator: `uv run --frozen --group <name>`. The 85% `go test` floor
+fabric-emulator: `uv run --frozen --group <name>`. The `dbt` group
+conflicts with the others (`dbt-databricks==1.12.4` needs
+`databricks-sdk<0.118`). The 85% `go test` floor
 excludes `internal/hs2/cliservice` (generated Spark-fork TCLIService).
 
 ## Witness kinds
@@ -71,6 +77,12 @@ names `dialect: spark-sql`; MCP `execute_sql`.
 pyarrow extra). Warehouse create via REST; `sql.connect` to
 `/sql/1.0/endpoints/{id}`; `SELECT 1` fetches one typed cell. `token=dev`
 is refused. That is HiveServer2, not `POST /api/2.0/sql/statements`.
+
+**`e2e-dbt`** — pinned `dbt-databricks==1.12.4`. `dbt debug` + `dbt run`
+of `one` (`select 1 as id`) and `two` (`select id from {{ ref('one') }}`)
+over HiveServer2. The downstream model is the confirmer: Sail's memory
+catalog is session-local. `token=dev` is refused. Jobs `dbt_task` is not
+this job.
 
 **`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + `INSERT`
 + `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation

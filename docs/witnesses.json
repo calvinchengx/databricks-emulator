@@ -212,5 +212,12 @@
     "witnesses": [
       "ci:e2e-databricks-target"
     ]
+  },
+  "dbt-databricks-warehouse-run": {
+    "section": "Clients",
+    "claim": "dbt-databricks warehouse run",
+    "witnesses": [
+      "ci:e2e-dbt"
+    ]
   }
 }

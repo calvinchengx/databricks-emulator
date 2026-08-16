@@ -96,6 +96,8 @@ published `databricks-target` package and sets
 `DATABRICKS_TARGET=emulator|real`. Code holds warehouse and catalog
 **names**; the resolver turns them into ids. `make e2e-databricks-target`
 is the witness. See [docs/21-real-databricks-toggle.md](docs/21-real-databricks-toggle.md).
+`make e2e-dbt` drives unmodified `dbt-databricks==1.12.4` `dbt run` of a
+table model over that same Thrift attach. Jobs `dbt_task` stays refused.
 
 `make e2e-delta` writes a Delta table through the warehouse API onto Sail
 and confirms `_delta_log` and the rows with **delta-rs**, not with Sail.

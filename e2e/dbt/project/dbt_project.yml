@@ -1,0 +1,17 @@
+name: emulator_dbt
+version: "1.0.0"
+config-version: 2
+profile: emulator
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+# v2 builds a temp view then INSERT BY NAME. The classic path is
+# CREATE OR REPLACE TABLE … AS SELECT — the SQL this attach can run.
+flags:
+  send_anonymous_usage_stats: false
+  use_materialization_v2: false
+query-comment: ""
+models:
+  emulator_dbt:
+    +materialized: table
+    +file_format: delta

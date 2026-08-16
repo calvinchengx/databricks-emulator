@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target clean witnesses
+.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -81,6 +81,10 @@ e2e-databricks-target: ## databricks-target resolver: warehouse by name + SELECT
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
 	$(UV) run --frozen --group target pytest python/databricks-target/tests -q
 	$(UV) run --frozen --group target python e2e/databricks-target/run.py
+e2e-dbt: ## Unmodified dbt-databricks table model over HiveServer2
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
+	$(UV) run --frozen --group dbt python e2e/dbt/run.py
 
 witnesses: ## Verify docs/witnesses.json points at real tests
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
