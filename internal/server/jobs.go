@@ -228,6 +228,12 @@ func parseTask(t map[string]any) (store.Task, error) {
 	return task, nil
 }
 
+// runCancelled reports whether the run has been cancelled since it started.
+func (s *Server) runCancelled(id int64) bool {
+	run, ok := s.Store.Jobs.GetRun(id)
+	return ok && run.ResultState == store.ResultCanceled
+}
+
 func (s *Server) executeRun(job *store.Job, run *store.Run) {
 	run.LifeCycle = "RUNNING"
 	run.ExecutedBy = "the emulator's Spark engine, not a Databricks cluster"
@@ -246,6 +252,16 @@ func (s *Server) executeRun(job *store.Job, run *store.Run) {
 		remaining[t.Key] = t
 	}
 	for len(remaining) > 0 {
+		// A cancelled run stops dispatching. Tasks already in flight finish
+		// -- the emulator cannot interrupt the engine mid-statement -- but no
+		// further wave starts, so cancelling actually stops consuming the
+		// attach instead of only relabelling the result.
+		//
+		// Nothing is published on the way out: the store already holds the
+		// cancelled state, and UpdateRun would refuse this write anyway.
+		if s.runCancelled(run.ID) {
+			return
+		}
 		var ready []store.Task
 		for _, t := range remaining {
 			if depsSatisfied(t, results) {
