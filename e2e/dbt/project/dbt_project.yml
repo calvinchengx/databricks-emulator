@@ -15,3 +15,16 @@ models:
   emulator_dbt:
     +materialized: table
     +file_format: delta
+    # dbt's own tables live in Sail's in-process catalog, where nothing but
+    # Sail can read them -- leaving "dbt exited 0" as the only evidence.
+    # Each model therefore also publishes an external Delta copy onto the
+    # mounted volume, which delta-rs reads back without ever talking to dbt
+    # or to Sail.
+    #
+    # A copy rather than +location_root: that config makes dbt emit
+    # CREATE TABLE `hive_metastore`.`default`.`x` ... LOCATION ..., and this
+    # attach refuses the three-part name once a LOCATION is attached
+    # ("Database not found: hive_metastore"), though it accepts the same
+    # three-part name for a managed table. An unqualified name with a
+    # LOCATION is a form the engine does support.
+    +post-hook: "create or replace table `{{ this.identifier }}__witness` using delta location 'file:///data/dbt/{{ this.identifier }}' as select * from {{ this }}"

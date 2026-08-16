@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Drive unmodified dbt-databricks against the warehouse HiveServer2 attach.
+"""Drive unmodified dbt-databricks against the warehouse HiveServer2 attach,
+then confirm the models with delta-rs.
 
 This is dbt talking to the warehouse, not Jobs dbt_task (still refused).
+
+dbt exiting 0 is not a witness. The models are materialized onto a mounted
+volume as external Delta tables, and delta-rs -- which never spoke to dbt or
+to Sail -- reads the log and the rows back. The engine that wrote is not the
+one that confirms.
 """
 
 from __future__ import annotations
@@ -9,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -114,13 +121,39 @@ def dbt(args: list[str], project_dir: Path, profiles_dir: Path) -> None:
     subprocess.check_call(cmd, cwd=project_dir, env=env)
 
 
+def confirm(table_dir: Path, want_rows: list[tuple[int]], model: str) -> int:
+    """Read a materialized model with delta-rs. dbt is not consulted."""
+    from deltalake import DeltaTable
+
+    log = table_dir / "_delta_log"
+    if not log.is_dir():
+        listing = list(table_dir.rglob("*")) if table_dir.exists() else []
+        raise SystemExit(
+            f"dbt reported success but {model} has no _delta_log at {table_dir}: {listing[:20]}"
+        )
+    dt = DeltaTable(str(table_dir))
+    table = dt.to_pyarrow_table()
+    cols = {c.lower(): c for c in table.column_names}
+    if "id" not in cols:
+        raise SystemExit(f"{model}: delta-rs columns {list(table.column_names)} missing id")
+    got = sorted((int(v),) for v in table.column(cols["id"]).to_pylist())
+    if got != sorted(want_rows):
+        raise SystemExit(f"{model}: delta-rs rows {got} != {sorted(want_rows)}")
+    return dt.version()
+
+
 def main() -> int:
     data_dir = Path(tempfile.mkdtemp(prefix="dbx-dbt-"))
     bin_path = data_dir / "databricks-emulator"
     subprocess.check_call(["go", "build", "-o", str(bin_path), "./cmd/databricks-emulator"], cwd=ROOT)
+    host_root = Path(tempfile.mkdtemp(prefix="dbx-dbt-tables-"))
+    os.chmod(host_root, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+    env = os.environ.copy()
+    env["DBT_DATA"] = str(host_root)
+
     proc = None
     try:
-        subprocess.run(COMPOSE + ["up", "-d", "--wait"], check=True)
+        subprocess.run(COMPOSE + ["up", "-d", "--wait"], check=True, env=env)
         wait_http(AGENT + "/health")
         proc = start_emulator(bin_path, data_dir)
         pat = (data_dir / "admin.pat").read_text().strip()
@@ -141,6 +174,11 @@ def main() -> int:
         # memory catalog is not visible to a later connector session.
         dbt(["run", "--select", "one", "two"], project_dir, profiles_dir)
 
+        # The witness: delta-rs reads what Sail wrote, without asking dbt.
+        v1 = confirm(host_root / "one", [(1,)], "one")
+        v2 = confirm(host_root / "two", [(1,)], "two")
+        print(f"   delta-rs confirmed one (v{v1}) and two (v{v2}) via ref()")
+
         bad_dir = Path(tempfile.mkdtemp(prefix="dbx-dbt-bad-"))
         write_profiles(bad_dir, "dev", path, uri)
         try:
@@ -150,11 +188,11 @@ def main() -> int:
         else:
             raise SystemExit("token=dev was accepted by dbt-databricks")
 
-        print("unmodified dbt-databricks 1.12.4 ran table models one+two over HiveServer2")
+        print("unmodified dbt-databricks 1.12.4 materialized one+two; delta-rs confirmed the rows")
         return 0
     finally:
         stop(proc)
-        subprocess.run(COMPOSE + ["down", "-v"], check=False)
+        subprocess.run(COMPOSE + ["down", "-v"], check=False, env=env)
 
 
 if __name__ == "__main__":

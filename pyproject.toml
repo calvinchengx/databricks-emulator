@@ -38,6 +38,7 @@ target = [
 # databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
 dbt = [
     "dbt-databricks==1.12.4",
+    "deltalake==0.25.5",
 ]
 
 [tool.uv]

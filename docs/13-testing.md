@@ -82,9 +82,12 @@ is refused. That is HiveServer2, not `POST /api/2.0/sql/statements`.
 
 **`e2e-dbt`** — pinned `dbt-databricks==1.12.4`. `dbt debug` + `dbt run`
 of `one` (`select 1 as id`) and `two` (`select id from {{ ref('one') }}`)
-over HiveServer2. The downstream model is the confirmer: Sail's memory
-catalog is session-local. `token=dev` is refused. Jobs `dbt_task` is not
-this job.
+over HiveServer2, then **delta-rs** reads both models back. dbt exiting 0
+is not the witness: each model publishes an external Delta copy onto a
+mounted volume, and the confirmer never speaks to dbt or to Sail. A copy
+rather than `+location_root`, which makes dbt qualify the name and this
+attach refuses a three-part name once a LOCATION is attached. `token=dev`
+is refused. Jobs `dbt_task` is not this job.
 
 **`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + `INSERT`
 + `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation
