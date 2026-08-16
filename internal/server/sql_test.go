@@ -2,10 +2,15 @@ package server
 
 import (
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
+	"github.com/calvinchengx/databricks-emulator/internal/sqlshim"
+	"github.com/calvinchengx/databricks-emulator/internal/uc"
 )
 
 func TestSQLWarehouseStatementDialectAndMutation(t *testing.T) {
@@ -355,5 +360,249 @@ func TestSQLStatementEngineFailure(t *testing.T) {
 	errObj, _ = analysis["status"].(map[string]any)["error"].(map[string]any)
 	if errObj["message"] != "AnalysisException" {
 		t.Fatalf("ename %+v", analysis)
+	}
+}
+
+func TestSQLWarehouseRewritesManagedCreateAndSkipsRowFilters(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "shim"}, &created)
+	id := str(created["id"])
+
+	stmt := "CREATE OR REPLACE TABLE `e2e`.`s`.`from_shim` USING delta AS SELECT 1 AS id"
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if req.Kind != "sql" {
+			t.Fatalf("kind %+v", req)
+		}
+		if strings.Contains(req.Code, "OR REPLACE") {
+			t.Fatalf("OR REPLACE reached engine: %s", req.Code)
+		}
+		if !strings.Contains(req.Code, "LOCATION 'file:///data/delta/managed/e2e/s/from_shim'") {
+			t.Fatalf("engine SQL %s", req.Code)
+		}
+		if strings.Contains(req.Code, "`e2e`") {
+			t.Fatalf("three-part reached engine: %s", req.Code)
+		}
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var execd map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": stmt,
+	}, &execd); st != 200 {
+		t.Fatalf("execute %d %+v", st, execd)
+	}
+	if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("%+v", execd)
+	}
+
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		t.Fatalf("row_filters hit engine: %+v", req)
+		return spark.Result{}, nil
+	}
+	var rf map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "SELECT * FROM `e2e`.`information_schema`.`row_filters`",
+	}, &rf); st != 200 {
+		t.Fatalf("row_filters %d", st)
+	}
+	if rf["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("row_filters %+v", rf)
+	}
+
+	var tables map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "SELECT table_name FROM `system`.`information_schema`.`tables` WHERE table_catalog = 'e2e'",
+	}, &tables); st != 200 {
+		t.Fatalf("tables %d", st)
+	}
+	if tables["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("tables %+v", tables)
+	}
+	if txt, _ := tables["result"].(map[string]any)["text"].(string); !strings.Contains(txt, `"data":[]`) {
+		t.Fatalf("tables stdout %+v", tables["result"])
+	}
+
+	var noUC map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "create schema if not exists `contoso`.`gold`",
+	}, &noUC)
+	if noUC["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("schema without UC %+v", noUC)
+	}
+}
+
+func TestSQLWarehouseUCSchemaAndRegister(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "uc-shim"}, &created)
+	id := str(created["id"])
+
+	var posts []string
+	var lastBody string
+	ucSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		posts = append(posts, r.Method+" "+r.URL.Path)
+		b, _ := io.ReadAll(r.Body)
+		lastBody = string(b)
+		switch {
+		case strings.Contains(r.URL.Path, "/schemas") && strings.Contains(lastBody, `"reject"`):
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid name"}`))
+		case strings.Contains(r.URL.Path, "/schemas"):
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error_code":"ALREADY_EXISTS"}`))
+		case strings.Contains(r.URL.Path, "/tables") && strings.Contains(lastBody, "boom"):
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`nope`))
+		case strings.Contains(r.URL.Path, "/tables"):
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"name":"from_shim"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(ucSrv.Close)
+	h.srv.UC = uc.New(ucSrv.URL, ucSrv.Client())
+
+	var sch map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "create schema if not exists `contoso`.`gold`",
+	}, &sch); st != 200 {
+		t.Fatalf("schema %d", st)
+	}
+	if sch["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("schema %+v", sch)
+	}
+
+	var createSess string
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if strings.HasPrefix(req.Code, "DESCRIBE") {
+			if req.Session != createSess {
+				t.Fatalf("describe session %s want %s", req.Session, createSess)
+			}
+			return spark.Result{OK: true, Stdout: `[{"col_name":"id","data_type":"int"}]`}, nil
+		}
+		createSess = req.Session
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var execd map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`from_shim` USING delta AS SELECT 1 AS id",
+	}, &execd); st != 200 {
+		t.Fatalf("create %d %+v", st, execd)
+	}
+	if execd["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("create %+v", execd)
+	}
+	if !strings.Contains(lastBody, `"from_shim"`) || !strings.Contains(lastBody, "EXTERNAL") {
+		t.Fatalf("register body %s posts %v", lastBody, posts)
+	}
+
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if strings.HasPrefix(req.Code, "DESCRIBE") {
+			return spark.Result{OK: false, EValue: "nope"}, nil
+		}
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var stub map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`stubbed` USING delta AS SELECT 1 AS id",
+	}, &stub)
+	if stub["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("stub describe %+v", stub)
+	}
+	if !strings.Contains(lastBody, `"_col"`) {
+		t.Fatalf("expected stub column %s", lastBody)
+	}
+
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		if strings.HasPrefix(req.Code, "DESCRIBE") {
+			return spark.Result{}, errors.New("describe dial")
+		}
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var descErr map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`describefail` USING delta AS SELECT 1 AS id",
+	}, &descErr)
+	if descErr["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("describe error should stub: %+v", descErr)
+	}
+
+	badUC := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	t.Cleanup(badUC.Close)
+	h.srv.UC = uc.New(badUC.URL, badUC.Client())
+	h.exec.Hook = func(spark.Request) (spark.Result, error) {
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var boom map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`boom` USING delta AS SELECT 1 AS id",
+	}, &boom)
+	if boom["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("uc 500 %+v", boom)
+	}
+
+	dup := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`already exists`))
+	}))
+	t.Cleanup(dup.Close)
+	h.srv.UC = uc.New(dup.URL, dup.Client())
+	var exists map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`exists` USING delta AS SELECT 1 AS id",
+	}, &exists)
+	if exists["status"].(map[string]any)["state"] != "SUCCEEDED" {
+		t.Fatalf("uc 409 %+v", exists)
+	}
+
+	h.srv.UC = uc.New(ucSrv.URL, ucSrv.Client())
+	var rej map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "create schema `contoso`.`reject`",
+	}, &rej)
+	if rej["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("reject schema %+v", rej)
+	}
+
+	h.srv.UC = uc.New("http://127.0.0.1:1", nil)
+	var dial map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id, "statement": "create schema `contoso`.`gold`",
+	}, &dial)
+	if dial["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("dial %+v", dial)
+	}
+
+	h.exec.Hook = func(spark.Request) (spark.Result, error) {
+		return spark.Result{OK: true, Stdout: "[]"}, nil
+	}
+	var tableDial map[string]any
+	h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": id,
+		"statement":    "CREATE TABLE `e2e`.`s`.`tabledial` USING delta AS SELECT 1 AS id",
+	}, &tableDial)
+	if tableDial["status"].(map[string]any)["state"] != "FAILED" {
+		t.Fatalf("table dial %+v", tableDial)
+	}
+
+	if err := h.srv.ensureUCSchema(&sqlshim.SchemaRef{}); err == nil {
+		t.Fatal("empty schema ref")
+	}
+	h.srv.UC = nil
+	if err := h.srv.ensureUCSchema(&sqlshim.SchemaRef{Catalog: "c", Schema: "s"}); err == nil {
+		t.Fatal("nil UC")
 	}
 }

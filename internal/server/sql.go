@@ -2,11 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/calvinchengx/databricks-emulator/internal/auth"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
+	"github.com/calvinchengx/databricks-emulator/internal/sqlshim"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
+	"github.com/calvinchengx/databricks-emulator/internal/uc"
 )
 
 func (s *Server) sqlCreateWarehouse(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
@@ -121,7 +124,30 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 		s.recordStatementHistory(st, started)
 		return
 	}
-	res, err := s.Spark.Run(sparkSQLRequest(st.SQL, "sql-"+st.ID))
+	plan := sqlshim.Rewrite(st.SQL, s.Cfg.DeltaRoot)
+	if plan.CreateSchema != nil {
+		if err := s.ensureUCSchema(plan.CreateSchema); err != nil {
+			st.Status = "FAILED"
+			st.Error = err.Error()
+			s.Store.SQL.UpdateStatement(st)
+			s.recordStatementHistory(st, started)
+			return
+		}
+		st.Status = "SUCCEEDED"
+		st.Stdout = "[]"
+		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
+		return
+	}
+	if plan.SkipEngine && plan.EmptyJSON {
+		st.Status = "SUCCEEDED"
+		st.Stdout = sqlshim.EmptyInformationSchema
+		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
+		return
+	}
+	engineSQL := plan.SQL
+	res, err := s.Spark.Run(sparkSQLRequest(engineSQL, "sql-"+st.ID))
 	if err != nil {
 		st.Status = "FAILED"
 		st.Error = err.Error()
@@ -141,6 +167,15 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 		return
 	}
 	st.Status = "SUCCEEDED"
+	if plan.Register != nil {
+		if err := s.registerExternalTable(plan.Register, st.ID); err != nil {
+			st.Status = "FAILED"
+			st.Error = err.Error()
+			s.Store.SQL.UpdateStatement(st)
+			s.recordStatementHistory(st, started)
+			return
+		}
+	}
 	s.Store.SQL.UpdateStatement(st)
 	s.recordStatementHistory(st, started)
 }
@@ -151,6 +186,67 @@ func sparkSQLRequest(sql, session string) spark.Request {
 		Kind:    "sql",
 		Code:    sql,
 	}
+}
+
+func (s *Server) ensureUCSchema(ref *sqlshim.SchemaRef) error {
+	if s.UC == nil || !s.UC.Attached() {
+		return fmt.Errorf("CREATE SCHEMA %s.%s needs DATABRICKS_UC_URL", ref.Catalog, ref.Schema)
+	}
+	if ref.Catalog == "" || ref.Schema == "" {
+		return fmt.Errorf("CREATE SCHEMA needs catalog.schema")
+	}
+	st, body, err := s.UC.JSON("POST", "/api/2.1/unity-catalog/schemas", map[string]string{
+		"name": ref.Schema, "catalog_name": ref.Catalog,
+	})
+	if err != nil {
+		return err
+	}
+	if st >= 300 && !uc.AlreadyThere(st, body) {
+		return fmt.Errorf("unity catalog schema: status %d: %s", st, body)
+	}
+	return nil
+}
+
+func (s *Server) registerExternalTable(t *sqlshim.ExternalTable, stmtID string) error {
+	if s.UC == nil || !s.UC.Attached() {
+		return nil
+	}
+	cols := s.describeForUC(t.Name, stmtID)
+	if len(cols) == 0 {
+		cols = []map[string]any{{
+			"name":      "_col",
+			"type_name": "STRING",
+			"type_text": "string",
+			"type_json": `{"name":"_col","type":"string","nullable":true,"metadata":{}}`,
+			"position":  0,
+			"nullable":  true,
+		}}
+	}
+	st, body, err := s.UC.JSON("POST", "/api/2.1/unity-catalog/tables", map[string]any{
+		"name":               t.Name,
+		"catalog_name":       t.Catalog,
+		"schema_name":        t.Schema,
+		"table_type":         "EXTERNAL",
+		"data_source_format": "DELTA",
+		"storage_location":   t.Location,
+		"columns":            cols,
+	})
+	if err != nil {
+		return err
+	}
+	if st >= 300 && !uc.AlreadyThere(st, body) {
+		return fmt.Errorf("unity catalog table: status %d: %s", st, body)
+	}
+	return nil
+}
+
+func (s *Server) describeForUC(name, stmtID string) []map[string]any {
+	// Same Spark session as the CREATE: Sail's memory catalog is session-scoped.
+	res, err := s.Spark.Run(sparkSQLRequest("DESCRIBE TABLE `"+name+"`", "sql-"+stmtID))
+	if err != nil || !res.OK {
+		return nil
+	}
+	return sqlshim.ColumnsFromDescribe(res.Stdout)
 }
 
 func warehouseJSON(wh *store.Warehouse) map[string]any {

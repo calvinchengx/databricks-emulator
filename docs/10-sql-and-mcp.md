@@ -70,10 +70,13 @@ Witness: `ci:e2e-sql`.
 Unmodified `dbt-databricks==1.12.4` is a warehouse stranger, not a Jobs
 task type. `dbt run` of `one` plus downstream `two` (`ref('one')`) uses
 the same HiveServer2 attach (`_connection_uri` so the connector does not
-force `https://`). The adapter defaults `catalog` to `hive_metastore` and
-lists via GetTables. Jobs `dbt_task` stays refused by name.
+force `https://`). With `catalog` set, CREATE TABLE is three-part and
+hits the managed-create shim (EXTERNAL path + UC register). Omitting
+`catalog` defaults to `hive_metastore` and lists via GetTables. Jobs
+`dbt_task` stays refused by name.
 
-Witness: `ci:e2e-dbt`.
+Witness: `ci:e2e-dbt-uc` (gold / UC catalog). `ci:e2e-dbt` is hive_metastore
+Thrift smoke.
 
 ## Delta writes
 
@@ -87,11 +90,24 @@ answers FAILED (`CommandNode::Update`), never a silent no-op.
 Three-part `INSERT INTO cat.sch.tbl` uses the same warehouse path. UC OSS
 and Sail share the e2e Compose network: this process proxies catalog REST
 (`DATABRICKS_UC_URL`); Sail's unity catalog provider
-(`SAIL_CATALOG__LIST`, `UNITY_ALLOW_HTTP_URL`) resolves the name. The
-emulator does not rewrite `cat.sch.tbl` into a path. An EXTERNAL table
-with no `_delta_log` at `storage_location` is not yet a Delta table —
-the LOCATION write in the same job creates that log, then the three-part
-INSERT is the named-table witness.
+(`SAIL_CATALOG__LIST`, `UNITY_ALLOW_HTTP_URL`) resolves the name.
+
+`CREATE TABLE cat.sch.t` with no `LOCATION` is the managed shape. UC OSS
+and Sail do not complete that handshake (`io.unitycatalog.tableId`). The
+warehouse path allocates `file:///data/delta/managed/cat/sch/t`, sends
+Sail an unqualified `CREATE TABLE … LOCATION`, and registers an EXTERNAL
+table in UC OSS. `INSERT` / `SELECT` still use the three-part name
+unchanged. hive_metastore and statements that already have `LOCATION` are
+not rewritten. `DATABRICKS_DELTA_ROOT` overrides the prefix.
+Spark SQL `information_schema.*` (`tables`, `row_filters`, …) succeeds with
+an empty row set (schema envelope so HiveServer2 is iterable). Sail is not
+asked for a catalog UC OSS does not serve that way. DESCRIBE after a
+managed CREATE is the same Spark session as the write, and array-shaped
+DESCRIBE JSON is mapped into UC column objects.
+
+An EXTERNAL table with no `_delta_log` at `storage_location` is not yet a
+Delta table — the LOCATION write in the same job creates that log, then
+the three-part INSERT is the named-table witness.
 
 `OPTIMIZE` and `VACUUM` take the same warehouse path. Sail has no grammar
 for them (`found OPTIMIZE at 0:8`). The family's spark-agent routes those

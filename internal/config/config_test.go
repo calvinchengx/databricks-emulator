@@ -17,6 +17,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	t.Setenv("DATABRICKS_AKV_TLS_INSECURE", "")
 	t.Setenv("DATABRICKS_UC_URL", "")
 	t.Setenv("DATABRICKS_UC_TLS_INSECURE", "")
+	t.Setenv("DATABRICKS_DELTA_ROOT", "")
 	t.Setenv("DATABRICKS_ENTRA_TOKEN_URL", "")
 	t.Setenv("DATABRICKS_ENTRA_CLIENT_ID", "")
 	t.Setenv("DATABRICKS_ENTRA_CLIENT_SECRET", "")
@@ -24,7 +25,7 @@ func TestFromEnvPartialDefaultsAndOverrides(t *testing.T) {
 	if c.Addr != ":8447" || c.DataDir != "./data" {
 		t.Fatalf("defaults: %+v", c)
 	}
-	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.SparkConnectGRPCURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure || c.EntraTokenURL != "" {
+	if c.DisableTLS || len(c.OIDCIssuers) != 0 || c.SparkAgentURL != "" || c.SparkConnectGRPCURL != "" || c.AKVVaultHost != "" || c.AKVTLSInsecure || c.UCURL != "" || c.UCTLSInsecure || c.EntraTokenURL != "" || c.DeltaRoot != "" {
 		t.Fatalf("empty env leaked values: %+v", c)
 	}
 

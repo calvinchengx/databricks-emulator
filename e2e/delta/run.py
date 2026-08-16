@@ -231,6 +231,19 @@ def main() -> int:
         if v_uc <= head:
             raise SystemExit(f"three-part INSERT did not advance the log: {head} -> {v_uc}")
 
+        # Managed CREATE TABLE (no LOCATION): this process allocates an
+        # EXTERNAL path Sail can write. UC OSS does not speak Sail's managed
+        # handshake. Witness is delta-rs on that path, then a three-part INSERT.
+        sql(
+            w,
+            wh.id,
+            "CREATE OR REPLACE TABLE e2e.s.from_shim USING delta AS SELECT 1 AS id, 'a' AS name",
+        )
+        host_shim = host_root / "managed" / "e2e" / "s" / "from_shim"
+        confirm(host_shim, [(1, "a")], min_version=0)
+        sql(w, wh.id, "INSERT INTO e2e.s.from_shim VALUES (2, 'b')")
+        confirm(host_shim, [(1, "a"), (2, "b")], min_version=1)
+
         # OPTIMIZE / VACUUM: Sail has no grammar for these. The family's
         # spark-agent routes them through delta-rs (named shim). Address by
         # path: CREATE TABLE … (cols) USING delta LOCATION is not recorded

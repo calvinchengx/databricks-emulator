@@ -41,6 +41,20 @@ func TestParseStdoutRefusesGarbage(t *testing.T) {
 	}
 }
 
+func TestEmptyJSONRowSetColumnsNotNil(t *testing.T) {
+	tab, err := parseStdout("[]")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := tab.rowSet()
+	if rs.Columns == nil {
+		t.Fatal("nil Columns: databricks-sql-connector iterates the list")
+	}
+	if len(rs.Columns) != 0 {
+		t.Fatalf("want 0 columns, got %d", len(rs.Columns))
+	}
+}
+
 func TestWarehouseID(t *testing.T) {
 	id, ok := WarehouseID("/sql/1.0/endpoints/wh-1")
 	if !ok || id != "wh-1" {

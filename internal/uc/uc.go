@@ -4,6 +4,8 @@
 package uc
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,4 +73,46 @@ func (c *Client) Proxy(w http.ResponseWriter, r *http.Request) error {
 	w.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(w, io.LimitReader(resp.Body, maxBody))
 	return err
+}
+
+// JSON calls the sidecar directly (warehouse shim, not the inbound proxy).
+func (c *Client) JSON(method, path string, body any) (int, []byte, error) {
+	if !c.Attached() {
+		return 0, nil, fmt.Errorf("no Unity Catalog sidecar is attached")
+	}
+	var rdr io.Reader
+	if body != nil {
+		raw, err := json.Marshal(body)
+		if err != nil {
+			return 0, nil, err
+		}
+		rdr = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequest(method, c.base+path, rdr)
+	if err != nil {
+		return 0, nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("unity catalog sidecar: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	return resp.StatusCode, raw, err
+}
+
+// AlreadyThere is a create that UC OSS reports as present (409, or 400 with exists).
+func AlreadyThere(status int, body []byte) bool {
+	if status == http.StatusOK || status == http.StatusCreated || status == http.StatusConflict {
+		return true
+	}
+	if status != http.StatusBadRequest {
+		return false
+	}
+	s := strings.ToLower(string(body))
+	return strings.Contains(s, "already") || strings.Contains(s, "exists")
 }

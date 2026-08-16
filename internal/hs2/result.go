@@ -73,7 +73,11 @@ type colSpec struct {
 }
 
 func emptyTable() *table {
-	return &table{}
+	return &table{
+		names: []string{},
+		types: []cliservice.TTypeId{},
+		cols:  []*cliservice.TColumn{},
+	}
 }
 
 func schemaFromEnvelope(schema any) ([]string, []cliservice.TTypeId) {
@@ -598,10 +602,14 @@ func nullAt(bits []byte, i int) bool {
 
 func (t *table) rowSet() *cliservice.TRowSet {
 	count := int32(len(t.names))
+	cols := t.cols
+	if cols == nil {
+		cols = []*cliservice.TColumn{}
+	}
 	return &cliservice.TRowSet{
 		StartRowOffset: 0,
 		Rows:           []*cliservice.TRow{},
-		Columns:        t.cols,
+		Columns:        cols,
 		ColumnCount:    &count,
 	}
 }
