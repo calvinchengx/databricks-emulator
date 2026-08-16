@@ -90,8 +90,11 @@ func (s *Server) jobsRunNow(w http.ResponseWriter, r *http.Request, _ *auth.Prin
 		return
 	}
 	run := s.Store.Jobs.NewRun(job.ID)
+	// Read the id before handing the run to the goroutine: after this the
+	// run belongs to executeRun alone.
+	runID := run.ID
 	go s.executeRun(job, run)
-	writeJSON(w, http.StatusOK, map[string]any{"run_id": run.ID, "number_in_job": 1})
+	writeJSON(w, http.StatusOK, map[string]any{"run_id": runID, "number_in_job": 1})
 }
 
 func (s *Server) jobsRunsGet(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {

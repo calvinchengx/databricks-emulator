@@ -31,6 +31,10 @@ jobs:
           total=$(go tool cover -func=cover.out | tail -1 | awk '{print $3}' | tr -d '%')
           echo "total coverage: ${total}%"
           awk -v t="$total" 'BEGIN { exit (t < 85) ? 1 : 0 }'
+      # go test alone cannot see a data race. The jobs runner shipped one to
+      # main unnoticed because nothing here ran with -race.
+      - name: Race detector
+        run: go test -race $(go list ./... | grep -v '/internal/hs2/cliservice$')
       - name: Witness map
         run: python3 scripts/check_witnesses.py
 

@@ -113,13 +113,30 @@ func (j *Jobs) Reset(id int64, name string, tasks []Task) bool {
 }
 
 // NewRun records a PENDING run.
+// clone copies a run so no two goroutines ever share one. Tasks is copied
+// too: sharing the backing array would leave the same race a level down.
+func (r *Run) clone() *Run {
+	if r == nil {
+		return nil
+	}
+	out := *r
+	if r.Tasks != nil {
+		out.Tasks = append([]TaskRun(nil), r.Tasks...)
+	}
+	return &out
+}
+
+// A run is written by the goroutine executing it and read by every HTTP
+// handler that reports on it. The mutex below only protects the map, so
+// handing out the stored pointer put those writes and reads in a race.
+// Every accessor therefore returns a snapshot, and UpdateRun publishes one.
 func (j *Jobs) NewRun(jobID int64) *Run {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	j.nextID++
 	run := &Run{ID: j.nextID, JobID: jobID, LifeCycle: "PENDING"}
 	j.runs[run.ID] = run
-	return run
+	return run.clone()
 }
 
 // GetRun returns a run.
@@ -127,14 +144,17 @@ func (j *Jobs) GetRun(id int64) (*Run, bool) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	run, ok := j.runs[id]
-	return run, ok
+	return run.clone(), ok
 }
 
 // UpdateRun stores a finished or in-flight run.
 func (j *Jobs) UpdateRun(run *Run) {
+	if run == nil {
+		return
+	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	j.runs[run.ID] = run
+	j.runs[run.ID] = run.clone()
 }
 
 // ListRuns returns runs, optionally filtered by job.
@@ -144,7 +164,7 @@ func (j *Jobs) ListRuns(jobID int64) []*Run {
 	var out []*Run
 	for _, r := range j.runs {
 		if jobID == 0 || r.JobID == jobID {
-			out = append(out, r)
+			out = append(out, r.clone())
 		}
 	}
 	return out
