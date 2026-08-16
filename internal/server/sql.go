@@ -223,13 +223,13 @@ func (s *Server) registerExternalTable(t *sqlshim.ExternalTable, stmtID string) 
 		}}
 	}
 	st, body, err := s.UC.JSON("POST", "/api/2.1/unity-catalog/tables", map[string]any{
-		"name":                t.Name,
-		"catalog_name":        t.Catalog,
-		"schema_name":         t.Schema,
-		"table_type":          "EXTERNAL",
-		"data_source_format":  "DELTA",
-		"storage_location":    t.Location,
-		"columns":             cols,
+		"name":               t.Name,
+		"catalog_name":       t.Catalog,
+		"schema_name":        t.Schema,
+		"table_type":         "EXTERNAL",
+		"data_source_format": "DELTA",
+		"storage_location":   t.Location,
+		"columns":            cols,
 	})
 	if err != nil {
 		return err

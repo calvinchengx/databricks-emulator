@@ -52,9 +52,9 @@ var (
 	createTable  = regexp.MustCompile(`(?is)^\s*CREATE\s+(OR\s+REPLACE\s+)?TABLE\s+(IF\s+NOT\s+EXISTS\s+)?`)
 	createSchema = regexp.MustCompile(`(?is)^\s*CREATE\s+SCHEMA\s+(IF\s+NOT\s+EXISTS\s+)?`)
 	// UC OSS does not serve Spark SQL information_schema.* (tables, row_filters, …).
-	infoSchema   = regexp.MustCompile(`(?i)information_schema`)
-	hasLocation  = regexp.MustCompile(`(?i)\bLOCATION\s+`)
-	temporary    = regexp.MustCompile(`(?is)^\s*CREATE\s+TEMPORARY\b`)
+	infoSchema  = regexp.MustCompile(`(?i)information_schema`)
+	hasLocation = regexp.MustCompile(`(?i)\bLOCATION\s+`)
+	temporary   = regexp.MustCompile(`(?is)^\s*CREATE\s+TEMPORARY\b`)
 )
 
 // Rewrite inspects one warehouse statement. root is the engine-visible URI
