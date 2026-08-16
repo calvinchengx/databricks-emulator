@@ -9,7 +9,7 @@ Account-level APIs and Databricks Runtime stay out.
 
 Identity (PAT, emulator OIDC, federated JWT), workspace SOURCE/PYTHON and raw
 files, DBFS, Jobs 2.2 Python/notebook on an attached engine, Databricks-backed
-secret persist, SQL warehouses / MCP SQL / clusters-as-session on that engine,
+secret persist, SQL warehouses / MCP SQL / HiveServer2 Thrift / clusters-as-session on that engine,
 Terraform/DAB pair. Green rows and their witnesses: [parity.md](parity.md).
 
 Independently evidenced (`ci:`) as of this writing: identity, workspace, DBFS,
@@ -17,7 +17,7 @@ Git Credentials / Repos (git clone into the workspace store), cluster
 policies (enforced on create), Command Execution (context on Sail),
 MLflow experiments / model registry (file-backed tracking store), secret persist
 and injection, AKV read-through + vault-audience, Terraform/DAB,
-clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
+clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), MCP SQL,
 Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent

@@ -85,6 +85,11 @@ func (a *Agent) Run(req Request) (Result, error) {
 		if t, ok := out.Data["text/plain"].(string); ok {
 			stdout = t
 		}
+		if j, ok := out.Data["application/json"]; ok {
+			if raw, err := json.Marshal(j); err == nil {
+				stdout = string(raw)
+			}
+		}
 	}
 	ok := out.Status == "ok" || out.Status == ""
 	return Result{OK: ok, Stdout: stdout, EName: out.EName, EValue: out.EValue}, nil

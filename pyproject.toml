@@ -22,6 +22,10 @@ delta = [
     { include-group = "sdk" },
     "deltalake==0.25.5",
 ]
+sql = [
+    { include-group = "sdk" },
+    "databricks-sql-connector==4.4.0",
+]
 
 [tool.uv]
 package = false

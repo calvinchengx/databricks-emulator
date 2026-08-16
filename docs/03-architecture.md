@@ -9,7 +9,7 @@ Vault would have. The founding constraint is [Doctrine](00-doctrine.md).
 
 ```mermaid
 graph TD
-  clients["databricks-sdk / CLI / Terraform / databricks-connect / fabric activities"]
+  clients["databricks-sdk / CLI / Terraform / databricks-connect / databricks-sql-connector / fabric activities"]
   ws["databricks-emulator :8447"]
   store["file store: workspace, DBFS, secrets, identity, MLflow"]
   agent["spark-agent HTTP /statements"]
@@ -44,7 +44,7 @@ git credentials, the MLflow tracking store, the persisted TLS pair.
 
 | Surface | Honest attach | If missing |
 |---|---|---|
-| Jobs / SQL / cluster session | HTTP statement agent at `DATABRICKS_SPARK_CONNECT_URL` (Sail behind the family's spark-agent) | Fail naming the engine — never `SUCCESS` / `RUNNING` |
+| Jobs / SQL / cluster session | HTTP statement agent at `DATABRICKS_SPARK_CONNECT_URL` (Sail behind the family's spark-agent). Warehouse SQL also arrives as HiveServer2 Thrift on `/sql/1.0/endpoints/{id}`. | Fail naming the engine — never `SUCCESS` / `RUNNING` |
 | Databricks Connect | Spark Connect gRPC at `DATABRICKS_SPARK_CONNECT_GRPC_URL` (Sail `:50051`) | 501 naming the missing gRPC URL |
 | Unity Catalog CRUD | UC OSS at `DATABRICKS_UC_URL` | 501 naming the missing sidecar |
 | AKV-backed secrets | Live vault at `DATABRICKS_AKV_VAULT_HOST` | Emulator `dns_name` refused by name |

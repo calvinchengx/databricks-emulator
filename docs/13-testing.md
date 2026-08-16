@@ -17,11 +17,13 @@ percentage scores. Both run in CI.
 | `make e2e-delta` | Warehouse SQL writes Delta via Sail; **delta-rs** confirms the log (`e2e/delta/run.py`, CI job `e2e-delta`). Needs Docker. |
 | `make e2e-delta-jvm` | Warehouse SQL writes Delta via JVM Spark + delta-spark; **delta-rs** confirms (`e2e/delta-jvm/run.py`, CI job `e2e-delta-jvm`). 🟠 overlay. Needs Docker. |
 | `make e2e-uc` | Unmodified `databricks-sdk==0.129.0` with UC OSS (`e2e/uc/run.py`, CI job `e2e-uc`). Needs Docker. |
+| `make e2e-sql` | Unmodified `databricks-sql-connector==4.4.0` over HiveServer2 Thrift (`e2e/sql/run.py`, CI job `e2e-sql`). Needs Docker. |
 
 Pin the SDK in the root `pyproject.toml` / `uv.lock` (`sdk`, `engine`,
-`delta` groups). A floating `pip install databricks-sdk` is not a witness —
+`delta`, `sql` groups). A floating `pip install databricks-sdk` is not a witness —
 it is whatever PyPI shipped the morning CI ran. Same toolchain as
-fabric-emulator: `uv run --frozen --group <name>`.
+fabric-emulator: `uv run --frozen --group <name>`. The 85% `go test` floor
+excludes `internal/hs2/cliservice` (generated Spark-fork TCLIService).
 
 ## Witness kinds
 
@@ -63,6 +65,11 @@ mkdir/cp/cat/ls; secrets persist across restart with the value **withheld**;
 Python job logs contain `REACHED`; `{{secrets}}` printed from
 `os.environ`; AKV rotate visible on the next run; warehouse `SELECT 1`
 names `dialect: spark-sql`; MCP `execute_sql`.
+
+**`e2e-sql`** — pinned `databricks-sql-connector==4.4.0` (not PATH, no
+pyarrow extra). Warehouse create via REST; `sql.connect` to
+`/sql/1.0/endpoints/{id}`; `SELECT 1` fetches one typed cell. `token=dev`
+is refused. That is HiveServer2, not `POST /api/2.0/sql/statements`.
 
 **`e2e-delta`** — warehouse `CREATE TABLE … USING delta LOCATION` + `INSERT`
 + `DELETE` + `MERGE INTO` through unmodified `databricks-sdk`. Confirmation
