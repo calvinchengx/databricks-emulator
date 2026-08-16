@@ -16,6 +16,12 @@ node_modules/
 # Python
 .venv/
 __pycache__/
+# setuptools artifacts from the packages under python/ (scripts/build_target_wheel.py,
+# or an editable install). `build/` is scoped the way `/data/` is: bare, it would
+# match any directory of that name at any depth, including the docs site's output.
+# `*.egg-info/` is unambiguous enough to leave unanchored.
+/python/*/build/
+*.egg-info/
 
 # Local tooling
 .claude/
