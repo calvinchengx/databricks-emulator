@@ -71,7 +71,9 @@ mkdir/cp/cat/ls; secrets persist across restart with the value **withheld**;
 `SELECT 1`; Command Execution `print('CMD-REACHED')` on that handle;
 Python job logs contain `REACHED`; `{{secrets}}` printed from
 `os.environ`; AKV rotate visible on the next run; warehouse `SELECT 1`
-names `dialect: spark-sql`; MCP `execute_sql`.
+names `dialect: spark-sql`; stored query create/get/list then execute
+that `query_text`; query history lists the `FINISHED` run; alerts are
+501; MCP `execute_sql`.
 
 **`e2e-sql`** — pinned `databricks-sql-connector==4.4.0` (not PATH, no
 pyarrow extra). Warehouse create via REST; `sql.connect` to

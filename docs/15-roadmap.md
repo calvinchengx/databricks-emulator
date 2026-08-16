@@ -17,11 +17,9 @@ Git Credentials / Repos (git clone into the workspace store), cluster
 policies (enforced on create), Command Execution (context on Sail),
 MLflow experiments / model registry (file-backed tracking store), secret persist
 and injection, AKV read-through + vault-audience, Terraform/DAB,
-clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), MCP SQL,
+clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, SQL Queries / Query History, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), dbt-databricks warehouse run, MCP SQL,
 Unity Catalog CRUD, the `databricks-target` emulator/real toggle,
 Delta writes (Sail write, delta-rs confirm: INSERT,
-clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, HiveServer2 Thrift (`databricks-sql-connector==4.4.0`), dbt-databricks warehouse run, MCP SQL,
-Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,
 DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
 delta-rs shim, ZORDER refused; concurrent `INSERT OVERWRITE` serialises).

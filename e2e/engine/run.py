@@ -159,6 +159,7 @@ def main() -> int:
     from databricks.sdk.core import DatabricksError
     from databricks.sdk.service.compute import ClusterSpec, Language
     from databricks.sdk.service.jobs import SparkPythonTask, Task
+    from databricks.sdk.service.sql import CreateAlertRequestAlert, CreateQueryRequestQuery, QueryFilter
     from databricks.sdk.service.workspace import (
         AzureKeyVaultSecretScopeMetadata,
         ImportFormat,
@@ -312,6 +313,34 @@ def main() -> int:
         if "spark-sql" not in raw:
             raise SystemExit(f"sql dialect missing: {raw}")
 
+        saved = w.queries.create(query=CreateQueryRequestQuery(
+            display_name="e2e-one",
+            query_text="SELECT 1",
+            warehouse_id=wh.id,
+        ))
+        if saved.id is None or saved.query_text != "SELECT 1" or saved.warehouse_id != wh.id:
+            raise SystemExit(f"stored query {saved}")
+        got = w.queries.get(id=saved.id)
+        if got.query_text != "SELECT 1":
+            raise SystemExit(f"get query {got}")
+        if not any(item.id == saved.id for item in w.queries.list()):
+            raise SystemExit("stored query missing from list")
+        ran = w.statement_execution.execute_statement(warehouse_id=wh.id, statement=got.query_text)
+        if ran.status is None or ran.status.state is None or ran.status.state.value not in {"SUCCEEDED", "SUCCESS"}:
+            raise SystemExit(f"stored query text {ran}")
+        hist = w.query_history.list(filter_by=QueryFilter(warehouse_ids=[wh.id]))
+        finished = [
+            item for item in (hist.res or [])
+            if item.query_text == "SELECT 1" and item.status is not None and item.status.value == "FINISHED"
+        ]
+        if not finished:
+            raise SystemExit(f"query history missing FINISHED SELECT 1: {hist}")
+        try:
+            w.alerts.create(alert=CreateAlertRequestAlert(display_name="nope", query_id=saved.id))
+            raise SystemExit("alerts must be refused")
+        except DatabricksError:
+            pass
+
         st, init, sid = mcp(pat, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}})
         if st != 200 or not sid:
             raise SystemExit(f"mcp init {st} {init} sid={sid}")
@@ -327,7 +356,7 @@ def main() -> int:
         if st != 200 or "SUCCEEDED" not in blob or "spark-sql" not in blob:
             raise SystemExit(f"mcp execute {st} {execd}")
 
-        print("e2e/engine: cluster + connect SELECT 1 + command-execution + REACHED + secret print + AKV rotate + sql + mcp ok")
+        print("e2e/engine: cluster + connect SELECT 1 + command-execution + REACHED + secret print + AKV rotate + sql + queries + history + mcp ok")
         return 0
     finally:
         stop(proc)

@@ -134,6 +134,14 @@
       "go:TestSQLWarehouseStatementDialectAndMutation"
     ]
   },
+  "sql-queries-query-history": {
+    "section": "Compute",
+    "claim": "SQL Queries / Query History",
+    "witnesses": [
+      "ci:e2e-engine",
+      "go:TestSQLQueriesCRUDHistoryAndAlertsRefused"
+    ]
+  },
   "sql-warehouses-thrift-hiveserver2": {
     "section": "Compute",
     "claim": "SQL warehouses — Thrift / HiveServer2",

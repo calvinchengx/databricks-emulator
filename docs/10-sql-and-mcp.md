@@ -35,6 +35,22 @@ alert are refused at job create.
 
 Witness: `ci:e2e-engine`.
 
+## Queries and query history
+
+`POST /api/2.0/sql/queries` stores a query object (`display_name`,
+`query_text`, optional `warehouse_id`). Get, list, PATCH (`update_mask`),
+and trash (`DELETE`) are implemented. The modern Queries API has no run
+RPC — execute is still `POST /api/2.0/sql/statements` with that
+`query_text` on the same warehouse / Sail attach.
+
+Every warehouse statement (REST, Thrift, MCP) is recorded. `GET
+/api/2.0/sql/history/queries` lists those executions, newest first
+(`filter_by.warehouse_ids`, `filter_by.statuses`,
+`filter_by.statement_ids`). Alerts and query visualizations stay 501.
+Jobs `sql_task.query` stays refused.
+
+Witness: `ci:e2e-engine`.
+
 ## Thrift / HiveServer2
 
 The warehouse connector does not call the statements API. Unmodified

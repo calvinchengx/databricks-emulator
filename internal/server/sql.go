@@ -71,7 +71,7 @@ func (s *Server) sqlStopWarehouse(w http.ResponseWriter, r *http.Request, _ *aut
 	writeJSON(w, http.StatusOK, map[string]any{})
 }
 
-func (s *Server) sqlExecuteStatement(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {
+func (s *Server) sqlExecuteStatement(w http.ResponseWriter, r *http.Request, p *auth.Principal) {
 	var body struct {
 		WarehouseID string `json:"warehouse_id"`
 		Statement   string `json:"statement"`
@@ -90,6 +90,7 @@ func (s *Server) sqlExecuteStatement(w http.ResponseWriter, r *http.Request, _ *
 		return
 	}
 	st := s.Store.SQL.NewStatement(body.WarehouseID, body.Statement)
+	st.UserName = p.UserName
 	s.runSQLStatement(st, wh)
 	writeJSON(w, http.StatusOK, statementJSON(st))
 }
@@ -105,16 +106,19 @@ func (s *Server) sqlGetStatement(w http.ResponseWriter, r *http.Request, _ *auth
 }
 
 func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
+	started := s.Clock.Now()
 	if wh.State != "RUNNING" {
 		st.Status = "FAILED"
 		st.Error = "warehouse is STOPPED"
 		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
 		return
 	}
 	if s.Spark == nil {
 		st.Status = "FAILED"
 		st.Error = "no Spark engine is attached — set DATABRICKS_SPARK_CONNECT_URL"
 		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
 		return
 	}
 	res, err := s.Spark.Run(sparkSQLRequest(st.SQL, "sql-"+st.ID))
@@ -122,6 +126,7 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 		st.Status = "FAILED"
 		st.Error = err.Error()
 		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
 		return
 	}
 	st.Stdout = res.Stdout
@@ -132,10 +137,12 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 			st.Error = res.EName
 		}
 		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
 		return
 	}
 	st.Status = "SUCCEEDED"
 	s.Store.SQL.UpdateStatement(st)
+	s.recordStatementHistory(st, started)
 }
 
 func sparkSQLRequest(sql, session string) spark.Request {
