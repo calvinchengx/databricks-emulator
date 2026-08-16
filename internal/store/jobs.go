@@ -147,13 +147,25 @@ func (j *Jobs) GetRun(id int64) (*Run, bool) {
 	return run.clone(), ok
 }
 
+// ResultCanceled is the terminal result a cancelled run keeps. It is
+// load-bearing in two places now, so it is named rather than spelled twice.
+const ResultCanceled = "CANCELED"
+
 // UpdateRun stores a finished or in-flight run.
+//
+// A cancelled run is final. The emulator cannot interrupt a run already in
+// flight, so executeRun keeps working and publishes its own result at the
+// end; without this guard that closing SUCCESS silently undid the cancel and
+// the caller was told the run it stopped had finished normally.
 func (j *Jobs) UpdateRun(run *Run) {
 	if run == nil {
 		return
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if cur, ok := j.runs[run.ID]; ok && cur.ResultState == ResultCanceled {
+		return
+	}
 	j.runs[run.ID] = run.clone()
 }
 
@@ -182,6 +194,6 @@ func (j *Jobs) CancelRun(id int64) bool {
 		return true
 	}
 	run.LifeCycle = "TERMINATED"
-	run.ResultState = "CANCELED"
+	run.ResultState = ResultCanceled
 	return true
 }
