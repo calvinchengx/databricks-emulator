@@ -375,8 +375,8 @@ func TestSQLWarehouseRewritesManagedCreateAndSkipsRowFilters(t *testing.T) {
 		if req.Kind != "sql" {
 			t.Fatalf("kind %+v", req)
 		}
-		if strings.Contains(req.Code, "OR REPLACE") {
-			t.Fatalf("OR REPLACE reached engine: %s", req.Code)
+		if !strings.Contains(strings.ToUpper(req.Code), "OR REPLACE") {
+			t.Fatalf("expected OR REPLACE for Sail overwrite: %s", req.Code)
 		}
 		if !strings.Contains(req.Code, "LOCATION 'file:///data/delta/managed/e2e/s/from_shim'") {
 			t.Fatalf("engine SQL %s", req.Code)

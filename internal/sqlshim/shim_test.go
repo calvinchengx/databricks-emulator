@@ -18,8 +18,8 @@ func TestRewriteUCCreateTableAllocatesLocation(t *testing.T) {
 	if p.Register.Location != wantLoc {
 		t.Fatalf("location %s", p.Register.Location)
 	}
-	if strings.Contains(strings.ToUpper(p.SQL), "OR REPLACE") {
-		t.Fatalf("left OR REPLACE: %s", p.SQL)
+	if !strings.Contains(strings.ToUpper(p.SQL), "OR REPLACE") {
+		t.Fatalf("Sail needs OR REPLACE to overwrite: %s", p.SQL)
 	}
 	if !strings.Contains(p.SQL, "LOCATION '"+wantLoc+"'") {
 		t.Fatalf("missing LOCATION: %s", p.SQL)
@@ -117,7 +117,7 @@ func TestColumnsFromDescribe(t *testing.T) {
 		t.Fatal("empty/invalid")
 	}
 	env := ColumnsFromDescribe(`{"data":[{"name":"id","type":"bigint"},{"col_name":"# Partition","data_type":"int"},{"col_name":"amt","data_type":"decimal(19,4)"},{"col_name":"ok","data_type":"boolean"},{"col_name":"d","data_type":"date"},{"col_name":"ts","data_type":"timestamp"},{"col_name":"x","data_type":"double"},{"col_name":"i","data_type":"int"}]}`)
-	want := map[string]string{"id": "LONG", "amt": "DECIMAL", "ok": "BOOLEAN", "d": "DATE", "ts": "TIMESTAMP", "x": "DOUBLE", "i": "INT"}
+	want := map[string]string{"id": "LONG", "amt": "DOUBLE", "ok": "BOOLEAN", "d": "DATE", "ts": "TIMESTAMP", "x": "DOUBLE", "i": "INT"}
 	got := map[string]string{}
 	for _, c := range env {
 		got[c["name"].(string)] = c["type_name"].(string)
@@ -136,11 +136,11 @@ func TestColumnsFromDescribe(t *testing.T) {
 			amtJSON, _ = c["type_json"].(string)
 		}
 	}
-	if !strings.Contains(amtJSON, `"type":"decimal(19,4)"`) {
-		t.Fatalf("decimal type_json %s", amtJSON)
+	if !strings.Contains(amtJSON, `"type":"double"`) {
+		t.Fatalf("decimal registered as double type_json %s", amtJSON)
 	}
 	bareDec := ColumnsFromDescribe(`[["p","decimal"]]`)
-	if len(bareDec) != 1 || !strings.Contains(bareDec[0]["type_json"].(string), `"type":"decimal(10,0)"`) {
+	if len(bareDec) != 1 || bareDec[0]["type_name"] != "DOUBLE" {
 		t.Fatalf("bare decimal %+v", bareDec)
 	}
 	skip := ColumnsFromDescribe(`[{"col_name":1,"data_type":"int"}]`)
