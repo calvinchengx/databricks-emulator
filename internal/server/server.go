@@ -104,6 +104,9 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		Origin: origin,
 	}
 	srv.HS2 = hs2.New(srv)
+	// Idle HS2 handles are reaped on the emulator clock, so a test can
+	// age them with clock.Advance instead of sleeping.
+	srv.HS2.Now = clk.Now
 	return srv, nil
 }
 
