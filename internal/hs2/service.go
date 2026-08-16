@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"time"
 
 	cliservice "github.com/calvinchengx/databricks-emulator/internal/hs2/cliservice"
 )
@@ -18,17 +19,38 @@ type Backend interface {
 
 type session struct {
 	warehouse string
+	seen      int64
 }
 
 type operation struct {
 	tab *table
 	err string
+	// sess is the session that produced this operation, so closing a
+	// session can take its results with it.
+	sess string
+	seen int64
 }
+
+// An HS2 client is expected to close what it opens. One that vanishes --
+// a crashed process, a dropped socket, a killed dbt run -- otherwise pins
+// its session and every result table it produced for the life of the
+// emulator. Handles are therefore reaped once idle.
+//
+// The ceilings are the backstop for a client that churns handles faster
+// than the TTL retires them.
+const (
+	idleTTLSeconds = 30 * 60
+	maxSessions    = 512
+	maxOperations  = 2048
+)
 
 // Service is the HiveServer2 surface. Sessions bind to the warehouse id
 // taken from the HTTP path, not from a Thrift field.
 type Service struct {
 	Backend Backend
+	// Now is the emulator clock. Reaping is driven by it rather than by
+	// wall time so tests can age handles without sleeping.
+	Now func() int64
 
 	mu   sync.Mutex
 	sess map[string]session
@@ -38,9 +60,89 @@ type Service struct {
 func New(b Backend) *Service {
 	return &Service{
 		Backend: b,
+		Now:     func() int64 { return time.Now().Unix() },
 		sess:    map[string]session{},
 		ops:     map[string]operation{},
 	}
+}
+
+func (s *Service) now() int64 {
+	if s.Now == nil {
+		return time.Now().Unix()
+	}
+	return s.Now()
+}
+
+// reapLocked drops idle handles, then enforces the ceilings. Reaping runs
+// on the next call rather than from a goroutine: the Service has no
+// shutdown hook, and a ticker started here would outlive every test.
+func (s *Service) reapLocked() {
+	now := s.now()
+	for k, op := range s.ops {
+		if now-op.seen > idleTTLSeconds {
+			delete(s.ops, k)
+		}
+	}
+	for k, sess := range s.sess {
+		if now-sess.seen > idleTTLSeconds {
+			delete(s.sess, k)
+			s.dropSessionOpsLocked(k)
+		}
+	}
+	for len(s.ops) > maxOperations {
+		if !s.evictOldestOpLocked() {
+			break
+		}
+	}
+	for len(s.sess) > maxSessions {
+		if !s.evictOldestSessionLocked() {
+			break
+		}
+	}
+}
+
+// dropSessionOpsLocked releases the results a session produced. Without it a
+// well-behaved client that closes its session still leaks every operation it
+// never explicitly closed.
+func (s *Service) dropSessionOpsLocked(sessKey string) {
+	for k, op := range s.ops {
+		if op.sess == sessKey {
+			delete(s.ops, k)
+		}
+	}
+}
+
+func (s *Service) evictOldestOpLocked() bool {
+	oldest, found := "", false
+	for k, op := range s.ops {
+		if !found || op.seen < s.ops[oldest].seen {
+			oldest, found = k, true
+		}
+	}
+	if found {
+		delete(s.ops, oldest)
+	}
+	return found
+}
+
+func (s *Service) evictOldestSessionLocked() bool {
+	oldest, found := "", false
+	for k, sess := range s.sess {
+		if !found || sess.seen < s.sess[oldest].seen {
+			oldest, found = k, true
+		}
+	}
+	if found {
+		delete(s.sess, oldest)
+		s.dropSessionOpsLocked(oldest)
+	}
+	return found
+}
+
+// touchOpLocked keeps an operation alive while a client is still reading it.
+func (s *Service) touchOpLocked(key string, op operation) {
+	op.seen = s.now()
+	s.ops[key] = op
 }
 
 type ctxKey int
@@ -115,7 +217,8 @@ func (s *Service) OpenSession(ctx context.Context, req *cliservice.TOpenSessionR
 	}
 	h := newHandle()
 	s.mu.Lock()
-	s.sess[handleKey(h)] = session{warehouse: id}
+	s.sess[handleKey(h)] = session{warehouse: id, seen: s.now()}
+	s.reapLocked()
 	s.mu.Unlock()
 	can := true
 	return &cliservice.TOpenSessionResp{
@@ -128,8 +231,11 @@ func (s *Service) OpenSession(ctx context.Context, req *cliservice.TOpenSessionR
 
 func (s *Service) CloseSession(_ context.Context, req *cliservice.TCloseSessionReq) (*cliservice.TCloseSessionResp, error) {
 	if req != nil && req.SessionHandle != nil {
+		key := handleKey(req.SessionHandle.SessionId)
 		s.mu.Lock()
-		delete(s.sess, handleKey(req.SessionHandle.SessionId))
+		delete(s.sess, key)
+		s.dropSessionOpsLocked(key)
+		s.reapLocked()
 		s.mu.Unlock()
 	}
 	return &cliservice.TCloseSessionResp{Status: okStatus()}, nil
@@ -142,8 +248,13 @@ func (s *Service) ExecuteStatement(ctx context.Context, req *cliservice.TExecute
 	if len(req.Parameters) > 0 {
 		return &cliservice.TExecuteStatementResp{Status: errStatus("native parameters are not implemented")}, nil
 	}
+	sessKey := handleKey(req.SessionHandle.SessionId)
 	s.mu.Lock()
-	sess, ok := s.sess[handleKey(req.SessionHandle.SessionId)]
+	sess, ok := s.sess[sessKey]
+	if ok {
+		sess.seen = s.now()
+		s.sess[sessKey] = sess
+	}
 	s.mu.Unlock()
 	if !ok {
 		return &cliservice.TExecuteStatementResp{Status: errStatus("unknown session")}, nil
@@ -160,7 +271,8 @@ func (s *Service) ExecuteStatement(ctx context.Context, req *cliservice.TExecute
 	key := handleKey(op)
 	if err != nil {
 		s.mu.Lock()
-		s.ops[key] = operation{err: err.Error()}
+		s.ops[key] = operation{err: err.Error(), sess: sessKey, seen: s.now()}
+		s.reapLocked()
 		s.mu.Unlock()
 		resp := &cliservice.TExecuteStatementResp{
 			Status: errStatus(err.Error()),
@@ -177,7 +289,8 @@ func (s *Service) ExecuteStatement(ctx context.Context, req *cliservice.TExecute
 	tab, perr := parseStdout(stdout)
 	if perr != nil {
 		s.mu.Lock()
-		s.ops[key] = operation{err: perr.Error()}
+		s.ops[key] = operation{err: perr.Error(), sess: sessKey, seen: s.now()}
+		s.reapLocked()
 		s.mu.Unlock()
 		resp := &cliservice.TExecuteStatementResp{
 			Status: errStatus(perr.Error()),
@@ -192,7 +305,8 @@ func (s *Service) ExecuteStatement(ctx context.Context, req *cliservice.TExecute
 		return resp, nil
 	}
 	s.mu.Lock()
-	s.ops[key] = operation{tab: tab}
+	s.ops[key] = operation{tab: tab, sess: sessKey, seen: s.now()}
+	s.reapLocked()
 	s.mu.Unlock()
 	handle := &cliservice.TOperationHandle{
 		OperationId:   op,
@@ -247,8 +361,12 @@ func (s *Service) GetOperationStatus(_ context.Context, req *cliservice.TGetOper
 	if req == nil || req.OperationHandle == nil {
 		return &cliservice.TGetOperationStatusResp{Status: errStatus("operationHandle is required")}, nil
 	}
+	opKey := handleKey(req.OperationHandle.OperationId)
 	s.mu.Lock()
-	op, ok := s.ops[handleKey(req.OperationHandle.OperationId)]
+	op, ok := s.ops[opKey]
+	if ok {
+		s.touchOpLocked(opKey, op)
+	}
 	s.mu.Unlock()
 	if !ok {
 		return &cliservice.TGetOperationStatusResp{Status: errStatus("unknown operation")}, nil
@@ -309,8 +427,12 @@ func (s *Service) opTable(h *cliservice.TOperationHandle) (*table, string, bool)
 	if h == nil {
 		return nil, "operationHandle is required", false
 	}
+	opKey := handleKey(h.OperationId)
 	s.mu.Lock()
-	op, ok := s.ops[handleKey(h.OperationId)]
+	op, ok := s.ops[opKey]
+	if ok {
+		s.touchOpLocked(opKey, op)
+	}
 	s.mu.Unlock()
 	if !ok {
 		return nil, "unknown operation", false
