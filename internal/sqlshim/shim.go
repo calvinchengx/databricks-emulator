@@ -103,7 +103,11 @@ func rewriteCreateTable(original, src string, nameStart int, root string) Plan {
 	loc := fmt.Sprintf("%s/%s/%s/%s", root, catalog, schema, name)
 	body := strings.TrimSpace(rest[len(ident):])
 	body = stripOrReplaceNoise(body)
-	rewritten := "CREATE TABLE IF NOT EXISTS " + quoteIdent(name) + " " + injectLocation(body, loc)
+	head := "CREATE TABLE IF NOT EXISTS "
+	if regexp.MustCompile(`(?i)OR\s+REPLACE`).MatchString(src[:nameStart]) {
+		head = "CREATE OR REPLACE TABLE "
+	}
+	rewritten := head + quoteIdent(name) + " " + injectLocation(body, loc)
 	return Plan{
 		SQL: rewritten,
 		Register: &ExternalTable{
@@ -341,10 +345,11 @@ func sparkToUC(spark, name string) (string, string) {
 	case strings.HasPrefix(spark, "timestamp"):
 		kind, ucName = "timestamp", "TIMESTAMP"
 	case strings.HasPrefix(spark, "decimal"):
-		kind, ucName = spark, "DECIMAL"
-		if spark == "decimal" {
-			kind = "decimal(10,0)"
-		}
+		// UC OSS accepts decimal(p,s). Sail's unity provider then fails
+		// three-part reads ("Unsupported complex type: decimal(19,4)").
+		// Advertise DOUBLE in the EXTERNAL register; the Delta files keep
+		// the engine's decimal.
+		kind, ucName = "double", "DOUBLE"
 	}
 	js, _ := json.Marshal(map[string]any{
 		"name": name, "type": kind, "nullable": true, "metadata": map[string]any{},

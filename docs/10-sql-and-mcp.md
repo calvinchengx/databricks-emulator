@@ -95,8 +95,10 @@ and Sail share the e2e Compose network: this process proxies catalog REST
 `CREATE TABLE cat.sch.t` with no `LOCATION` is the managed shape. UC OSS
 and Sail do not complete that handshake (`io.unitycatalog.tableId`). The
 warehouse path allocates `file:///data/delta/managed/cat/sch/t`, sends
-Sail an unqualified `CREATE TABLE … LOCATION`, and registers an EXTERNAL
-table in UC OSS. `INSERT` / `SELECT` still use the three-part name
+Sail an unqualified `CREATE TABLE … LOCATION` (`CREATE OR REPLACE` is kept
+so a second run can overwrite the files), and registers an EXTERNAL
+table in UC OSS. DESCRIBE decimals are registered as `DOUBLE` because
+Sail's unity provider rejects `decimal(p,s)` on three-part reads. `INSERT` / `SELECT` still use the three-part name
 unchanged. hive_metastore and statements that already have `LOCATION` are
 not rewritten. `DATABRICKS_DELTA_ROOT` overrides the prefix.
 Spark SQL `information_schema.*` (`tables`, `row_filters`, …) succeeds with
