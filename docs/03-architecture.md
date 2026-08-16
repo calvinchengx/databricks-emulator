@@ -11,7 +11,7 @@ Vault would have. The founding constraint is [Doctrine](00-doctrine.md).
 graph TD
   clients["databricks-sdk / CLI / Terraform / databricks-connect / fabric activities"]
   ws["databricks-emulator :8447"]
-  store["file store: workspace, DBFS, secrets, identity"]
+  store["file store: workspace, DBFS, secrets, identity, MLflow"]
   agent["spark-agent HTTP /statements"]
   sail["Sail Spark Connect :50051"]
   uc["UC OSS sidecar"]
@@ -38,7 +38,7 @@ needs no entra-emulator.
 
 State lives under `DATABRICKS_DATA_DIR` (`./data` by default): hashed PATs,
 the OIDC signing key, workspace files, DBFS bytes, Databricks-backed secrets,
-git credentials, the persisted TLS pair.
+git credentials, the MLflow tracking store, the persisted TLS pair.
 
 ## What it attaches, and refuses to invent
 
@@ -53,9 +53,19 @@ git credentials, the persisted TLS pair.
 | Git Credentials / Repos | `git` on PATH clones into `{dataDir}/workspace` | 501 naming the missing binary |
 | Cluster policies | Enforced on `clusters/create`; unknown attributes 501 | — |
 | Command Execution | Same HTTP statement agent as Jobs / SQL | Fail naming `DATABRICKS_SPARK_CONNECT_URL` |
+| MLflow Experiments / Model Registry | File-backed store under `{dataDir}/mlflow` | — |
 
 There is no invented metastore, no DuckDB answering as Photon, no cluster VM
 that sleeps to `RUNNING`. A lookalike is a bug.
+
+## MLflow tracking store
+
+`/api/2.0/mlflow/experiments`, `/runs`, `/registered-models`, and
+`/model-versions` persist under `data/mlflow/`. The unmodified SDK creates
+an experiment, logs params and metrics, registers a model version, and
+transitions its stage. Artifact list, `log-model`, traces, and logged-models
+are 501 — this is a tracking store, not a model binary host. Model Serving
+stays a different row.
 
 ## Two URLs, two protocols
 

@@ -161,6 +161,14 @@
       "go:TestSparkConnectProxiesAfterPATAndClusterID"
     ]
   },
+  "mlflow-experiments-model-registry": {
+    "section": "Tracking",
+    "claim": "MLflow Experiments / Model Registry",
+    "witnesses": [
+      "ci:e2e-sdk",
+      "go:TestMLflowTrackingStoreAndRegistry"
+    ]
+  },
   "unity-catalog-crud": {
     "section": "Catalog",
     "claim": "Unity Catalog CRUD",

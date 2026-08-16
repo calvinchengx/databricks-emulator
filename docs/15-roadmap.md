@@ -14,7 +14,8 @@ Terraform/DAB pair. Green rows and their witnesses: [parity.md](parity.md).
 
 Independently evidenced (`ci:`) as of this writing: identity, workspace, DBFS,
 Git Credentials / Repos (git clone into the workspace store), cluster
-policies (enforced on create), Command Execution (context on Sail), secret persist
+policies (enforced on create), Command Execution (context on Sail),
+MLflow experiments / model registry (file-backed tracking store), secret persist
 and injection, AKV read-through + vault-audience, Terraform/DAB,
 clusters-as-session, Databricks Connect, Jobs Python, SQL warehouses, MCP SQL,
 Unity Catalog CRUD, Delta writes (Sail write, delta-rs confirm: INSERT,

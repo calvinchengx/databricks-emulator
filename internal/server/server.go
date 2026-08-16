@@ -249,6 +249,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/1.2/commands/status", s.protect(s.commandsStatus))
 	mux.HandleFunc("POST /api/1.2/commands/cancel", s.protect(s.commandsCancel))
 
+	mux.HandleFunc("/api/2.0/mlflow/", s.protect(s.mlflow))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern != "" {

@@ -66,6 +66,7 @@ engine. Clusters as VMs and Photon are not implemented.
 | Git Credentials / Repos | git clone into the workspace store |
 | Cluster policies | Enforced JSON definition on cluster create |
 | Command Execution | Context-id session on the attached Sail agent |
+| MLflow Experiments / Model Registry | File-backed tracking store + registry |
 | Identity | PAT + emulator OIDC; Entra optional |
 
 ## Not implemented
