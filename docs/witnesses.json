@@ -5,6 +5,7 @@
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
+      "ci:e2e-cli",
       "go:TestSeededPATMeAndDevRejected"
     ]
   },
@@ -30,6 +31,7 @@
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
+      "ci:e2e-cli",
       "go:TestWorkspaceImportExportAndRefuseFormats"
     ]
   },
@@ -38,6 +40,7 @@
     "claim": "Workspace — raw files",
     "witnesses": [
       "ci:e2e-terraform",
+      "ci:e2e-cli",
       "go:TestWorkspaceFilesRawBytesAnd404"
     ]
   },
@@ -54,6 +57,7 @@
     "claim": "DBFS / Files API",
     "witnesses": [
       "ci:e2e-sdk",
+      "ci:e2e-cli",
       "go:TestDBFSPutGetListMoveDeleteAndTraversal"
     ]
   },
@@ -78,6 +82,7 @@
     "claim": "Secrets — Databricks persist",
     "witnesses": [
       "ci:e2e-sdk",
+      "ci:e2e-cli",
       "go:TestSecretsPersistAcrossOpen"
     ]
   },
@@ -189,7 +194,8 @@
     "section": "Clients",
     "claim": "Terraform / DAB pair",
     "witnesses": [
-      "ci:e2e-terraform"
+      "ci:e2e-terraform",
+      "ci:e2e-cli"
     ]
   }
 }
