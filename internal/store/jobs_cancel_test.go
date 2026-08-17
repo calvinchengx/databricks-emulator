@@ -125,9 +125,21 @@ func TestCancelOnlyAffectsItsOwnRun(t *testing.T) {
 	}
 }
 
-// Cancel racing the executing goroutine: whichever order they land in, the
-// run must end cancelled and stay that way.
-func TestCancelRacingAPublishStaysCancelled(t *testing.T) {
+// Cancel racing the executing goroutine must leave one of the two legal
+// outcomes, and the store must survive the concurrency.
+//
+// The earlier version of this test asserted CANCELED unconditionally, on the
+// reasoning that the cancel wins whichever order it lands. That was wrong:
+// CancelRun returns early on an already-TERMINATED run, so a cancel arriving
+// after the final publish is a no-op by design -- the rule
+// TestCancelDoesNotRewriteAFinishedRun asserts directly. The two tests
+// contradicted each other, and this one only passed because the writer's 200
+// updates made the cancel win almost every time. CI scheduling found the
+// other ordering.
+//
+// The deterministic guarantee -- a cancel landing mid-run is not overwritten
+// -- is covered by TestCancelSurvivesALaterPublish.
+func TestCancelConcurrentWithPublishLeavesALegalState(t *testing.T) {
 	s := cancelStore(t)
 	job := s.Jobs.Create("j", []Task{{Key: "only", NotebookPath: "/n"}})
 	run := s.Jobs.NewRun(job.ID)
@@ -151,10 +163,15 @@ func TestCancelRacingAPublishStaysCancelled(t *testing.T) {
 	}()
 	wg.Wait()
 
-	// The cancel may land before or after the final publish. If it landed
-	// last the run is cancelled; if it landed first, stickiness kept it so.
-	got, _ := s.Jobs.GetRun(run.ID)
-	if got.ResultState != ResultCanceled {
-		t.Fatalf("ResultState = %q, want %q whichever order they landed", got.ResultState, ResultCanceled)
+	got, ok := s.Jobs.GetRun(run.ID)
+	if !ok {
+		t.Fatal("run vanished")
+	}
+	if got.LifeCycle != "TERMINATED" {
+		t.Fatalf("LifeCycle = %q, want TERMINATED whichever order they landed", got.LifeCycle)
+	}
+	if got.ResultState != ResultCanceled && got.ResultState != "SUCCESS" {
+		t.Fatalf("ResultState = %q, want %q (cancel landed first) or SUCCESS (publish landed first)",
+			got.ResultState, ResultCanceled)
 	}
 }
