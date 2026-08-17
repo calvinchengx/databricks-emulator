@@ -125,6 +125,15 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 		return
 	}
 	plan := sqlshim.Rewrite(st.SQL, s.Cfg.DeltaRoot)
+	if plan.Err != "" {
+		// The rewrite refused: fail by name rather than letting the engine
+		// parse something assembled from an unsafe identifier.
+		st.Status = "FAILED"
+		st.Error = plan.Err
+		s.Store.SQL.UpdateStatement(st)
+		s.recordStatementHistory(st, started)
+		return
+	}
 	if plan.CreateSchema != nil {
 		if err := s.ensureUCSchema(plan.CreateSchema); err != nil {
 			st.Status = "FAILED"
