@@ -38,12 +38,17 @@ type ExternalTable struct {
 }
 
 // Plan is how runSQLStatement should execute one statement.
+//
+// Err is set when a statement cannot be rewritten safely. SQL is left empty
+// in that case, so a caller that forgets to check Err still cannot hand the
+// engine a statement built from an unsafe name.
 type Plan struct {
 	SQL          string
 	SkipEngine   bool
 	EmptyJSON    bool // succeed with stdout "[]"
 	CreateSchema *SchemaRef
 	Register     *ExternalTable
+	Err          string
 }
 
 var (
@@ -65,7 +70,10 @@ func Rewrite(sql, root string) Plan {
 	}
 	root = strings.TrimRight(root, "/")
 	src := stripLeadingComments(sql)
-	if infoSchema.MatchString(src) {
+	// Test the statement with its string literals blanked: a query whose
+	// data merely mentions information_schema is a real query, and
+	// answering it with an empty result set is a silent wrong answer.
+	if infoSchema.MatchString(stripLiterals(src)) {
 		return Plan{SkipEngine: true, EmptyJSON: true}
 	}
 	if temporary.MatchString(src) {
@@ -100,6 +108,18 @@ func rewriteCreateTable(original, src string, nameStart int, root string) Plan {
 		return Plan{SQL: original}
 	}
 	catalog, schema, name := parts[0], parts[1], parts[2]
+	// Backticked identifiers reach here verbatim, and every one of these
+	// three is interpolated into a LOCATION string literal the engine will
+	// parse. A quote would close that literal and leave the rest as SQL;
+	// a ".." would walk out of the Delta root. Refuse instead of escaping:
+	// a name that cannot be a path segment has no location to allocate.
+	for label, part := range map[string]string{"catalog": catalog, "schema": schema, "table": name} {
+		if !safeSegment(part) {
+			return Plan{Err: fmt.Sprintf(
+				"%s name %q cannot be used as a managed location; use letters, digits, '_', '-' or '.'",
+				label, part)}
+		}
+	}
 	loc := fmt.Sprintf("%s/%s/%s/%s", root, catalog, schema, name)
 	body := strings.TrimSpace(rest[len(ident):])
 	body = stripOrReplaceNoise(body)
@@ -177,6 +197,48 @@ func firstIdent(rest string) string {
 		break
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// safeSegment reports whether an identifier can stand as one path segment
+// inside a quoted LOCATION. This is the only thing between a backticked
+// table name and the SQL the engine parses, so the set is a whitelist.
+func safeSegment(s string) bool {
+	if s == "" || s == "." || s == ".." {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '_' || c == '-' || c == '.' ||
+			(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// stripLiterals blanks the contents of single-quoted strings, leaving the
+// quotes so the statement still parses the same shape. Doubled quotes are
+// the SQL escape and stay inside the literal.
+func stripLiterals(s string) string {
+	var b strings.Builder
+	inLit := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\'' {
+			if inLit && i+1 < len(s) && s[i+1] == '\'' {
+				i++
+				continue
+			}
+			inLit = !inLit
+			b.WriteByte(c)
+			continue
+		}
+		if !inLit {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
 }
 
 func isIdentChar(c byte) bool {

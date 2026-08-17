@@ -102,9 +102,16 @@ func TestRewriteRemainingBranches(t *testing.T) {
 	if p.Register == nil || !strings.Contains(strings.ToLower(p.SQL), "using delta location") {
 		t.Fatalf("as no using: %s", p.SQL)
 	}
+	// An unterminated backtick swallows the rest of the statement as the
+	// table name. That used to be rewritten into a table literally named
+	// "t AS SELECT 1"; it is now refused, because a name carrying spaces
+	// cannot be a location segment.
 	unclosed := Rewrite("CREATE TABLE `e2e`.`s`.`t AS SELECT 1", "")
-	if unclosed.SQL == "" {
-		t.Fatal("unclosed ident")
+	if unclosed.Err == "" {
+		t.Fatalf("unclosed ident should be refused, got SQL %q", unclosed.SQL)
+	}
+	if unclosed.SQL != "" {
+		t.Fatalf("a refused rewrite must not hand the engine SQL: %q", unclosed.SQL)
 	}
 	dots := Rewrite("CREATE TABLE e2e..empty USING delta AS SELECT 1", "")
 	if dots.SQL == "" {
