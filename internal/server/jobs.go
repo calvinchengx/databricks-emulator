@@ -275,12 +275,21 @@ func (s *Server) executeRun(job *store.Job, run *store.Run) {
 			break
 		}
 		var wg sync.WaitGroup
+		// mu guards results for this wave. The loop below dispatches while
+		// earlier tasks in the same wave are already running, so the parent
+		// has to take the lock too: guarding only the goroutines protected
+		// them from each other and not from the loop that spawned them.
 		var mu sync.Mutex
 		for _, t := range ready {
 			t := t
 			delete(remaining, t.Key)
-			if !shouldRun(t, results) {
+			mu.Lock()
+			skip := !shouldRun(t, results)
+			if skip {
 				results[t.Key] = store.TaskRun{Key: t.Key, LifeCycle: "TERMINATED", ResultState: "SKIPPED"}
+			}
+			mu.Unlock()
+			if skip {
 				continue
 			}
 			wg.Add(1)

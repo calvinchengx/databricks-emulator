@@ -33,8 +33,12 @@ jobs:
           awk -v t="$total" 'BEGIN { exit (t < 85) ? 1 : 0 }'
       # go test alone cannot see a data race. The jobs runner shipped one to
       # main unnoticed because nothing here ran with -race.
+      # -count raises the odds of catching a rare race; it does not make
+      # detection certain. Both races this gate has found so far surfaced
+      # roughly one run in eight, so a single pass let them through far more
+      # often than it caught them.
       - name: Race detector
-        run: go test -race $(go list ./... | grep -v '/internal/hs2/cliservice$')
+        run: go test -count=5 -race $(go list ./... | grep -v '/internal/hs2/cliservice$')
       - name: Witness map
         run: python3 scripts/check_witnesses.py
 
