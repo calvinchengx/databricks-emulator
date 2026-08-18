@@ -220,17 +220,38 @@ func (s *Server) registerExternalTable(t *sqlshim.ExternalTable, stmtID string) 
 	if s.UC == nil || !s.UC.Attached() {
 		return nil
 	}
-	cols := s.describeForUC(t.Name, stmtID)
-	if len(cols) == 0 {
-		cols = []map[string]any{{
-			"name":      "_col",
-			"type_name": "STRING",
-			"type_text": "string",
-			"type_json": `{"name":"_col","type":"string","nullable":true,"metadata":{}}`,
-			"position":  0,
-			"nullable":  true,
-		}}
-	}
+	// NO COLUMN METADATA, DELIBERATELY. The Delta log at `storage_location`
+	// already holds the authoritative schema, and Sail reads it from there.
+	// Registering a second copy in UC is what created issue #46: this used to
+	// DESCRIBE the table and map each type into a UC column, and decimal(p,s)
+	// has no representation it could use --
+	//
+	//   decimal(p,s) in UC   -> Sail refuses the read outright
+	//                           ("Unsupported complex type: decimal(19,4)")
+	//   DOUBLE in UC         -> Sail reads, and BINDS THE COLUMN AS DOUBLE
+	//
+	// So the old workaround advertised DOUBLE. The release note said the Delta
+	// files still held the engine type, and for the registered table that was
+	// true -- but it is not where the damage lands. Anything reading that
+	// table through UC got a double, so every DERIVED table was written
+	// physically double: measured on a gold star, `fct_sales.amount_usd` is
+	// decimal(19,4) in its own Delta log and `typeof()` answers `double`, and
+	// the summary built from it holds double on disk. A money column had
+	// stopped being money, and no row check can see that.
+	//
+	// Omitting columns is what the tables that were never described already
+	// did, and they are the ones that behaved: a UC entry with no columns
+	// reads back decimal(19,4) from the same bytes. The trade is explicit --
+	// UC serves less metadata than real Databricks, in exchange for types that
+	// are correct. Wrong types change query results; absent metadata does not,
+	// and nothing here reads it (information_schema.columns is empty either
+	// way). Restore the description when Sail's unity provider can express
+	// decimal.
+	//
+	// A `_col` STRING placeholder used to stand in when DESCRIBE failed. It is
+	// gone for the same reason and one worse: UC accepts an empty column list,
+	// and a table registered with the placeholder is UNREADABLE -- Sail binds
+	// only `_col`, so every real column "is missing from the schema".
 	st, body, err := s.UC.JSON("POST", "/api/2.1/unity-catalog/tables", map[string]any{
 		"name":               t.Name,
 		"catalog_name":       t.Catalog,
@@ -238,7 +259,7 @@ func (s *Server) registerExternalTable(t *sqlshim.ExternalTable, stmtID string) 
 		"table_type":         "EXTERNAL",
 		"data_source_format": "DELTA",
 		"storage_location":   t.Location,
-		"columns":            cols,
+		"columns":            []map[string]any{},
 	})
 	if err != nil {
 		return err
@@ -247,15 +268,6 @@ func (s *Server) registerExternalTable(t *sqlshim.ExternalTable, stmtID string) 
 		return fmt.Errorf("unity catalog table: status %d: %s", st, body)
 	}
 	return nil
-}
-
-func (s *Server) describeForUC(name, stmtID string) []map[string]any {
-	// Same Spark session as the CREATE: Sail's memory catalog is session-scoped.
-	res, err := s.Spark.Run(sparkSQLRequest("DESCRIBE TABLE `"+name+"`", "sql-"+stmtID))
-	if err != nil || !res.OK {
-		return nil
-	}
-	return sqlshim.ColumnsFromDescribe(res.Stdout)
 }
 
 func warehouseJSON(wh *store.Warehouse) map[string]any {

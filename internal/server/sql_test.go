@@ -501,6 +501,18 @@ func TestSQLWarehouseUCSchemaAndRegister(t *testing.T) {
 	if !strings.Contains(lastBody, `"from_shim"`) || !strings.Contains(lastBody, "EXTERNAL") {
 		t.Fatalf("register body %s posts %v", lastBody, posts)
 	}
+	// ISSUE #46. Registration must carry NO column metadata: the Delta log at
+	// storage_location is the authoritative schema and Sail reads it there.
+	// Describing the table into UC cannot represent decimal(p,s) -- Sail
+	// refuses that outright -- so the old code advertised DOUBLE, and every
+	// table derived from one so registered was written physically double. A
+	// money column stopped being money and no row check could see it.
+	if !strings.Contains(lastBody, `"columns":[]`) {
+		t.Fatalf("UC registration must carry no columns (issue #46): %s", lastBody)
+	}
+	if strings.Contains(lastBody, "DOUBLE") {
+		t.Fatalf("a mapped column type is back in UC registration (issue #46): %s", lastBody)
+	}
 
 	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
 		if strings.HasPrefix(req.Code, "DESCRIBE") {
@@ -516,8 +528,16 @@ func TestSQLWarehouseUCSchemaAndRegister(t *testing.T) {
 	if stub["status"].(map[string]any)["state"] != "SUCCEEDED" {
 		t.Fatalf("stub describe %+v", stub)
 	}
-	if !strings.Contains(lastBody, `"_col"`) {
-		t.Fatalf("expected stub column %s", lastBody)
+	// NO COLUMNS, EVEN WHEN DESCRIBE FAILS -- and especially then. This used
+	// to post a `_col` STRING placeholder so the UC call would not be rejected
+	// for an empty column list, but UC accepts one, and a table registered
+	// with the placeholder is UNREADABLE: Sail binds only `_col` and every
+	// real column "is missing from the schema".
+	if strings.Contains(lastBody, `"_col"`) {
+		t.Fatalf("placeholder column is back, which makes the table unreadable: %s", lastBody)
+	}
+	if !strings.Contains(lastBody, `"columns":[]`) {
+		t.Fatalf("expected an empty column list %s", lastBody)
 	}
 
 	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
