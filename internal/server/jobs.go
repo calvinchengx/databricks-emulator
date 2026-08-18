@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -176,9 +178,18 @@ func parseTask(t map[string]any) (store.Task, error) {
 	}
 	if deps, ok := t["depends_on"].([]any); ok {
 		for _, d := range deps {
-			if m, ok := d.(map[string]any); ok {
-				task.DependsOn = append(task.DependsOn, str(m["task_key"]))
+			m, ok := d.(map[string]any)
+			if !ok {
+				continue
 			}
+			dep := store.Dependency{Key: str(m["task_key"]), Outcome: str(m["outcome"])}
+			switch dep.Outcome {
+			case "", "true", "false":
+			default:
+				return task, fmt.Errorf("depends_on.outcome for task %q is %q; an if/else edge is %q or %q",
+					task.Key, dep.Outcome, "true", "false")
+			}
+			task.DependsOn = append(task.DependsOn, dep)
 		}
 	}
 	if libs, ok := t["libraries"]; ok && libs != nil {
@@ -194,6 +205,26 @@ func parseTask(t map[string]any) (store.Task, error) {
 	}
 	if _, ok := t["pipeline_task"]; ok {
 		return task, fmt.Errorf("pipeline_task (DLT) is refused by name")
+	}
+	// Named, not left to the catch-all below. These three reached the generic
+	// "must be notebook_task, spark_python_task, or sql_task.file" error, which
+	// never says the thing you asked for is the thing that is missing -- the
+	// one failure mode this repo's refusals exist to avoid.
+	if _, ok := t["python_wheel_task"]; ok {
+		return task, fmt.Errorf("python_wheel_task installs a wheel on a cluster whose lifecycle the emulator does not own: refused")
+	}
+	if _, ok := t["run_job_task"]; ok {
+		return task, fmt.Errorf("run_job_task is not implemented yet, refused rather than silently skipped")
+	}
+	if _, ok := t["for_each_task"]; ok {
+		return task, fmt.Errorf("for_each_task is not implemented yet, refused rather than silently skipped")
+	}
+	if raw, ok := t["condition_task"].(map[string]any); ok {
+		c := &store.Condition{Op: str(raw["op"]), Left: str(raw["left"]), Right: str(raw["right"])}
+		if !validConditionOp(c.Op) {
+			return task, fmt.Errorf("condition_task.op %q is not one of %s", c.Op, strings.Join(conditionOps, ", "))
+		}
+		task.Condition = c
 	}
 	if raw, ok := t["sql_task"].(map[string]any); ok {
 		if raw["query"] != nil || raw["dashboard"] != nil || raw["alert"] != nil {
@@ -222,10 +253,63 @@ func parseTask(t map[string]any) (store.Task, error) {
 		task.SparkEnvVars = stringMap(nc["spark_env_vars"])
 		task.SparkConf = stringMap(nc["spark_conf"])
 	}
-	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" {
-		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, or sql_task.file", task.Key)
+	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" && task.Condition == nil {
+		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, sql_task.file, or condition_task", task.Key)
 	}
 	return task, nil
+}
+
+// conditionOps is the ConditionTaskOp enum, verbatim from databricks-sdk
+// 0.129.0 (the pin e2e/sdk drives this emulator with).
+var conditionOps = []string{
+	"EQUAL_TO", "NOT_EQUAL",
+	"GREATER_THAN", "GREATER_THAN_OR_EQUAL",
+	"LESS_THAN", "LESS_THAN_OR_EQUAL",
+}
+
+func validConditionOp(op string) bool {
+	return slices.Contains(conditionOps, op)
+}
+
+// evalCondition returns "true" or "false" for an if/else task.
+//
+// THE TWO OPERATOR FAMILIES COMPARE DIFFERENTLY, and this is documented
+// behaviour rather than an implementation detail worth smoothing over:
+// `==` and `!=` compare as STRINGS, so `12.0 == 12` is false; `>`, `>=`, `<`
+// and `<=` compare as NUMBERS, so `12.0 >= 12` is true. Making all six
+// numeric-aware would be the friendlier rule and the wrong one -- a job whose
+// equality branch passes here and fails on a real workspace is exactly the
+// divergence this emulator exists to avoid.
+func evalCondition(c store.Condition) string {
+	if c.Op == "EQUAL_TO" || c.Op == "NOT_EQUAL" {
+		equal := c.Left == c.Right
+		if (c.Op == "EQUAL_TO") == equal {
+			return "true"
+		}
+		return "false"
+	}
+	// Ordering operators are numeric. A non-numeric operand has no ordering,
+	// so it is false rather than a string comparison wearing a numeric name.
+	left, lerr := strconv.ParseFloat(strings.TrimSpace(c.Left), 64)
+	right, rerr := strconv.ParseFloat(strings.TrimSpace(c.Right), 64)
+	if lerr != nil || rerr != nil {
+		return "false"
+	}
+	var ok bool
+	switch c.Op {
+	case "GREATER_THAN":
+		ok = left > right
+	case "GREATER_THAN_OR_EQUAL":
+		ok = left >= right
+	case "LESS_THAN":
+		ok = left < right
+	case "LESS_THAN_OR_EQUAL":
+		ok = left <= right
+	}
+	if ok {
+		return "true"
+	}
+	return "false"
 }
 
 // runCancelled reports whether the run has been cancelled since it started.
@@ -292,6 +376,19 @@ func (s *Server) executeRun(job *store.Job, run *store.Run) {
 			if skip {
 				continue
 			}
+			// A condition is decided here, not on the engine. It is pure
+			// comparison, so dispatching it to Spark would be inventing work --
+			// and it must still be evaluated when no engine is attached at all.
+			if t.Condition != nil {
+				outcome := evalCondition(*t.Condition)
+				mu.Lock()
+				results[t.Key] = store.TaskRun{
+					Key: t.Key, LifeCycle: "TERMINATED", ResultState: "SUCCESS",
+					ConditionOutcome: outcome,
+				}
+				mu.Unlock()
+				continue
+			}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -330,7 +427,7 @@ func (s *Server) executeRun(job *store.Job, run *store.Run) {
 
 func depsSatisfied(t store.Task, done map[string]store.TaskRun) bool {
 	for _, d := range t.DependsOn {
-		if _, ok := done[d]; !ok {
+		if _, ok := done[d.Key]; !ok {
 			return false
 		}
 	}
@@ -341,9 +438,21 @@ func shouldRun(t store.Task, done map[string]store.TaskRun) bool {
 	if len(t.DependsOn) == 0 {
 		return true
 	}
+	// THE BRANCH NOT TAKEN IS SKIPPED, and this runs before run_if. An edge
+	// that names an outcome only fires when the condition produced it, so the
+	// false arm of an if/else does not run merely because the condition task
+	// itself succeeded -- which it always does.
+	for _, d := range t.DependsOn {
+		if d.Outcome == "" {
+			continue
+		}
+		if done[d.Key].ConditionOutcome != d.Outcome {
+			return false
+		}
+	}
 	success, failed, finished := 0, 0, 0
 	for _, d := range t.DependsOn {
-		tr := done[d]
+		tr := done[d.Key]
 		finished++
 		switch tr.ResultState {
 		case "SUCCESS":
@@ -483,6 +592,22 @@ func jobSettings(job *store.Job) map[string]any {
 	var tasks []map[string]any
 	for _, t := range job.Tasks {
 		m := map[string]any{"task_key": t.Key, "run_if": t.RunIf}
+		if len(t.DependsOn) > 0 {
+			var deps []map[string]any
+			for _, d := range t.DependsOn {
+				dep := map[string]any{"task_key": d.Key}
+				if d.Outcome != "" {
+					dep["outcome"] = d.Outcome
+				}
+				deps = append(deps, dep)
+			}
+			m["depends_on"] = deps
+		}
+		if t.Condition != nil {
+			m["condition_task"] = map[string]any{
+				"op": t.Condition.Op, "left": t.Condition.Left, "right": t.Condition.Right,
+			}
+		}
 		if t.NotebookPath != "" {
 			m["notebook_task"] = map[string]any{"notebook_path": t.NotebookPath, "base_parameters": t.NotebookParams}
 		}
@@ -500,10 +625,16 @@ func jobSettings(job *store.Job) map[string]any {
 func runJSON(run *store.Run) map[string]any {
 	var tasks []map[string]any
 	for _, t := range run.Tasks {
-		tasks = append(tasks, map[string]any{
+		m := map[string]any{
 			"task_key": t.Key,
 			"state":    map[string]any{"life_cycle_state": t.LifeCycle, "result_state": t.ResultState},
-		})
+		}
+		// The outcome is the only way a caller can tell which arm ran: the
+		// condition task's own result_state is SUCCESS either way.
+		if t.ConditionOutcome != "" {
+			m["condition_task"] = map[string]any{"outcome": t.ConditionOutcome}
+		}
+		tasks = append(tasks, m)
 	}
 	return map[string]any{
 		"run_id":     run.ID,

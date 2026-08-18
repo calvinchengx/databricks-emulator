@@ -11,8 +11,14 @@ func TestRunIfMatrix(t *testing.T) {
 	failed := map[string]store.TaskRun{"d": {ResultState: "FAILED"}}
 	mixed := map[string]store.TaskRun{"d": {ResultState: "SUCCESS"}, "e": {ResultState: "FAILED"}}
 
+	// Plain edges, no outcome: run_if is what this matrix is about, and an
+	// if/else edge is covered separately in jobs_condition_test.go.
 	task := func(runIf string, deps ...string) store.Task {
-		return store.Task{RunIf: runIf, DependsOn: deps}
+		var on []store.Dependency
+		for _, d := range deps {
+			on = append(on, store.Dependency{Key: d})
+		}
+		return store.Task{RunIf: runIf, DependsOn: on}
 	}
 
 	if !shouldRun(task("ALL_SUCCESS", "d"), success) {

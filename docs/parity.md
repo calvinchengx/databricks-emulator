@@ -76,7 +76,10 @@ claim are 🔴 Not implemented even though the docs mention them.
 | Feature | Emulator | Type |
 |---|---|---|
 | Jobs 2.2 — notebook / Python | Shim resolves workspace/DBFS file, bakes argv / notebook params / `{{secrets}}` into a Python preamble (`os.environ.update`), POSTs `{agent}/statements` with `kind: python`. Without `DATABRICKS_SPARK_CONNECT_URL`, `run-now` fails naming the engine — never `SUCCESS`. Default attach is Sail behind the family's spark-agent (`make e2e-engine`). Family compose does not set the URL. | 🟢 Real |
+| Jobs 2.2 — if/else `condition_task` | Decided in this process, not on the engine: it is pure comparison, and it is evaluated with no Spark attached at all. `depends_on.outcome` selects the arm, so the branch not taken is `SKIPPED` and never reaches the engine. The witness asserts what Spark *saw*, not what the run reported. Operator families follow Databricks' documented split: `EQUAL_TO`/`NOT_EQUAL` compare as **strings** (`12.0 == 12` is false), the four ordering ops as **numbers** (`12.0 >= 12` is true). Ops outside `ConditionTaskOp` and outcomes outside `true`/`false` are refused at create. | 🟢 Real |
 | Jobs 2.2 — JAR / dbt / DLT / sql_task.query | Refused at create. `sql_task.file` takes the warehouse Spark SQL path (see SQL warehouses). No JVM overlay is shipped, so JAR is not 🟠. | 🔴 Not implemented |
+| Jobs 2.2 — `for_each_task` / `run_job_task` | Refused **by name** at create. Both are pure orchestration this process could compute, so they are a gap rather than a boundary: named here so the absence is enumerated instead of reaching the generic "must be notebook_task, spark_python_task, sql_task.file, or condition_task". | 🔴 Not implemented |
+| Jobs 2.2 — `python_wheel_task` | Refused by name: installing a wheel means owning a cluster's lifecycle, which this process does not. Same boundary as `libraries`. | 🔴 Not implemented |
 
 ## Secrets
 
