@@ -24,6 +24,18 @@ DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
 delta-rs shim, ZORDER refused; concurrent `INSERT OVERWRITE` serialises).
 
+## dbt_task
+
+Gold can be built THROUGH a job now, not from a host script beside one. The
+project travels from the workspace store to the agent and dbt runs against the
+warehouse the task names, which is what real Databricks does: dbt is a
+warehouse client either way, and the job only changes who invokes it.
+
+It needs `dbt-databricks` on the statement agent. An agent without it fails
+saying so rather than reporting a run that built nothing. This closes G4 in
+`contoso-data-product`'s plan, the one thing keeping the Databricks · Jobs cell
+at 🟡.
+
 ## Orchestration the shim can compute
 
 `condition_task` is in: if/else branching decided in this process, with

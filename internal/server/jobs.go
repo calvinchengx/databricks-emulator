@@ -200,8 +200,42 @@ func parseTask(t map[string]any) (store.Task, error) {
 	if _, ok := t["spark_jar_task"]; ok {
 		return task, fmt.Errorf("spark_jar_task asks the emulator to EXECUTE a Java/Scala main class — refused")
 	}
-	if _, ok := t["dbt_task"]; ok {
-		return task, fmt.Errorf("dbt_task is refused by name")
+	if raw, ok := t["dbt_task"].(map[string]any); ok {
+		d := &store.Dbt{
+			Catalog:           str(raw["catalog"]),
+			Schema:            str(raw["schema"]),
+			ProjectDirectory:  str(raw["project_directory"]),
+			ProfilesDirectory: str(raw["profiles_directory"]),
+			WarehouseID:       str(raw["warehouse_id"]),
+		}
+		if cmds, ok := raw["commands"].([]any); ok {
+			for _, c := range cmds {
+				d.Commands = append(d.Commands, str(c))
+			}
+		}
+		if len(d.Commands) == 0 {
+			return task, fmt.Errorf("dbt_task.commands is required")
+		}
+		// A `source` of GIT would have this process clone at run time. Repos
+		// already clones into the workspace store, so the honest shape is to
+		// point project_directory at what that produced rather than grow a
+		// second, hidden clone path here.
+		if src := str(raw["source"]); src != "" && src != "WORKSPACE" {
+			return task, fmt.Errorf("dbt_task.source %q is not implemented; use WORKSPACE "+
+				"(clone with the Repos API first, then point project_directory at it)", src)
+		}
+		if d.ProjectDirectory == "" {
+			return task, fmt.Errorf("dbt_task.project_directory is required")
+		}
+		// The warehouse is where the models actually execute. Without it this
+		// process would have to pick one, and a dbt run silently against a
+		// different warehouse than the caller named is the wrong answer
+		// delivered confidently.
+		if d.WarehouseID == "" {
+			return task, fmt.Errorf("dbt_task.warehouse_id is required: it names the " +
+				"warehouse the models execute against")
+		}
+		task.Dbt = d
 	}
 	if _, ok := t["pipeline_task"]; ok {
 		return task, fmt.Errorf("pipeline_task (DLT) is refused by name")
@@ -253,8 +287,10 @@ func parseTask(t map[string]any) (store.Task, error) {
 		task.SparkEnvVars = stringMap(nc["spark_env_vars"])
 		task.SparkConf = stringMap(nc["spark_conf"])
 	}
-	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" && task.Condition == nil {
-		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, sql_task.file, or condition_task", task.Key)
+	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" &&
+		task.Condition == nil && task.Dbt == nil {
+		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, "+
+			"sql_task.file, condition_task, or dbt_task", task.Key)
 	}
 	return task, nil
 }
@@ -491,6 +527,11 @@ func (s *Server) runTask(t store.Task) store.TaskRun {
 		tr.Stderr = err.Error()
 		return tr
 	}
+	// dbt loads no task code: its "code" is a project directory, and the
+	// statement it produces is generated rather than read from a file.
+	if t.Dbt != nil {
+		return s.runDbtTask(t, env, conf)
+	}
 	code, path, err := s.loadTaskCode(t)
 	if err != nil {
 		tr.ResultState = "FAILED"
@@ -616,6 +657,22 @@ func jobSettings(job *store.Job) map[string]any {
 		}
 		if t.SQLFile != "" {
 			m["sql_task"] = map[string]any{"file": map[string]any{"path": t.SQLFile}}
+		}
+		if t.Dbt != nil {
+			d := map[string]any{
+				"commands":          t.Dbt.Commands,
+				"project_directory": t.Dbt.ProjectDirectory,
+				"warehouse_id":      t.Dbt.WarehouseID,
+			}
+			for k, v := range map[string]string{
+				"catalog": t.Dbt.Catalog, "schema": t.Dbt.Schema,
+				"profiles_directory": t.Dbt.ProfilesDirectory,
+			} {
+				if v != "" {
+					d[k] = v
+				}
+			}
+			m["dbt_task"] = d
 		}
 		tasks = append(tasks, m)
 	}

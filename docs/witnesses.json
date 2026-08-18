@@ -78,6 +78,16 @@
       "go:TestOnlyTheNamedBranchRuns"
     ]
   },
+  "jobs-2-2-dbttask": {
+    "section": "Jobs",
+    "claim": "Jobs 2.2 \u2014 `dbt_task`",
+    "witnesses": [
+      "go:TestDbtTaskReachesTheAgentAsADbtInvocation",
+      "go:TestDbtCodeCarriesProjectProfileAndArgv",
+      "go:TestDbtArgvDropsTheCLIName",
+      "go:TestDbtTaskValidationRefusesByField"
+    ]
+  },
   "secrets-databricks-injection": {
     "section": "Secrets",
     "claim": "Secrets \u2014 Databricks injection",
