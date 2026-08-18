@@ -1,7 +1,7 @@
 {
   "identity-pat": {
     "section": "Identity",
-    "claim": "Identity — PAT",
+    "claim": "Identity \u2014 PAT",
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
@@ -11,7 +11,7 @@
   },
   "identity-emulator-oidc": {
     "section": "Identity",
-    "claim": "Identity — emulator OIDC",
+    "claim": "Identity \u2014 emulator OIDC",
     "witnesses": [
       "ci:e2e-sdk",
       "go:TestOIDCClientCredentialsMe"
@@ -19,7 +19,7 @@
   },
   "identity-federated-jwt": {
     "section": "Identity",
-    "claim": "Identity — federated JWT",
+    "claim": "Identity \u2014 federated JWT",
     "witnesses": [
       "ci:e2e-sdk",
       "go:TestFederatedJWTDoors"
@@ -27,7 +27,7 @@
   },
   "workspace-source-python": {
     "section": "Workspace",
-    "claim": "Workspace — SOURCE/PYTHON",
+    "claim": "Workspace \u2014 SOURCE/PYTHON",
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-terraform",
@@ -37,7 +37,7 @@
   },
   "workspace-raw-files": {
     "section": "Workspace",
-    "claim": "Workspace — raw files",
+    "claim": "Workspace \u2014 raw files",
     "witnesses": [
       "ci:e2e-terraform",
       "ci:e2e-cli",
@@ -63,15 +63,24 @@
   },
   "jobs-2-2-notebook-python": {
     "section": "Jobs",
-    "claim": "Jobs 2.2 — notebook / Python",
+    "claim": "Jobs 2.2 \u2014 notebook / Python",
     "witnesses": [
       "ci:e2e-engine",
       "go:TestJobsPythonRunsAndMutation"
     ]
   },
+  "jobs-2-2-if-else-conditiontask": {
+    "section": "Jobs",
+    "claim": "Jobs 2.2 \u2014 if/else `condition_task`",
+    "witnesses": [
+      "go:TestConditionRunsOnlyTheChosenBranchEndToEnd",
+      "go:TestConditionOperatorFamiliesCompareDifferently",
+      "go:TestOnlyTheNamedBranchRuns"
+    ]
+  },
   "secrets-databricks-injection": {
     "section": "Secrets",
-    "claim": "Secrets — Databricks injection",
+    "claim": "Secrets \u2014 Databricks injection",
     "witnesses": [
       "ci:e2e-engine",
       "go:TestSecretsCRUDGetRefusedAndJobInjection"
@@ -79,7 +88,7 @@
   },
   "secrets-databricks-persist": {
     "section": "Secrets",
-    "claim": "Secrets — Databricks persist",
+    "claim": "Secrets \u2014 Databricks persist",
     "witnesses": [
       "ci:e2e-sdk",
       "ci:e2e-cli",
@@ -88,7 +97,7 @@
   },
   "secrets-azure-key-vault-backed": {
     "section": "Secrets",
-    "claim": "Secrets — Azure Key Vault-backed",
+    "claim": "Secrets \u2014 Azure Key Vault-backed",
     "witnesses": [
       "ci:e2e-engine",
       "go:TestAKVScopeReadThroughAndRotate"
@@ -96,7 +105,7 @@
   },
   "secrets-vault-audience-token": {
     "section": "Secrets",
-    "claim": "Secrets — vault-audience token",
+    "claim": "Secrets \u2014 vault-audience token",
     "witnesses": [
       "ci:e2e-engine",
       "go:TestAKVScopeUsesVaultAudienceToken"
@@ -104,7 +113,7 @@
   },
   "delta-writes-sail": {
     "section": "Compute",
-    "claim": "Delta writes — Sail",
+    "claim": "Delta writes \u2014 Sail",
     "witnesses": [
       "ci:e2e-delta",
       "go:TestSQLWarehouseForwardsDeltaDML"
@@ -112,7 +121,7 @@
   },
   "delta-writes-uc-three-part-names": {
     "section": "Compute",
-    "claim": "Delta writes — UC three-part names",
+    "claim": "Delta writes \u2014 UC three-part names",
     "witnesses": [
       "ci:e2e-delta",
       "go:TestSQLWarehouseForwardsThreePartNames",
@@ -121,7 +130,7 @@
   },
   "delta-maintenance-optimize-vacuum": {
     "section": "Compute",
-    "claim": "Delta maintenance — OPTIMIZE / VACUUM",
+    "claim": "Delta maintenance \u2014 OPTIMIZE / VACUUM",
     "witnesses": [
       "ci:e2e-delta",
       "go:TestSQLWarehouseForwardsDeltaMaintenance"
@@ -145,7 +154,7 @@
   },
   "sql-warehouses-thrift-hiveserver2": {
     "section": "Compute",
-    "claim": "SQL warehouses — Thrift / HiveServer2",
+    "claim": "SQL warehouses \u2014 Thrift / HiveServer2",
     "witnesses": [
       "ci:e2e-sql",
       "go:TestThriftWarehouseSelect1AndRefusals"
@@ -201,7 +210,7 @@
   },
   "mcp-databricks-sql": {
     "section": "Clients",
-    "claim": "MCP — Databricks SQL",
+    "claim": "MCP \u2014 Databricks SQL",
     "witnesses": [
       "ci:e2e-engine",
       "go:TestMCPSQLExecuteAndPoll"

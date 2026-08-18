@@ -11,16 +11,39 @@ type Job struct {
 	Tasks []Task
 }
 
+// Dependency is one edge into a task.
+//
+// Outcome is the branch of an if/else condition this edge follows, "true" or
+// "false", and empty for an ordinary edge. It is carried rather than dropped
+// because it is the ONLY thing that distinguishes the two branches of a
+// condition: both downstream tasks depend on the same task_key, and a
+// dependency model that keeps just the key would run both arms of every
+// if/else and report SUCCESS. `TaskDependency` in databricks-sdk 0.129.0 is
+// exactly {task_key, outcome}.
+type Dependency struct {
+	Key     string
+	Outcome string
+}
+
+// Condition is an if/else condition_task: `ConditionTask` in the SDK is
+// exactly {op, left, right}.
+type Condition struct {
+	Op    string
+	Left  string
+	Right string
+}
+
 // Task is one node in a job DAG.
 type Task struct {
 	Key            string
-	DependsOn      []string
+	DependsOn      []Dependency
 	RunIf          string
 	NotebookPath   string
 	NotebookParams map[string]string
 	PythonFile     string
 	PythonParams   []string
 	SQLFile        string
+	Condition      *Condition
 	SparkEnvVars   map[string]string
 	SparkConf      map[string]string
 }
@@ -39,12 +62,19 @@ type Run struct {
 }
 
 // TaskRun is one task's result inside a run.
+//
+// ConditionOutcome is "true" or "false" for a condition_task and empty for
+// every other kind. A condition that evaluates false still SUCCEEDS -- the
+// task did its job -- so the outcome, not the result state, is what the
+// branches are selected on. `RunConditionTask` in the SDK carries the same
+// field beside the operands it evaluated.
 type TaskRun struct {
-	Key         string
-	LifeCycle   string
-	ResultState string
-	Stdout      string
-	Stderr      string
+	Key              string
+	LifeCycle        string
+	ResultState      string
+	ConditionOutcome string
+	Stdout           string
+	Stderr           string
 }
 
 // Jobs holds job definitions and runs.

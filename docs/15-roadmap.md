@@ -24,6 +24,18 @@ DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
 delta-rs shim, ZORDER refused; concurrent `INSERT OVERWRITE` serialises).
 
+## Orchestration the shim can compute
+
+`condition_task` is in: if/else branching decided in this process, with
+`depends_on.outcome` selecting the arm, and no engine involved. It needs none,
+which is what makes it honest to implement here rather than refuse.
+
+`for_each_task` and `run_job_task` are the rest of that family and are the
+obvious next two, for the same reason: both are pure orchestration this
+process can compute in full. They are refused **by name** today so the gap is
+enumerated in [parity.md](parity.md) rather than hidden behind a generic
+"unknown task type".
+
 ## Sidecars attached
 
 The first-slice greens that needed a sidecar now have `ci:`. Grants stay 501
