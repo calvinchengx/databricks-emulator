@@ -24,17 +24,24 @@ DELETE, MERGE; UPDATE fails loudly; three-part `INSERT INTO cat.sch.tbl`
 via Sail's unity catalog provider; `OPTIMIZE`/`VACUUM` via the spark-agent
 delta-rs shim, ZORDER refused; concurrent `INSERT OVERWRITE` serialises).
 
-## Next honest attaches
+## Sidecars attached
 
 The first-slice greens that needed a sidecar now have `ci:`. Grants stay 501
-until they deny — that is 🔴 Not implemented, not a leftover green.
+until they deny, that is 🔴 Not implemented, not a leftover green. What is
+actually next, graded, is [Not implemented](#not-implemented) below, in
+parity.md order rather than guessed here.
 
 Do not invent a fake statement agent, metastore, or Permissions allow-all to
-close red rows.
+close red rows. That rule outlives any one slice, so it stays here rather
+than moving with the work it was written for.
 
 ## Docs still to write
 
-P2 leftover: platform-setup after `make up` / `make status` exist.
+No local `make up` / `make status`, and none planned: this repo's quickstart
+is native (`make run`, see [01](01-quickstart.md)); the family stack comes
+from `azure-emulators`'s `docker compose --profile databricks up` ([14](14-family-integration.md)).
+A platform-setup chapter here would document a compose file this repo does
+not ship.
 
 Parity history is generated from every `v*` tag that carries `docs/parity.md`
 (`v0.1.0` is the first). Live map, snapshots, and changelog live on the docs
