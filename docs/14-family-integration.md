@@ -24,7 +24,10 @@ graph LR
 docker compose --profile databricks up   # :8447
 ```
 
-The profile (image `ghcr.io/calvinchengx/databricks-emulator:0.2.0`) sets:
+The profile's pinned image version is not restated here, azure-emulators'
+[`docker-compose.yml`](https://github.com/calvinchengx/azure-emulators/blob/main/docker-compose.yml)
+is the one place it is declared, and a copy here would be a second source of
+truth with nothing keeping it honest. The profile sets:
 
 | Variable | Value |
 |---|---|
