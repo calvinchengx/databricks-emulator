@@ -1,0 +1,19 @@
+# Run this suite against a spark-agent you built yourself, instead of the pinned
+# digest. That is the only way to see it GREEN until the fix is released and
+# `SPARK_CLIENT_DIGEST` moves -- and a reviewer who cannot run it green has only
+# my word that the fix works.
+#
+#   cd ../fabric-emulator
+#   docker build -f docker/spark-agent/Dockerfile -t emulator-spark-agent:local .
+#   cd -
+#   SPARK_AGENT_LOCAL_IMAGE=emulator-spark-agent:local make e2e-task-parameters
+#
+# Deliberately a SEPARATE file rather than another variable in
+# docker-compose.yml: every compose file in this repo pins the agent as
+# `${SPARK_CLIENT_VERSION}@${SPARK_CLIENT_DIGEST}`, and the release sweep finds
+# the files to bump by grepping for exactly that. A file that expressed the pin
+# differently would be invisible to the sweep and would silently keep an old
+# agent after everything else moved.
+services:
+  spark-agent:
+    image: ${SPARK_AGENT_LOCAL_IMAGE:?set SPARK_AGENT_LOCAL_IMAGE to the image you built}

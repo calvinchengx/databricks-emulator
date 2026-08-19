@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task clean witnesses
+.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -97,6 +97,15 @@ e2e-condition-task: ## if/else condition_task via the SDK; delta-rs reads the br
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
 	$(UV) run --frozen --group delta python e2e/condition-task/run.py
+e2e-task-parameters: ## Two parameterised spark_python_tasks in one wave keep their own argv/env
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
+	# NOT in ci.yml yet, and deliberately: this suite FAILS against the pinned
+	# agent digest, which is the unfixed 4.2.0. The fix is agent-side, in
+	# fabric-emulator's python/spark_agent/task_scope.py. Wire the CI job in the
+	# same PR that bumps SPARK_CLIENT_DIGEST -- adding it before then would put a
+	# known-red job on main, which trains people to ignore it.
+	$(UV) run --frozen --group delta python e2e/task-parameters/run.py
 e2e-dbt-uc: ## Unmodified dbt-databricks against a Unity Catalog catalog
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
