@@ -84,6 +84,15 @@ smoke: `dbt debug` + `dbt run` of `one` / `two` over HiveServer2, then
 refused. Jobs `dbt_task` is not this job -- that is `e2e-dbt-task`, where
 the runner has no dbt at all and dbt runs on the agent.
 
+**`e2e-condition-task`** — if/else, driven by the unmodified `databricks-sdk`
+(`jobs.ConditionTask`, `jobs.TaskDependency(outcome=...)`) and read back by
+**delta-rs**, so which arm ran is a Delta table on disk rather than the run
+record the emulator wrote about itself. Both operator families run on the SAME
+operands — `12.0 == 12` false as strings, `12.0 >= 12` true as numbers — because
+either check alone passes under a single-family implementation. Both arms write,
+to different tables, so a branch that should have been SKIPPED is caught by its
+table appearing rather than assumed absent.
+
 **`e2e-dbt-task`** — dbt as a JOB. Nothing on the runner has dbt: the suite
 runs under the `delta` group and asserts `import dbt` fails before it starts,
 so a pass cannot mean dbt ran locally. The project is imported into the

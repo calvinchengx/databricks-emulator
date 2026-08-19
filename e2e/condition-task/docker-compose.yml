@@ -1,0 +1,34 @@
+# Sail + spark-agent. The branch tasks write Delta straight from the agent with
+# delta-rs, so Sail is here only because the agent expects an engine behind it.
+services:
+  sail:
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:b35451c4627b14a885f3867c75870406b0e80e830fbc7dff939acc50c3d7fca0}
+    ports:
+      - "15056:50051"
+    environment:
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+      RUST_LOG: "info"
+    volumes:
+      - ${COND_DATA}:/data/cond
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  spark-agent:
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:4264904dc9a60c42041a83aae0cfcee690b1293d45b980b683ec19b2e98fe69b}
+    depends_on:
+      sail:
+        condition: service_healthy
+    ports:
+      - "18106:8099"
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"
+    volumes:
+      - ${COND_DATA}:/data/cond
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

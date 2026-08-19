@@ -73,6 +73,7 @@
     "section": "Jobs",
     "claim": "Jobs 2.2 \u2014 if/else `condition_task`",
     "witnesses": [
+      "ci:e2e-condition-task",
       "go:TestConditionRunsOnlyTheChosenBranchEndToEnd",
       "go:TestConditionOperatorFamiliesCompareDifferently",
       "go:TestOnlyTheNamedBranchRuns"
