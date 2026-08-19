@@ -2,7 +2,9 @@
 """Drive unmodified dbt-databricks against the warehouse HiveServer2 attach,
 then confirm the models with delta-rs.
 
-This is dbt talking to the warehouse, not Jobs dbt_task (still refused).
+This is dbt talking to the warehouse directly, not through Jobs dbt_task.
+dbt_task is implemented and runs dbt inside the spark-agent image; no e2e
+exercises that path yet.
 
 dbt exiting 0 is not a witness. The models are materialized onto a mounted
 volume as external Delta tables, and delta-rs -- which never spoke to dbt or

@@ -7,7 +7,8 @@ LOCATION) into an EXTERNAL path Sail can write. dbt exiting 0 is not a
 witness — delta-rs reads the managed volume, then a three-part SELECT
 runs through the warehouse.
 
-hive_metastore dbt (e2e/dbt) stays a Thrift smoke. Jobs dbt_task stays refused.
+hive_metastore dbt (e2e/dbt) stays a Thrift smoke. Neither suite covers
+Jobs dbt_task, which runs dbt inside the spark-agent image instead.
 """
 
 from __future__ import annotations
