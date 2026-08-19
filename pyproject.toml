@@ -43,6 +43,25 @@ dbt = [
 
 [tool.uv]
 package = false
+# sqlparse reaches this lock ONLY through dbt-core, which declares
+# `sqlparse<0.6.0,>=0.5.5`. Four advisories (GHSA-prg7-hcfm-mfcr,
+# GHSA-pwgv-4x5q-6m9f, GHSA-f2ff-p2ww-7p4p, GHSA-3496-9g83-7v6x) all name
+# 0.6.0 as the first patched version, so there is no dbt release to upgrade
+# INTO that takes a fixed sqlparse: the choice is this override or living with
+# them. A constraint cannot do it -- narrowing cannot satisfy `<0.6.0` and
+# `>=0.6.0` at once -- so the maintainer's upper bound has to be overridden.
+#
+# Overriding an upper bound is a deliberate deviation. fabric-emulator measured
+# it first (dbt touches sqlparse only in `dbt/compilation.py`, and
+# `inject_ctes_into_sql` returns byte-identical output under 0.5.5 and 0.6.0),
+# and here it is additionally exercised end to end by e2e-dbt and e2e-dbt-uc,
+# which run real dbt from THIS lock. e2e-dbt-task is deliberately not on that
+# list: its dbt lives in the spark-agent image and its suite asserts the host
+# has none, so it says nothing about the sqlparse resolved here.
+#
+# Re-check when dbt-core relaxes the bound: this override should then be
+# DELETED rather than left to pin the ecosystem quietly.
+override-dependencies = ["sqlparse>=0.6.0"]
 # 1.12.4 needs databricks-sdk<0.118; the other groups pin 0.129.0.
 conflicts = [
     [
