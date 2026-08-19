@@ -33,6 +33,23 @@ type Condition struct {
 	Right string
 }
 
+// Dbt is a dbt_task. `DbtTask` in databricks-sdk 0.129.0 is
+// {commands, catalog, profiles_directory, project_directory, schema, source,
+// warehouse_id}.
+//
+// Commands are dbt's own argv, e.g. ["dbt deps", "dbt run"]. WarehouseID names
+// the SQL warehouse the models execute against, which is the same handle a
+// client would target directly: dbt is a warehouse client, and running it as a
+// job changes who invokes it, not what it connects to.
+type Dbt struct {
+	Commands          []string
+	Catalog           string
+	Schema            string
+	ProjectDirectory  string
+	ProfilesDirectory string
+	WarehouseID       string
+}
+
 // Task is one node in a job DAG.
 type Task struct {
 	Key            string
@@ -44,6 +61,7 @@ type Task struct {
 	PythonParams   []string
 	SQLFile        string
 	Condition      *Condition
+	Dbt            *Dbt
 	SparkEnvVars   map[string]string
 	SparkConf      map[string]string
 }

@@ -1,0 +1,367 @@
+package server
+
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/calvinchengx/databricks-emulator/internal/spark"
+	"github.com/calvinchengx/databricks-emulator/internal/store"
+)
+
+// Databricks documents dbt_task.commands as whole command lines, "dbt run".
+// dbtRunner takes the arguments AFTER the CLI's own name, so the leading "dbt"
+// is dropped. Passing it through makes dbt look for a subcommand called "dbt"
+// and fail on a project that is perfectly fine.
+func TestDbtArgvDropsTheCLIName(t *testing.T) {
+	for _, tc := range []struct {
+		in   []string
+		want [][]string
+	}{
+		{[]string{"dbt run"}, [][]string{{"run"}}},
+		{[]string{"dbt test --select gold"}, [][]string{{"test", "--select", "gold"}}},
+		// Databricks' UI writes them with the prefix; the API accepts either.
+		{[]string{"run"}, [][]string{{"run"}}},
+		{[]string{"dbt deps", "dbt run"}, [][]string{{"deps"}, {"run"}}},
+		// Empty and whitespace-only entries carry no command and are dropped
+		// rather than becoming an empty invocation dbt reports obscurely.
+		{[]string{"dbt", "   ", ""}, nil},
+	} {
+		if got := dbtArgv(tc.in); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("dbtArgv(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
+// The generated statement must carry the project, a profile aimed at THIS
+// emulator's warehouse, and dbt's argv. Asserted on the code rather than on a
+// live agent, because the agent is what this repo attaches rather than owns.
+func TestDbtCodeCarriesProjectProfileAndArgv(t *testing.T) {
+	d := &store.Dbt{
+		Commands:         []string{"dbt run"},
+		ProjectDirectory: "/gold",
+		WarehouseID:      "wh-1",
+		Catalog:          "main",
+		Schema:           "gold",
+	}
+	files := map[string][]byte{
+		"dbt_project.yml":   []byte("name: gold\n"),
+		"models/fct.sql":    []byte("select 1"),
+		"models/schema.yml": []byte("version: 2\n"),
+	}
+	code := dbtCode(d, files, "http://127.0.0.1:8447", "dapi-secret")
+
+	// The project travels inline: every file, base64'd, so no shared volume is
+	// needed between this process and the agent container.
+	for name := range files {
+		if !strings.Contains(code, name) {
+			t.Errorf("generated code does not carry %q", name)
+		}
+	}
+	// The profile points at the emulator itself, on the named warehouse.
+	for _, want := range []string{
+		"http://127.0.0.1:8447",
+		"/sql/1.0/warehouses/wh-1",
+		"dapi-secret",
+		`\"catalog\":\"main\"`,
+		`\"schema\":\"gold\"`,
+	} {
+		if !strings.Contains(code, want) {
+			t.Errorf("generated code is missing %s", want)
+		}
+	}
+	if !strings.Contains(code, "dbtRunner") {
+		t.Error("generated code does not invoke dbt")
+	}
+	// A missing dbt on the agent has to say so. Without this the operator sees
+	// a bare ImportError and no indication that the agent image is the thing
+	// to change.
+	if !strings.Contains(code, "dbt-databricks on the statement agent") {
+		t.Error("generated code does not name the agent when dbt is absent")
+	}
+}
+
+// The same project must produce the same statement. Go map order is random, so
+// building the payload straight from the map makes two identical runs differ.
+func TestDbtCodeIsStableAcrossRuns(t *testing.T) {
+	d := &store.Dbt{Commands: []string{"dbt run"}, ProjectDirectory: "/g", WarehouseID: "w"}
+	files := map[string][]byte{}
+	for _, n := range []string{"dbt_project.yml", "a.sql", "b.sql", "c.sql", "d.sql", "e.sql"} {
+		files[n] = []byte(n)
+	}
+	first := dbtCode(d, files, "http://h", "t")
+	for i := 0; i < 20; i++ {
+		if got := dbtCode(d, files, "http://h", "t"); got != first {
+			t.Fatal("the same project produced two different statements; the file " +
+				"payload is being built in map order")
+		}
+	}
+}
+
+// A dbt_task runs against the warehouse it names. An unknown warehouse fails
+// here, naming it, rather than inside dbt as a transport error that mentions
+// neither the warehouse nor the task.
+func TestDbtTaskFailsNamingAnUnknownWarehouse(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	seedDbtProject(t, h)
+
+	var created map[string]any
+	if code := h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "gold",
+		"tasks": []map[string]any{{"task_key": "g", "dbt_task": map[string]any{
+			"commands": []any{"dbt run"}, "project_directory": "/gold",
+			"warehouse_id": "nope",
+		}}},
+	}, &created); code != 200 {
+		t.Fatalf("create = %d", code)
+	}
+	var run map[string]any
+	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
+	got := h.waitRun(int64(run["run_id"].(float64)))
+
+	if st := got["state"].(map[string]any)["result_state"]; st != "FAILED" {
+		t.Fatalf("result_state = %v, want FAILED", st)
+	}
+	var out map[string]any
+	h.json("GET", "/api/2.2/jobs/runs/get-output?run_id="+itoa(int64(run["run_id"].(float64))), pat, nil, &out)
+	if !strings.Contains(strings.ToLower(str(out["error"])), "nope") {
+		t.Errorf("the failure does not name the warehouse: %v", out["error"])
+	}
+}
+
+// The whole path, through the REST the SDK drives: create a dbt_task, run it,
+// and assert the statement the AGENT received is a dbt invocation over this
+// emulator's own warehouse.
+func TestDbtTaskReachesTheAgentAsADbtInvocation(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	seedDbtProject(t, h)
+	wh := h.srv.Store.SQL.CreateWarehouse("gold-wh", "SMALL")
+
+	var seen spark.Request
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		seen = req
+		return spark.Result{OK: true, Stdout: "dbt ok: run"}, nil
+	}
+
+	var created map[string]any
+	if code := h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "gold",
+		"tasks": []map[string]any{{"task_key": "g", "dbt_task": map[string]any{
+			"commands": []any{"dbt deps", "dbt run"}, "project_directory": "/gold",
+			"warehouse_id": wh.ID, "catalog": "main", "schema": "gold",
+		}}},
+	}, &created); code != 200 {
+		t.Fatalf("create = %d", code)
+	}
+	var run map[string]any
+	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
+	got := h.waitRun(int64(run["run_id"].(float64)))
+
+	if st := got["state"].(map[string]any)["result_state"]; st != "SUCCESS" {
+		t.Fatalf("result_state = %v, want SUCCESS", st)
+	}
+	// It goes as python, not a shell: the agent executes statements and is not
+	// a shell, so a shell-out would be inventing a capability it lacks.
+	if seen.Kind != "python" {
+		t.Errorf("agent Kind = %q, want python", seen.Kind)
+	}
+	if !strings.Contains(seen.Code, "dbtRunner") {
+		t.Error("the agent did not receive a dbt invocation")
+	}
+	if !strings.Contains(seen.Code, "/sql/1.0/warehouses/"+wh.ID) {
+		t.Error("the generated profile does not target the warehouse the task named")
+	}
+	// Both commands, in order.
+	var argv [][]string
+	for _, line := range strings.Split(seen.Code, "\n") {
+		if strings.HasPrefix(line, "_argv = json.loads(") {
+			raw := line[len("_argv = json.loads(") : len(line)-1]
+			var unq string
+			if err := json.Unmarshal([]byte(raw), &unq); err == nil {
+				_ = json.Unmarshal([]byte(unq), &argv)
+			}
+		}
+	}
+	if !reflect.DeepEqual(argv, [][]string{{"deps"}, {"run"}}) {
+		t.Errorf("argv = %v, want [[deps] [run]]", argv)
+	}
+}
+
+// A project directory that is not a dbt project is refused before anything is
+// sent to the agent, naming what is missing.
+func TestDbtTaskRefusesADirectoryWithNoProjectFile(t *testing.T) {
+	h := newHarness(t)
+	_ = h.srv.Store.Workspace.Mkdir("/notgold")
+	_ = h.srv.Store.Workspace.Put("/notgold/x.sql", []byte("select 1"), "FILE", "SQL")
+
+	_, err := h.srv.dbtProjectFiles("/notgold")
+	if err == nil {
+		t.Fatal("a directory with no dbt_project.yml was accepted")
+	}
+	if !strings.Contains(err.Error(), "dbt_project.yml") {
+		t.Errorf("the refusal does not name dbt_project.yml: %v", err)
+	}
+}
+
+func seedDbtProject(t *testing.T, h *harness) {
+	t.Helper()
+	_ = h.srv.Store.Workspace.Mkdir("/gold")
+	_ = h.srv.Store.Workspace.Mkdir("/gold/models")
+	_ = h.srv.Store.Workspace.Put("/gold/dbt_project.yml", []byte("name: gold\nversion: '1'\n"), "FILE", "PYTHON")
+	_ = h.srv.Store.Workspace.Put("/gold/models/fct.sql", []byte("select 1 as n"), "FILE", "SQL")
+}
+
+// Every way a dbt_task can be malformed is refused at CREATE, each naming the
+// field. A task accepted here and failed at run time costs a whole dispatch to
+// learn something the request already showed.
+func TestDbtTaskValidationRefusesByField(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	for _, tc := range []struct {
+		name string
+		dbt  map[string]any
+		want string
+	}{
+		{"no commands", map[string]any{
+			"project_directory": "/gold", "warehouse_id": "w"}, "commands"},
+		{"no project", map[string]any{
+			"commands": []any{"dbt run"}, "warehouse_id": "w"}, "project_directory"},
+		{"no warehouse", map[string]any{
+			"commands": []any{"dbt run"}, "project_directory": "/gold"}, "warehouse_id"},
+		{"git source", map[string]any{
+			"commands": []any{"dbt run"}, "project_directory": "/gold",
+			"warehouse_id": "w", "source": "GIT"}, "source"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out map[string]any
+			code := h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+				"name":  "x",
+				"tasks": []map[string]any{{"task_key": "g", "dbt_task": tc.dbt}},
+			}, &out)
+			if code == 200 {
+				t.Fatalf("%s was accepted", tc.name)
+			}
+			if !strings.Contains(fmt.Sprint(out), tc.want) {
+				t.Errorf("the refusal does not name %s: %v", tc.want, out)
+			}
+		})
+	}
+}
+
+// A project directory that does not exist fails naming it, rather than
+// reaching the agent with an empty project.
+func TestDbtProjectDirectoryMustExist(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.srv.dbtProjectFiles("/nope"); err == nil {
+		t.Fatal("a missing project_directory was accepted")
+	}
+}
+
+// Nested model directories are walked, not just the project root: a dbt
+// project keeps its models one level down by convention, so a non-recursive
+// read would ship a project with no models and dbt would build nothing.
+func TestDbtProjectWalksNestedDirectories(t *testing.T) {
+	h := newHarness(t)
+	seedDbtProject(t, h)
+	_ = h.srv.Store.Workspace.Mkdir("/gold/models/marts")
+	_ = h.srv.Store.Workspace.Put("/gold/models/marts/deep.sql", []byte("select 2"), "FILE", "SQL")
+
+	files, err := h.srv.dbtProjectFiles("/gold")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := files["models/marts/deep.sql"]; !ok {
+		t.Fatalf("a nested model was not collected: %v", keysOf(files))
+	}
+	// Paths are relative to the project root, since that is what dbt is handed.
+	for p := range files {
+		if strings.HasPrefix(p, "/") {
+			t.Errorf("path %q is absolute; dbt is given a project root", p)
+		}
+	}
+}
+
+// The agent refusing the statement is reported as a failed task carrying what
+// the agent said, not as a success with empty output.
+func TestDbtTaskReportsAnAgentFailure(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	seedDbtProject(t, h)
+	wh := h.srv.Store.SQL.CreateWarehouse("w", "SMALL")
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		return spark.Result{OK: false, EName: "SystemExit", EValue: "dbt run failed: boom"}, nil
+	}
+	var created map[string]any
+	h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "gold",
+		"tasks": []map[string]any{{"task_key": "g", "dbt_task": map[string]any{
+			"commands": []any{"dbt run"}, "project_directory": "/gold", "warehouse_id": wh.ID,
+		}}},
+	}, &created)
+	var run map[string]any
+	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
+	got := h.waitRun(int64(run["run_id"].(float64)))
+	if st := got["state"].(map[string]any)["result_state"]; st != "FAILED" {
+		t.Fatalf("result_state = %v, want FAILED", st)
+	}
+	var out map[string]any
+	h.json("GET", "/api/2.2/jobs/runs/get-output?run_id="+itoa(int64(run["run_id"].(float64))), pat, nil, &out)
+	if !strings.Contains(str(out["error"]), "boom") {
+		t.Errorf("the agent's message was lost: %v", out["error"])
+	}
+}
+
+func keysOf(m map[string][]byte) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// The size bound fires before anything is sent. A project_directory pointed at
+// a data directory by mistake would otherwise be base64'd into one statement,
+// and the agent's error would be about a body it could not read rather than
+// about the path that was wrong.
+func TestDbtProjectSizeIsBounded(t *testing.T) {
+	h := newHarness(t)
+	_ = h.srv.Store.Workspace.Mkdir("/big")
+	_ = h.srv.Store.Workspace.Put("/big/dbt_project.yml", []byte("name: big\n"), "FILE", "PYTHON")
+	chunk := make([]byte, 1<<20)
+	for i := 0; i < 9; i++ {
+		_ = h.srv.Store.Workspace.Put(fmt.Sprintf("/big/f%d.bin", i), chunk, "FILE", "PYTHON")
+	}
+	_, err := h.srv.dbtProjectFiles("/big")
+	if err == nil {
+		t.Fatal("an oversized project_directory was accepted")
+	}
+	if !strings.Contains(err.Error(), "data directory") {
+		t.Errorf("the refusal does not explain the likely cause: %v", err)
+	}
+}
+
+// A transport failure reaching the agent is a failed task carrying the
+// transport's own words, not a success.
+func TestDbtTaskReportsATransportFailure(t *testing.T) {
+	h := newHarness(t)
+	seedDbtProject(t, h)
+	wh := h.srv.Store.SQL.CreateWarehouse("w", "SMALL")
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		return spark.Result{}, fmt.Errorf("spark agent: connection refused")
+	}
+	tr := h.srv.runDbtTask(store.Task{Key: "g", Dbt: &store.Dbt{
+		Commands: []string{"dbt run"}, ProjectDirectory: "/gold", WarehouseID: wh.ID,
+	}}, nil, nil)
+	if tr.ResultState != "FAILED" {
+		t.Fatalf("ResultState = %q, want FAILED", tr.ResultState)
+	}
+	if !strings.Contains(tr.Stderr, "connection refused") {
+		t.Errorf("the transport error was lost: %q", tr.Stderr)
+	}
+}
