@@ -23,6 +23,9 @@ jobs:
   secrets:
     name: gitleaks
     runs-on: ubuntu-latest
+    # A wedged run must fail rather than sit in GitHub's 6-hour default,
+    # where 'pending' and 'stuck' look identical.
+    timeout-minutes: 15
     steps:
       # Full history: a secret that was committed and then removed is still in
       # the pack, still cloneable, and still leaked. Scanning only the tip
@@ -45,11 +48,17 @@ jobs:
         run: gitleaks dir . --config .gitleaks.toml --no-banner --redact --verbose
 
       - name: Scan the history
-        run: gitleaks git . --config .gitleaks.toml --no-banner --redact
+      # --verbose here too, and it is not noise: without it a failing scan
+      # logs "leaks found: 3" and nothing else, so the one job whose whole
+      # output is "which line" names no line. --redact still masks the value.
+        run: gitleaks git . --config .gitleaks.toml --no-banner --redact --verbose
 
   vulnerabilities:
     name: govulncheck
     runs-on: ubuntu-latest
+    # A wedged run must fail rather than sit in GitHub's 6-hour default,
+    # where 'pending' and 'stuck' look identical.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
