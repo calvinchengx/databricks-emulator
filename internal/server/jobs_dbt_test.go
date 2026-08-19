@@ -493,7 +493,6 @@ func TestGeneratedDbtCodeEmitsArtefactsBeforeRaising(t *testing.T) {
 	}
 }
 
-
 // strconvQuote is strconv.Quote under a local name, so the test reads as
 // "this JSON, embedded as a JSON string" rather than as an import detail.
 func strconvQuote(s string) string { return strconv.Quote(s) }
