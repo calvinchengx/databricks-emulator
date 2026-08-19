@@ -1,0 +1,29 @@
+name: emulator_dbt_task
+version: "1.0.0"
+config-version: 2
+profile: databricks_emulator
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+# The profile name is NOT free: dbt_task generates the profile itself, under
+# the key `databricks_emulator`, so a project naming anything else would send
+# dbt looking for a profile that was never written. That coupling is the point
+# of the fixture -- it is what a user's project has to satisfy.
+#
+# v2 builds a temp view then INSERT BY NAME. The classic path is
+# CREATE OR REPLACE TABLE … AS SELECT, which is the SQL this attach runs.
+flags:
+  send_anonymous_usage_stats: false
+  use_materialization_v2: false
+query-comment: ""
+models:
+  emulator_dbt_task:
+    +materialized: table
+    +file_format: delta
+    # dbt's tables live in Sail's in-process catalog, where only Sail can read
+    # them -- which would leave "the run said SUCCESS" as the only evidence.
+    # Each model publishes an external Delta copy onto the mounted volume, and
+    # delta-rs reads that back without ever speaking to dbt, to the agent, or
+    # to Sail. See e2e/dbt for why this is a post-hook copy and not
+    # +location_root.
+    +post-hook: "create or replace table `{{ this.identifier }}__witness` using delta location 'file:///data/dbt/{{ this.identifier }}' as select * from {{ this }}"

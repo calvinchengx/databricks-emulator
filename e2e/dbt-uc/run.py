@@ -8,7 +8,7 @@ witness — delta-rs reads the managed volume, then a three-part SELECT
 runs through the warehouse.
 
 hive_metastore dbt (e2e/dbt) stays a Thrift smoke. Neither suite covers
-Jobs dbt_task, which runs dbt inside the spark-agent image instead.
+Jobs dbt_task; e2e/dbt-task does, by running dbt inside the agent.
 """
 
 from __future__ import annotations

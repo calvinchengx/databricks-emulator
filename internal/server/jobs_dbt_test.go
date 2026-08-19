@@ -5,12 +5,56 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/calvinchengx/databricks-emulator/internal/hs2"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
+
+// profileHTTPPath pulls http_path out of the profile the generated statement
+// carries. It decodes the embedded literal the way the agent will -- Go quoted
+// string, then JSON -- rather than grepping the source, so a change in how the
+// profile is embedded surfaces here instead of quietly matching nothing.
+func profileHTTPPath(t *testing.T, code string) string {
+	t.Helper()
+	const marker = "_profile = json.loads("
+	i := strings.Index(code, marker)
+	if i < 0 {
+		t.Fatal("generated code carries no profile")
+	}
+	rest := code[i+len(marker):]
+	j := strings.Index(rest, ")\n")
+	if j < 0 {
+		t.Fatal("the profile literal is not terminated")
+	}
+	raw, err := strconv.Unquote(rest[:j])
+	if err != nil {
+		t.Fatalf("profile literal is not a Go quoted string: %v", err)
+	}
+	var prof map[string]any
+	if err := json.Unmarshal([]byte(raw), &prof); err != nil {
+		t.Fatalf("profile is not JSON: %v", err)
+	}
+	node := any(prof)
+	for _, key := range []string{"databricks_emulator", "outputs", "emulator", "http_path"} {
+		m, ok := node.(map[string]any)
+		if !ok {
+			t.Fatalf("profile is not the shape dbt reads: %q is not under a map: %s", key, raw)
+		}
+		node, ok = m[key]
+		if !ok {
+			t.Fatalf("profile has no %q: %s", key, raw)
+		}
+	}
+	out, ok := node.(string)
+	if !ok {
+		t.Fatalf("profile http_path is not a string: %s", raw)
+	}
+	return out
+}
 
 // Databricks documents dbt_task.commands as whole command lines, "dbt run".
 // dbtRunner takes the arguments AFTER the CLI's own name, so the leading "dbt"
@@ -64,7 +108,7 @@ func TestDbtCodeCarriesProjectProfileAndArgv(t *testing.T) {
 	// The profile points at the emulator itself, on the named warehouse.
 	for _, want := range []string{
 		"http://127.0.0.1:8447",
-		"/sql/1.0/warehouses/wh-1",
+		hs2.WarehousePath("wh-1"),
 		"dapi-secret",
 		`\"catalog\":\"main\"`,
 		`\"schema\":\"gold\"`,
@@ -75,6 +119,20 @@ func TestDbtCodeCarriesProjectProfileAndArgv(t *testing.T) {
 	}
 	if !strings.Contains(code, "dbtRunner") {
 		t.Error("generated code does not invoke dbt")
+	}
+	// The assertion that was missing, and the reason this test passed for
+	// months against a profile that could never connect: containing SOME path
+	// is not the property. The property is that the emulator ROUTES the path
+	// the profile names, so the path is parsed back with the same function the
+	// Thrift handler uses to resolve an incoming request.
+	httpPath := profileHTTPPath(t, code)
+	id, ok := hs2.WarehouseID(httpPath)
+	if !ok {
+		t.Fatalf("the profile names http_path %q, which no route serves: "+
+			"hs2.WarehouseID rejects it, so dbt would fail as a transport error", httpPath)
+	}
+	if id != "wh-1" {
+		t.Fatalf("http_path %q resolves to warehouse %q, not the one the task named", httpPath, id)
 	}
 	// A missing dbt on the agent has to say so. Without this the operator sees
 	// a bare ImportError and no indication that the agent image is the thing
@@ -173,8 +231,11 @@ func TestDbtTaskReachesTheAgentAsADbtInvocation(t *testing.T) {
 	if !strings.Contains(seen.Code, "dbtRunner") {
 		t.Error("the agent did not receive a dbt invocation")
 	}
-	if !strings.Contains(seen.Code, "/sql/1.0/warehouses/"+wh.ID) {
-		t.Error("the generated profile does not target the warehouse the task named")
+	// Routable, not merely present: the path the agent was handed is resolved
+	// with the same function the Thrift handler uses on the way back in.
+	if id, ok := hs2.WarehouseID(profileHTTPPath(t, seen.Code)); !ok || id != wh.ID {
+		t.Errorf("the profile's http_path resolves to %q (ok=%v), not the warehouse %q "+
+			"the task named; dbt would fail as a transport error", id, ok, wh.ID)
 	}
 	// Both commands, in order.
 	var argv [][]string

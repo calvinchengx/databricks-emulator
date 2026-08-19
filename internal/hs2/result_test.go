@@ -68,3 +68,29 @@ func TestWarehouseID(t *testing.T) {
 		t.Fatal("unknown path")
 	}
 }
+
+// The builder and the parser are one fact spelled twice; this is what keeps
+// them the same fact. dbt_task generated "/sql/1.0/warehouses/{id}" for months
+// and no unit test noticed, because nothing asserted that a path the emulator
+// HANDS OUT is a path it ACCEPTS.
+func TestWarehousePathRoundTrips(t *testing.T) {
+	for _, id := range []string{"wh-1", "abc123", "wh-a-b-c", "0123456789abcdef"} {
+		path := WarehousePath(id)
+		got, ok := WarehouseID(path)
+		if !ok {
+			t.Fatalf("WarehouseID(%q) rejected a path WarehousePath built", path)
+		}
+		if got != id {
+			t.Fatalf("round trip: WarehousePath(%q) -> %q -> %q", id, path, got)
+		}
+	}
+}
+
+// The spelling that was wrong, named so a future edit back to it fails here
+// rather than in an e2e nobody runs locally.
+func TestWarehousesSpellingIsNotAPath(t *testing.T) {
+	if _, ok := WarehouseID("/sql/1.0/warehouses/wh-1"); ok {
+		t.Fatal("/sql/1.0/warehouses/ parsed; the router serves /sql/1.0/endpoints/ only, " +
+			"so accepting it here would hide a profile that cannot connect")
+	}
+}

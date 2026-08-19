@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/calvinchengx/databricks-emulator/internal/hs2"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
@@ -113,12 +114,26 @@ func dbtCode(d *store.Dbt, files map[string][]byte, host, token string) string {
 				"emulator": map[string]any{
 					"type":            "databricks",
 					"host":            host,
-					"http_path":       "/sql/1.0/warehouses/" + d.WarehouseID,
+					"http_path":       hs2.WarehousePath(d.WarehouseID),
 					"token":           token,
 					"catalog":         d.Catalog,
 					"schema":          d.Schema,
 					"threads":         1,
 					"connect_retries": 0,
+					// Without these the connector builds its own URL from
+					// `host`, forcing https and :443, and hangs there rather
+					// than failing -- the run sits in RUNNING with dbt stopped
+					// at "Opening a new connection, currently in state init".
+					// _connection_uri names the exact endpoint instead, which
+					// is what lets a plain-HTTP emulator be reached at all.
+					// Cloud Fetch is off because this warehouse refuses it;
+					// leaving it on makes the connector negotiate a path that
+					// is documented as unsupported here.
+					"connection_parameters": map[string]any{
+						"_connection_uri":  strings.TrimRight(host, "/") + hs2.WarehousePath(d.WarehouseID),
+						"use_cloud_fetch":  false,
+						"enable_telemetry": false,
+					},
 				},
 			},
 		},

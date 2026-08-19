@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-uc clean witnesses
+.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -85,6 +85,14 @@ e2e-dbt: ## Unmodified dbt-databricks table model over HiveServer2
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
 	$(UV) run --frozen --group dbt python e2e/dbt/run.py
+e2e-dbt-task: ## dbt as a Jobs dbt_task, run inside the statement agent
+	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
+	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
+	# The `delta` group, deliberately: it carries no dbt, so a pass means dbt
+	# ran on the AGENT. Run `uv sync --group delta --exact` first if an earlier
+	# `--group dbt` run left one in the shared venv -- the suite refuses to
+	# start rather than report a witness it cannot make.
+	$(UV) run --frozen --group delta python e2e/dbt-task/run.py
 e2e-dbt-uc: ## Unmodified dbt-databricks against a Unity Catalog catalog
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }

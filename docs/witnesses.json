@@ -82,6 +82,7 @@
     "section": "Jobs",
     "claim": "Jobs 2.2 \u2014 `dbt_task`",
     "witnesses": [
+      "ci:e2e-dbt-task",
       "go:TestDbtTaskReachesTheAgentAsADbtInvocation",
       "go:TestDbtCodeCarriesProjectProfileAndArgv",
       "go:TestDbtArgvDropsTheCLIName",

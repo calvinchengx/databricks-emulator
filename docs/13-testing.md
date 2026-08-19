@@ -81,7 +81,18 @@ is refused. That is HiveServer2, not `POST /api/2.0/sql/statements`.
 **`e2e-dbt`** — pinned `dbt-databricks==1.12.4`. hive_metastore Thrift
 smoke: `dbt debug` + `dbt run` of `one` / `two` over HiveServer2, then
 **delta-rs** reads a post-hook copy on a mounted volume. `token=dev` is
-refused. Jobs `dbt_task` is not this job.
+refused. Jobs `dbt_task` is not this job -- that is `e2e-dbt-task`, where
+the runner has no dbt at all and dbt runs on the agent.
+
+**`e2e-dbt-task`** — dbt as a JOB. Nothing on the runner has dbt: the suite
+runs under the `delta` group and asserts `import dbt` fails before it starts,
+so a pass cannot mean dbt ran locally. The project is imported into the
+workspace as RAW files, a `dbt_task` names it and a warehouse, and the emulator
+carries the project inline to the agent, where dbt runs against that warehouse
+over `host.docker.internal` — the agent dialling back out, which is what a
+dbt_task does on real Databricks. **delta-rs** confirms the rows from a
+post-hook copy, and `task_two` selects from `task_one` so a resolved-but-unrun
+DAG is a missing table rather than a green run.
 
 **`e2e-dbt-uc`** — the gold-shaped gate. Same adapter pin; `catalog: e2e`,
 `schema: gold`, `+file_format: delta`, no post-hook. UC OSS + Sail's

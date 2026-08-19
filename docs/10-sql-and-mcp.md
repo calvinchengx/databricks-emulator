@@ -73,7 +73,8 @@ the same HiveServer2 attach (`_connection_uri` so the connector does not
 force `https://`). With `catalog` set, CREATE TABLE is three-part and
 hits the managed-create shim (EXTERNAL path + UC register). Omitting
 `catalog` defaults to `hive_metastore` and lists via GetTables. Jobs
-`dbt_task` stays refused by name.
+`dbt_task` runs dbt against a warehouse over this same attach; see
+`ci:e2e-dbt-task`.
 
 Witness: `ci:e2e-dbt-uc` (gold / UC catalog). `ci:e2e-dbt` is hive_metastore
 Thrift smoke.
