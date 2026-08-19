@@ -122,11 +122,32 @@ func (s *Server) jobsRunsOutput(w http.ResponseWriter, r *http.Request, _ *auth.
 		writeError(w, http.StatusNotFound, "RESOURCE_DOES_NOT_EXIST", "run not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"metadata": runJSON(run),
 		"logs":     run.Stdout,
 		"error":    run.Stderr,
-	})
+	}
+	// dbt_output, when the run had a dbt_task and it produced artefacts.
+	//
+	// ABSENT RATHER THAN EMPTY when there are none, so "this run produced no
+	// artefacts" and "this was not a dbt run" stay distinguishable -- the same
+	// reason a snapshot omits contract_failures instead of carrying [].
+	//
+	// A DELIBERATE DEVIATION, named here rather than discovered: real
+	// Databricks returns `artifacts_link` and `artifacts_headers`, a URL the
+	// caller then fetches. This returns the files INLINE. A link would need an
+	// artefact store, an expiry and a second round trip to emulate something
+	// whose only purpose locally is to hand back one JSON file. Callers written
+	// against the real API will not find `artifacts_link` here; that is the
+	// cost, and it is why this is written down.
+	for _, tr := range run.Tasks {
+		if len(tr.DbtArtifacts) == 0 {
+			continue
+		}
+		out["dbt_output"] = map[string]any{"artifacts": tr.DbtArtifacts}
+		break
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) jobsRunsCancel(w http.ResponseWriter, r *http.Request, _ *auth.Principal) {

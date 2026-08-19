@@ -93,6 +93,10 @@ type TaskRun struct {
 	ConditionOutcome string
 	Stdout           string
 	Stderr           string
+	// What dbt wrote to target/, for a dbt_task. Present on a FAILED run too:
+	// a failing `dbt test` is precisely when run_results.json is worth having,
+	// because it names which test failed where the exit code does not.
+	DbtArtifacts map[string]string
 }
 
 // Jobs holds job definitions and runs.

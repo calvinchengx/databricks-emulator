@@ -36,6 +36,38 @@ const maxDbtProjectBytes = 8 << 20
 
 // dbtProjectFiles walks the workspace store under dir and returns
 // relative-path -> bytes.
+// The agent has one channel back to us -- stdout -- so the artefacts ride in
+// it between markers unlikely to occur in dbt's own output. They are lifted
+// out again before the logs are stored, so a caller reading `logs` sees what
+// dbt printed and nothing else.
+const (
+	dbtArtifactsOpen  = "<<<DBT-ARTIFACTS>>>"
+	dbtArtifactsClose = "<<<END-DBT-ARTIFACTS>>>"
+)
+
+// splitDbtArtifacts separates the artefact payload from dbt's own output.
+//
+// Returns the cleaned stdout and the artefacts as raw JSON. A run whose
+// payload is missing or malformed yields no artefacts and UNCHANGED stdout:
+// losing an artefact must not also lose the log that would explain why.
+func splitDbtArtifacts(stdout string) (string, map[string]string) {
+	start := strings.Index(stdout, dbtArtifactsOpen)
+	if start < 0 {
+		return stdout, nil
+	}
+	rest := stdout[start+len(dbtArtifactsOpen):]
+	end := strings.Index(rest, dbtArtifactsClose)
+	if end < 0 {
+		return stdout, nil
+	}
+	var arts map[string]string
+	if err := json.Unmarshal([]byte(rest[:end]), &arts); err != nil {
+		return stdout, nil
+	}
+	cleaned := stdout[:start] + rest[end+len(dbtArtifactsClose):]
+	return strings.TrimLeft(cleaned, "\n"), arts
+}
+
 func (s *Server) dbtProjectFiles(dir string) (map[string][]byte, error) {
 	root := strings.TrimRight(dir, "/")
 	if root == "" {
@@ -168,12 +200,30 @@ except ImportError as exc:
         "emulator-spark-agent onward; an older agent cannot run dbt." %% exc
     )
 _runner = dbtRunner()
+_failure = None
 for _cmd in _argv:
     _res = _runner.invoke(_cmd + ["--project-dir", str(_root), "--profiles-dir", str(_prof)])
     if not _res.success:
-        raise SystemExit("dbt %%s failed: %%s" %% (" ".join(_cmd), _res.exception))
+        _failure = "dbt %%s failed: %%s" %% (" ".join(_cmd), _res.exception)
+        break
+# THE ARTEFACT LEAVES BEFORE THE EXIT DOES, and that ordering is the whole
+# point. A failing dbt test is exactly when a caller needs run_results.json:
+# it names WHICH test failed and by how many rows, where the exit code says
+# only that something did. Emitting it after the raise would surface it on
+# every run except the ones that matter.
+#
+# run_results.json alone. manifest.json is large, changes on every parse, and
+# no caller has asked for it -- shipping it through stdout would cost every
+# run for a file nobody reads.
+_arts = {}
+_rr = _root / "target" / "run_results.json"
+if _rr.exists():
+    _arts["run_results.json"] = _rr.read_text(encoding="utf-8")
+print("%s" + json.dumps(_arts) + "%s")
+if _failure:
+    raise SystemExit(_failure)
 print("dbt ok:", " | ".join(" ".join(c) for c in _argv))
-`, string(filesJSON), string(argvJSON), string(profile))
+`, string(filesJSON), string(argvJSON), string(profile), dbtArtifactsOpen, dbtArtifactsClose)
 }
 
 // dbtArgv turns Databricks' command strings into dbt argv.
@@ -227,7 +277,9 @@ func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.Tas
 		tr.Stderr = err.Error()
 		return tr
 	}
-	tr.Stdout = res.Stdout
+	cleaned, arts := splitDbtArtifacts(res.Stdout)
+	tr.Stdout = cleaned
+	tr.DbtArtifacts = arts
 	tr.Stderr = res.EValue
 	if !res.OK {
 		tr.ResultState = "FAILED"
