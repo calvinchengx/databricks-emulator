@@ -37,6 +37,11 @@ type Server struct {
 	UC     *uc.Client
 	HS2    *hs2.Service
 	Origin string
+
+	// AgentOrigin is Origin as seen FROM THE STATEMENT AGENT. See
+	// config.AgentURL: the two differ whenever the client and the agent reach
+	// this process by different names.
+	AgentOrigin string
 }
 
 // New opens the store, OIDC issuer and authenticator.
@@ -59,6 +64,12 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 			host = "localhost" + host
 		}
 		origin = scheme + "://" + host
+	}
+	// Defaulting to origin keeps every existing deployment behaving as it did:
+	// where one name reaches this process from everywhere, the two ARE the same.
+	agentOrigin := cfg.AgentURL
+	if agentOrigin == "" {
+		agentOrigin = origin
 	}
 	iss, err := oidc.Load(cfg.DataDir, origin+"/oidc", origin, clk.Now)
 	if err != nil {
@@ -93,15 +104,16 @@ func New(cfg *config.Config, clk *clock.Clock, exec spark.Executor) (*Server, er
 		vault.Token = entra.NewMinter(cfg.EntraTokenURL, cfg.EntraClientID, cfg.EntraClientSecret, entraClient).VaultToken
 	}
 	srv := &Server{
-		Cfg:    cfg,
-		Store:  st,
-		Auth:   au,
-		OIDC:   iss,
-		Clock:  clk,
-		Spark:  exec,
-		AKV:    vault,
-		UC:     uc.New(cfg.UCURL, ucClient),
-		Origin: origin,
+		Cfg:         cfg,
+		Store:       st,
+		Auth:        au,
+		OIDC:        iss,
+		Clock:       clk,
+		Spark:       exec,
+		AKV:         vault,
+		UC:          uc.New(cfg.UCURL, ucClient),
+		Origin:      origin,
+		AgentOrigin: agentOrigin,
 	}
 	srv.HS2 = hs2.New(srv)
 	// Idle HS2 handles are reaped on the emulator clock, so a test can
