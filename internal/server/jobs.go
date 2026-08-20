@@ -794,7 +794,6 @@ func (s *Server) loadTaskCode(t store.Task) (code, path string, err error) {
 	if p == "" {
 		p = t.SQLFile
 	}
-	path = p
 	if strings.HasPrefix(p, "dbfs:") {
 		b, err := s.Store.DBFS.Get(p)
 		return string(b), p, err

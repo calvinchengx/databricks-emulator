@@ -124,22 +124,26 @@ func TestServiceRefusals(t *testing.T) {
 		t.Fatalf("params %+v", params)
 	}
 
+	// Every remaining HS2 method, called only to prove it answers rather
+	// than panicking. The results are deliberately discarded, and saying so
+	// with `_, _ =` is the difference between an ignored error and an
+	// overlooked one.
 	if info, _ := s.GetInfo(ctx, &cliservice.TGetInfoReq{}); info.Status.StatusCode != cliservice.TStatusCode_ERROR_STATUS {
 		t.Fatalf("GetInfo %+v", info)
 	}
-	s.GetTypeInfo(ctx, &cliservice.TGetTypeInfoReq{})
-	s.GetCatalogs(ctx, &cliservice.TGetCatalogsReq{})
-	s.GetTableTypes(ctx, &cliservice.TGetTableTypesReq{})
-	s.GetColumns(ctx, &cliservice.TGetColumnsReq{})
-	s.GetFunctions(ctx, &cliservice.TGetFunctionsReq{})
-	s.GetPrimaryKeys(ctx, &cliservice.TGetPrimaryKeysReq{})
-	s.GetCrossReference(ctx, &cliservice.TGetCrossReferenceReq{})
-	s.GetDelegationToken(ctx, &cliservice.TGetDelegationTokenReq{})
-	s.CancelDelegationToken(ctx, &cliservice.TCancelDelegationTokenReq{})
-	s.RenewDelegationToken(ctx, &cliservice.TRenewDelegationTokenReq{})
-	s.GetOperationStatus(ctx, nil)
-	s.GetResultSetMetadata(ctx, nil)
-	s.FetchResults(ctx, nil)
+	_, _ = s.GetTypeInfo(ctx, &cliservice.TGetTypeInfoReq{})
+	_, _ = s.GetCatalogs(ctx, &cliservice.TGetCatalogsReq{})
+	_, _ = s.GetTableTypes(ctx, &cliservice.TGetTableTypesReq{})
+	_, _ = s.GetColumns(ctx, &cliservice.TGetColumnsReq{})
+	_, _ = s.GetFunctions(ctx, &cliservice.TGetFunctionsReq{})
+	_, _ = s.GetPrimaryKeys(ctx, &cliservice.TGetPrimaryKeysReq{})
+	_, _ = s.GetCrossReference(ctx, &cliservice.TGetCrossReferenceReq{})
+	_, _ = s.GetDelegationToken(ctx, &cliservice.TGetDelegationTokenReq{})
+	_, _ = s.CancelDelegationToken(ctx, &cliservice.TCancelDelegationTokenReq{})
+	_, _ = s.RenewDelegationToken(ctx, &cliservice.TRenewDelegationTokenReq{})
+	_, _ = s.GetOperationStatus(ctx, nil)
+	_, _ = s.GetResultSetMetadata(ctx, nil)
+	_, _ = s.FetchResults(ctx, nil)
 }
 
 func TestServeHTTPOpenSession(t *testing.T) {

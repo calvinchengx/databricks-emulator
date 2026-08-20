@@ -47,17 +47,35 @@ func (s *Server) sparkConnect(w http.ResponseWriter, r *http.Request, _ *auth.Pr
 		writeError(w, http.StatusBadGateway, "ABORTED", err.Error())
 		return
 	}
-	proxy := httputil.NewSingleHostReverseProxy(u)
+	// Constructed directly rather than via NewSingleHostReverseProxy, which
+	// installs a Director. ReverseProxy rejects having both set at once
+	// ("must have exactly one of Director or Rewrite"), so taking the
+	// constructor and then adding a Rewrite fails at request time, not
+	// build time.
+	proxy := &httputil.ReverseProxy{}
 	proxy.FlushInterval = -1
 	proxy.Transport = connectTransport()
 	proxy.ErrorHandler = func(rw http.ResponseWriter, _ *http.Request, err error) {
 		writeError(rw, http.StatusBadGateway, "ABORTED", "spark connect: "+err.Error())
 	}
-	proxy.Director = func(req *http.Request) {
-		req.URL.Scheme = u.Scheme
-		req.URL.Host = u.Host
-		req.Host = u.Host
-		req.Header.Del("Authorization")
+	// Rewrite, not Director: Director is deprecated as of Go 1.26, which this
+	// module now requires.
+	//
+	// The swap is not purely mechanical. ReverseProxy appends X-Forwarded-For
+	// itself for a Director, and does NOT for a Rewrite: the caller has to ask
+	// via SetXForwarded. Omitting it would silently drop a header this proxy
+	// used to send, so it is called here to keep behaviour identical.
+	//
+	// The path is deliberately NOT joined with u.Path. NewSingleHostReverseProxy
+	// installs a Director that joins them, and replacing that Director was how
+	// the original avoided it; SetURL would reintroduce the join, so the fields
+	// are set directly instead.
+	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
+		pr.SetXForwarded()
+		pr.Out.URL.Scheme = u.Scheme
+		pr.Out.URL.Host = u.Host
+		pr.Out.Host = u.Host
+		pr.Out.Header.Del("Authorization")
 	}
 	proxy.ServeHTTP(w, r)
 }

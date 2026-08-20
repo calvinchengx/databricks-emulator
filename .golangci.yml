@@ -1,0 +1,29 @@
+version: "2"
+linters:
+  default: none
+  enable: [errcheck, govet, ineffassign, staticcheck, unused]
+  settings:
+    errcheck:
+      # Deferred cleanup and writes to a response/stdout. The return value is
+      # unactionable at these call sites: the connection is already going away,
+      # or the client has already disconnected. Everything else must be checked.
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (*database/sql.Tx).Rollback
+        - (net.Conn).Close
+        - (net.Listener).Close
+        - (*net/http.Server).Close
+        - (io.ReadCloser).Close
+        - (net/http.ResponseWriter).Write
+        - fmt.Fprintf
+        - fmt.Fprint
+        - fmt.Fprintln
+issues:
+  # Defaults cap identical issues at 3 and each linter at 50, which turns a
+  # count into an underestimate: six identical unchecked Close calls reported
+  # as three. Uncapped, so the number means what it says.
+  max-same-issues: 0
+  max-issues-per-linter: 0

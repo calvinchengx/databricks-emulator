@@ -182,6 +182,10 @@ func (s *Secrets) Put(scope, key, value string) error {
 		return fmt.Errorf("scope not found")
 	}
 	if sc.Backend == BackendAzureKeyVault {
+		// Databricks' own wording, and this repo documents it as what a caller
+		// sees (docs/09-secrets.md); the server writes it through as
+		// writeError(..., err.Error()). Wire format, not a Go error string.
+		//nolint:staticcheck // ST1005: Databricks message, not Go idiom
 		return fmt.Errorf("Cannot write secrets to Azure KeyVault-backed scope")
 	}
 	if strings.TrimSpace(key) == "" {
@@ -200,6 +204,10 @@ func (s *Secrets) DeleteKey(scope, key string) error {
 		return fmt.Errorf("scope not found")
 	}
 	if sc.Backend == BackendAzureKeyVault {
+		// Databricks' own wording, and this repo documents it as what a caller
+		// sees (docs/09-secrets.md); the server writes it through as
+		// writeError(..., err.Error()). Wire format, not a Go error string.
+		//nolint:staticcheck // ST1005: Databricks message, not Go idiom
 		return fmt.Errorf("Cannot write secrets to Azure KeyVault-backed scope")
 	}
 	if _, ok := sc.keys[key]; !ok {
