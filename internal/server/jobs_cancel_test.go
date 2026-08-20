@@ -61,7 +61,7 @@ func TestCancelStopsDispatchingFurtherTasks(t *testing.T) {
 	run := h.srv.Store.Jobs.NewRun(job.ID)
 	runID = run.ID
 	done := make(chan struct{})
-	go func() { h.srv.executeRun(job, run); close(done) }()
+	go func() { h.srv.executeRun(job, run, 0); close(done) }()
 
 	select {
 	case <-done:

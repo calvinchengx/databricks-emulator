@@ -62,8 +62,28 @@ type Task struct {
 	SQLFile        string
 	Condition      *Condition
 	Dbt            *Dbt
+	RunJob         *RunJob
+	ForEach        *ForEach
 	SparkEnvVars   map[string]string
 	SparkConf      map[string]string
+}
+
+// RunJob is a run_job_task: this task's work is another job's run.
+type RunJob struct {
+	JobID  int64
+	Params map[string]string
+}
+
+// ForEach is a for_each_task: run one nested task once per input.
+//
+// Inputs is the DECODED list. The API carries it as a JSON-encoded *string*
+// (`"[\"a\",\"b\"]"`), which is easy to mistake for a list and is decoded at
+// parse time so a malformed one is refused when the job is created rather than
+// when it runs.
+type ForEach struct {
+	Inputs      []string
+	Concurrency int
+	Task        *Task
 }
 
 // Run is a job execution record.
@@ -91,8 +111,14 @@ type TaskRun struct {
 	LifeCycle        string
 	ResultState      string
 	ConditionOutcome string
-	Stdout           string
-	Stderr           string
+	// ChildRunID is the run a run_job_task started, so a client can fetch it.
+	// Real Databricks reports it as run_job_output.run_id; without it the
+	// caller sees a SUCCESS with no way to reach what actually ran.
+	ChildRunID int64
+	// Iterations are a for_each_task's per-input results, in input order.
+	Iterations []TaskRun
+	Stdout     string
+	Stderr     string
 	// What dbt wrote to target/, for a dbt_task. Present on a FAILED run too:
 	// a failing `dbt test` is precisely when run_results.json is worth having,
 	// because it names which test failed where the exit code does not.
