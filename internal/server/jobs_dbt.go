@@ -117,6 +117,43 @@ func (s *Server) dbtProjectFiles(dir string) (map[string][]byte, error) {
 	return out, nil
 }
 
+// defaultDbtProfile is the profile name used when a project declares none.
+// dbt itself requires `profile:`, so this is the name for a project dbt would
+// have rejected anyway -- it keeps the generator total rather than making an
+// absent key a second error path.
+const defaultDbtProfile = "databricks_emulator"
+
+// projectProfileName returns the profile name a dbt project asks for.
+//
+// dbt resolves `profile:` from dbt_project.yml against profiles.yml, so a
+// generated profile filed under any OTHER key sends dbt looking for one that
+// was never written. This generated `databricks_emulator` unconditionally,
+// which meant a real project could only run here by RENAMING ITS OWN PROFILE
+// -- an edit that makes the project emulator-only, on the one surface whose
+// entire purpose is rehearsing what will later run against Databricks. The
+// project that found this is contoso-data-product's gold, which names its
+// profile `contoso_gold` because that is what it is called everywhere else.
+//
+// Scanned, not parsed. This is one top-level scalar, and taking a YAML
+// dependency to read it would be a larger change than the defect. Only a key
+// at column zero counts, so a `profile:` nested inside some other block is
+// never mistaken for the project's own.
+func projectProfileName(b []byte) string {
+	for _, line := range strings.Split(string(b), "\n") {
+		rest, ok := strings.CutPrefix(line, "profile:")
+		if !ok {
+			continue
+		}
+		if i := strings.Index(rest, "#"); i >= 0 {
+			rest = rest[:i]
+		}
+		if v := strings.Trim(strings.TrimSpace(rest), "\"'"); v != "" {
+			return v
+		}
+	}
+	return defaultDbtProfile
+}
+
 // dbtCode is the Python the agent runs: materialise the project, write a
 // profile pointing back at this emulator's warehouse, then invoke dbt.
 //
@@ -140,7 +177,7 @@ func dbtCode(d *store.Dbt, files map[string][]byte, host, token string) string {
 	filesJSON, _ := json.Marshal(payload)
 	argvJSON, _ := json.Marshal(dbtArgv(d.Commands))
 	profile, _ := json.Marshal(map[string]any{
-		"databricks_emulator": map[string]any{
+		projectProfileName(files["dbt_project.yml"]): map[string]any{
 			"target": "emulator",
 			"outputs": map[string]any{
 				"emulator": map[string]any{
