@@ -40,6 +40,8 @@ func run(args []string) error {
 	fs.StringVar(&cfg.Addr, "addr", cfg.Addr, "listen address")
 	fs.StringVar(&cfg.DataDir, "data-dir", cfg.DataDir, "state directory")
 	fs.StringVar(&cfg.PublicURL, "public-url", cfg.PublicURL, "advertised origin")
+	fs.StringVar(&cfg.AgentURL, "agent-url", cfg.AgentURL,
+		"origin the statement agent uses to reach this emulator (default: -public-url)")
 	fs.BoolVar(&cfg.DisableTLS, "disable-tls", cfg.DisableTLS, "serve plain HTTP")
 	fs.StringVar(&cfg.SparkAgentURL, "spark-connect-url", cfg.SparkAgentURL, "statement agent URL (Jobs / SQL / cluster session)")
 	fs.StringVar(&cfg.SparkConnectGRPCURL, "spark-connect-grpc-url", cfg.SparkConnectGRPCURL, "Spark Connect gRPC origin for Databricks Connect")

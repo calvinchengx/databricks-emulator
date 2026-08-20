@@ -88,7 +88,10 @@
       "go:TestDbtProfileIsKeyedByTheProjectsOwnName",
       "go:TestDbtCodeCarriesProjectProfileAndArgv",
       "go:TestDbtArgvDropsTheCLIName",
-      "go:TestDbtTaskValidationRefusesByField"
+      "go:TestDbtTaskValidationRefusesByField",
+      "go:TestDbtProfilePointsAtTheAgentFacingOrigin",
+      "go:TestAFailingDbtRunReportsThroughTheEnvelopeNotAnException",
+      "go:TestAgentOriginDefaultsToTheAdvertisedOrigin"
     ]
   },
   "secrets-databricks-injection": {

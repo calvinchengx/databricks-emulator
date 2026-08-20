@@ -13,9 +13,17 @@ const AzureDatabricksAppID = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d"
 
 // Config is the resolved emulator configuration.
 type Config struct {
-	Addr       string
-	DataDir    string
-	PublicURL  string
+	Addr      string
+	DataDir   string
+	PublicURL string
+
+	// AgentURL is the origin the STATEMENT AGENT uses to reach this emulator,
+	// which is not the same thing as the origin advertised to clients. The
+	// agent is another container: a URL that resolves for the client on the
+	// host (127.0.0.1:18470) resolves inside the agent to the agent itself.
+	// Empty means "same as PublicURL", which is what a single-host deployment
+	// wants and what every caller before this got.
+	AgentURL   string
 	DisableTLS bool
 
 	// OIDCIssuers is an optional list of federated issuer URLs (entra or
@@ -76,6 +84,7 @@ func FromEnvPartial() *Config {
 		Addr:                envOr("DATABRICKS_ADDR", ":8447"),
 		DataDir:             envOr("DATABRICKS_DATA_DIR", "./data"),
 		PublicURL:           os.Getenv("DATABRICKS_PUBLIC_URL"),
+		AgentURL:            os.Getenv("DATABRICKS_AGENT_URL"),
 		DisableTLS:          truthy(os.Getenv("DATABRICKS_DISABLE_TLS")),
 		OIDCIssuers:         issuers,
 		OIDCTLSInsecure:     truthy(os.Getenv("DATABRICKS_OIDC_TLS_INSECURE")),

@@ -50,22 +50,25 @@ const (
 // Returns the cleaned stdout and the artefacts as raw JSON. A run whose
 // payload is missing or malformed yields no artefacts and UNCHANGED stdout:
 // losing an artefact must not also lose the log that would explain why.
-func splitDbtArtifacts(stdout string) (string, map[string]string) {
+func splitDbtArtifacts(stdout string) (string, map[string]string, string) {
 	start := strings.Index(stdout, dbtArtifactsOpen)
 	if start < 0 {
-		return stdout, nil
+		return stdout, nil, ""
 	}
 	rest := stdout[start+len(dbtArtifactsOpen):]
 	end := strings.Index(rest, dbtArtifactsClose)
 	if end < 0 {
-		return stdout, nil
+		return stdout, nil, ""
 	}
-	var arts map[string]string
-	if err := json.Unmarshal([]byte(rest[:end]), &arts); err != nil {
-		return stdout, nil
+	var env struct {
+		Artifacts map[string]string `json:"artifacts"`
+		Failure   string            `json:"failure"`
+	}
+	if err := json.Unmarshal([]byte(rest[:end]), &env); err != nil {
+		return stdout, nil, ""
 	}
 	cleaned := stdout[:start] + rest[end+len(dbtArtifactsClose):]
-	return strings.TrimLeft(cleaned, "\n"), arts
+	return strings.TrimLeft(cleaned, "\n"), env.Artifacts, env.Failure
 }
 
 func (s *Server) dbtProjectFiles(dir string) (map[string][]byte, error) {
@@ -231,7 +234,11 @@ os.environ["DBT_SEND_ANONYMOUS_USAGE_STATS"] = "false"
 try:
     from dbt.cli.main import dbtRunner
 except ImportError as exc:
-    raise SystemExit(
+    # RuntimeError, not SystemExit, for the same reason the dbt failure below
+    # is a field: an agent that closes the connection on SystemExit turns this
+    # explanation into 'Post /statements: EOF', which tells the operator
+    # nothing about the missing package.
+    raise RuntimeError(
         "dbt_task needs dbt-databricks on the statement agent and it is not "
         "installed there (%%s). The agent image carries it from "
         "emulator-spark-agent onward; an older agent cannot run dbt." %% exc
@@ -243,11 +250,24 @@ for _cmd in _argv:
     if not _res.success:
         _failure = "dbt %%s failed: %%s" %% (" ".join(_cmd), _res.exception)
         break
-# THE ARTEFACT LEAVES BEFORE THE EXIT DOES, and that ordering is the whole
-# point. A failing dbt test is exactly when a caller needs run_results.json:
-# it names WHICH test failed and by how many rows, where the exit code says
-# only that something did. Emitting it after the raise would surface it on
-# every run except the ones that matter.
+# THE FAILURE TRAVELS AS DATA, in the same envelope as the artefacts, and
+# NOTHING here raises. A failing dbt test is exactly when a caller needs
+# run_results.json -- it names WHICH test failed and by how many rows, where
+# an exit code says only that something did.
+#
+# This used to print the artefacts and then exit with the failure,
+# relying on the ordering to get them out first. That is not enough, because
+# it assumes every agent turns an exception into a REPLY. One does not: the
+# fabric statement agent closes the connection on SystemExit without
+# responding at all, so the emulator saw 'Post /statements: EOF' and the
+# artefacts -- printed, correct, already out of the process -- were lost with
+# the response that would have carried them. The caller then learned that the
+# TRANSPORT failed, on a run where dbt had simply reported failing tests.
+#
+# So the failure is a field, not a control-flow event. An agent cannot drop
+# what it does not have to interpret, and the evidence and the verdict can no
+# longer be separated by anything between here and the caller. A genuine
+# Python fault still raises and is still reported the ordinary way.
 #
 # run_results.json alone. manifest.json is large, changes on every parse, and
 # no caller has asked for it -- shipping it through stdout would cost every
@@ -256,10 +276,9 @@ _arts = {}
 _rr = _root / "target" / "run_results.json"
 if _rr.exists():
     _arts["run_results.json"] = _rr.read_text(encoding="utf-8")
-print("%s" + json.dumps(_arts) + "%s")
-if _failure:
-    raise SystemExit(_failure)
-print("dbt ok:", " | ".join(" ".join(c) for c in _argv))
+print("%s" + json.dumps({"artifacts": _arts, "failure": _failure}) + "%s")
+if not _failure:
+    print("dbt ok:", " | ".join(" ".join(c) for c in _argv))
 `, string(filesJSON), string(argvJSON), string(profile), dbtArtifactsOpen, dbtArtifactsClose)
 }
 
@@ -304,7 +323,7 @@ func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.Tas
 	}
 	res, err := s.Spark.Run(spark.Request{
 		Session: "job-" + t.Key,
-		Code:    dbtCode(t.Dbt, files, s.Origin, s.Store.AdminPAT),
+		Code:    dbtCode(t.Dbt, files, s.AgentOrigin, s.Store.AdminPAT),
 		Kind:    "python",
 		Env:     env,
 		Conf:    conf,
@@ -314,10 +333,17 @@ func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.Tas
 		tr.Stderr = err.Error()
 		return tr
 	}
-	cleaned, arts := splitDbtArtifacts(res.Stdout)
+	cleaned, arts, failure := splitDbtArtifacts(res.Stdout)
 	tr.Stdout = cleaned
 	tr.DbtArtifacts = arts
 	tr.Stderr = res.EValue
+	// dbt reported the failure itself, so the artefacts came back WITH it and
+	// the run fails carrying its own evidence.
+	if failure != "" {
+		tr.ResultState = "FAILED"
+		tr.Stderr = failure
+		return tr
+	}
 	if !res.OK {
 		tr.ResultState = "FAILED"
 		if tr.Stderr == "" {
