@@ -250,5 +250,20 @@
       "ci:e2e-dbt-uc",
       "ci:e2e-dbt"
     ]
+  },
+  "jobs-2-2-foreachtask-runjobtask": {
+    "section": "Jobs (Jobs 2.2)",
+    "claim": "Jobs 2.2 \u2014 `for_each_task` / `run_job_task`",
+    "witnesses": [
+      "ci:e2e-composite-tasks",
+      "go:TestRunJobTaskRunsTheChildAndReportsItsOutcome",
+      "go:TestRunJobTaskFailsWhenTheChildFails",
+      "go:TestRunJobTaskRefusesAJobThatRunsItself",
+      "go:TestRunJobTaskFailsOnAnUnknownJob",
+      "go:TestForEachTaskRunsOncePerInputWithItsOwnValue",
+      "go:TestForEachTaskFailsWhenAnIterationFails",
+      "go:TestForEachTaskRefusesInputsThatRunNothing",
+      "go:TestForEachTaskRefusesNesting"
+    ]
   }
 }

@@ -95,7 +95,7 @@ func (s *Server) jobsRunNow(w http.ResponseWriter, r *http.Request, _ *auth.Prin
 	// Read the id before handing the run to the goroutine: after this the
 	// run belongs to executeRun alone.
 	runID := run.ID
-	go s.executeRun(job, run)
+	go s.executeRun(job, run, 0)
 	writeJSON(w, http.StatusOK, map[string]any{"run_id": runID, "number_in_job": 1})
 }
 
@@ -126,6 +126,19 @@ func (s *Server) jobsRunsOutput(w http.ResponseWriter, r *http.Request, _ *auth.
 		"metadata": runJSON(run),
 		"logs":     run.Stdout,
 		"error":    run.Stderr,
+	}
+	// run_job_output.run_id — the child a run_job_task started, so a caller can
+	// fetch what actually ran.
+	//
+	// HERE, not on the task in runs/get, and that was measured rather than
+	// assumed: the first attempt put it on the task, and the SDK's `RunTask`
+	// has no such field at all — `jobs.RunOutput.run_job_output` is where
+	// `databricks-sdk` looks. A field the client cannot read is not an API.
+	for _, t := range run.Tasks {
+		if t.ChildRunID != 0 {
+			out["run_job_output"] = map[string]any{"run_id": t.ChildRunID}
+			break
+		}
 	}
 	// dbt_output, when the run had a dbt_task and it produced artefacts.
 	//
@@ -268,11 +281,50 @@ func parseTask(t map[string]any) (store.Task, error) {
 	if _, ok := t["python_wheel_task"]; ok {
 		return task, fmt.Errorf("python_wheel_task installs a wheel on a cluster whose lifecycle the emulator does not own: refused")
 	}
-	if _, ok := t["run_job_task"]; ok {
-		return task, fmt.Errorf("run_job_task is not implemented yet, refused rather than silently skipped")
+	if raw, ok := t["run_job_task"]; ok {
+		m, _ := raw.(map[string]any)
+		if m == nil {
+			return task, fmt.Errorf("run_job_task must be an object with job_id")
+		}
+		rj := &store.RunJob{JobID: int64(num(m["job_id"])), Params: stringMap(m["job_parameters"])}
+		if rj.JobID == 0 {
+			return task, fmt.Errorf("run_job_task.job_id is required")
+		}
+		task.RunJob = rj
 	}
-	if _, ok := t["for_each_task"]; ok {
-		return task, fmt.Errorf("for_each_task is not implemented yet, refused rather than silently skipped")
+	if raw, ok := t["for_each_task"]; ok {
+		m, _ := raw.(map[string]any)
+		if m == nil {
+			return task, fmt.Errorf("for_each_task must be an object with inputs and task")
+		}
+		fe := &store.ForEach{Concurrency: int(num(m["concurrency"]))}
+		// `inputs` is a JSON-encoded STRING in the API, not a list — decoded
+		// here so a malformed one is refused at job-create time rather than
+		// surfacing mid-run as an empty loop that reports SUCCESS.
+		inputs, err := decodeForEachInputs(m["inputs"])
+		if err != nil {
+			return task, err
+		}
+		fe.Inputs = inputs
+		nested, ok := m["task"].(map[string]any)
+		if !ok {
+			return task, fmt.Errorf("for_each_task.task is required: the task to run per input")
+		}
+		inner, err := parseTask(nested)
+		if err != nil {
+			return task, fmt.Errorf("for_each_task.task: %w", err)
+		}
+		// Nesting a loop inside a loop, or a job-run inside one, multiplies work
+		// this process would have to bound. Refused by name rather than left to
+		// surprise someone at run time.
+		if inner.ForEach != nil {
+			return task, fmt.Errorf("for_each_task.task may not itself be a for_each_task")
+		}
+		if inner.RunJob != nil {
+			return task, fmt.Errorf("for_each_task.task may not be a run_job_task")
+		}
+		fe.Task = &inner
+		task.ForEach = fe
 	}
 	if raw, ok := t["condition_task"].(map[string]any); ok {
 		c := &store.Condition{Op: str(raw["op"]), Left: str(raw["left"]), Right: str(raw["right"])}
@@ -309,7 +361,7 @@ func parseTask(t map[string]any) (store.Task, error) {
 		task.SparkConf = stringMap(nc["spark_conf"])
 	}
 	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" &&
-		task.Condition == nil && task.Dbt == nil {
+		task.Condition == nil && task.Dbt == nil && task.RunJob == nil && task.ForEach == nil {
 		return task, fmt.Errorf("task %q must be notebook_task, spark_python_task, "+
 			"sql_task.file, condition_task, or dbt_task", task.Key)
 	}
@@ -375,7 +427,7 @@ func (s *Server) runCancelled(id int64) bool {
 	return ok && run.ResultState == store.ResultCanceled
 }
 
-func (s *Server) executeRun(job *store.Job, run *store.Run) {
+func (s *Server) executeRun(job *store.Job, run *store.Run, depth int) {
 	run.LifeCycle = "RUNNING"
 	run.ExecutedBy = "the emulator's Spark engine, not a Databricks cluster"
 	s.Store.Jobs.UpdateRun(run)
@@ -449,7 +501,7 @@ func (s *Server) executeRun(job *store.Job, run *store.Run) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				tr := s.runTask(t)
+				tr := s.runTask(t, depth)
 				mu.Lock()
 				results[t.Key] = tr
 				mu.Unlock()
@@ -534,7 +586,121 @@ func shouldRun(t store.Task, done map[string]store.TaskRun) bool {
 	}
 }
 
-func (s *Server) runTask(t store.Task) store.TaskRun {
+// runDepth bounds run_job_task nesting. A job that runs itself — directly or
+// through a cycle — would otherwise spawn runs until the process died, and the
+// emulator would look hung rather than wrong. Real Databricks caps nesting;
+// the number here is ours, and the refusal names it.
+const maxRunJobDepth = 5
+
+// runJobTask runs another job and reports ITS outcome as this task's.
+//
+// Synchronous on purpose: the parent task is not finished until the child is,
+// which is what `depends_on` downstream of it has to mean. The child's run id
+// travels back on the TaskRun so a client can fetch the child run — real
+// Databricks reports it as run_job_output.run_id, and a SUCCESS with no way to
+// reach what ran is the kind of green this repo treats as a defect.
+func (s *Server) runJobTask(t store.Task, depth int) store.TaskRun {
+	tr := store.TaskRun{Key: t.Key, LifeCycle: "TERMINATED"}
+	child, ok := s.Store.Jobs.Get(t.RunJob.JobID)
+	if !ok {
+		tr.ResultState = "FAILED"
+		tr.Stderr = fmt.Sprintf("run_job_task.job_id %d does not exist", t.RunJob.JobID)
+		return tr
+	}
+	if depth+1 > maxRunJobDepth {
+		tr.ResultState = "FAILED"
+		tr.Stderr = fmt.Sprintf("run_job_task nested deeper than %d: a job that runs itself, "+
+			"directly or through a cycle, would not terminate", maxRunJobDepth)
+		return tr
+	}
+	run := s.Store.Jobs.NewRun(child.ID)
+	tr.ChildRunID = run.ID
+	s.executeRun(child, run, depth+1)
+	done, ok := s.Store.Jobs.GetRun(run.ID)
+	if !ok {
+		tr.ResultState = "FAILED"
+		tr.Stderr = fmt.Sprintf("child run %d vanished", run.ID)
+		return tr
+	}
+	tr.ResultState = done.ResultState
+	tr.Stdout = done.Stdout
+	tr.Stderr = done.Stderr
+	return tr
+}
+
+// runForEachTask runs one nested task per input.
+//
+// `{{input}}` is substituted in the nested task's parameters, which is how the
+// iteration learns which input it is. Substituted into a COPY per iteration:
+// the parsed task is shared, and rewriting it in place would leave every
+// iteration reading the last input — the same shape of bug as the shared
+// sys.argv that databricks#56 witnessed.
+func (s *Server) runForEachTask(t store.Task, depth int) store.TaskRun {
+	tr := store.TaskRun{Key: t.Key, LifeCycle: "TERMINATED", ResultState: "SUCCESS"}
+	fe := t.ForEach
+	limit := fe.Concurrency
+	if limit <= 0 {
+		limit = 1 // the API's default is serial
+	}
+	if limit > len(fe.Inputs) {
+		limit = len(fe.Inputs)
+	}
+	results := make([]store.TaskRun, len(fe.Inputs))
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i, in := range fe.Inputs {
+		i, in := i, in
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = s.runTask(substituteInput(*fe.Task, t.Key, in), depth)
+		}()
+	}
+	wg.Wait()
+
+	var stdout, stderr strings.Builder
+	failed := 0
+	for _, r := range results {
+		stdout.WriteString(r.Stdout)
+		stderr.WriteString(r.Stderr)
+		if r.ResultState != "SUCCESS" {
+			failed++
+		}
+	}
+	tr.Iterations = results
+	tr.Stdout = stdout.String()
+	tr.Stderr = stderr.String()
+	if failed > 0 {
+		tr.ResultState = "FAILED"
+		tr.Stderr = fmt.Sprintf("%d of %d iterations failed\n%s", failed, len(results), tr.Stderr)
+	}
+	return tr
+}
+
+// substituteInput returns a COPY of the nested task with `{{input}}` replaced
+// by this iteration's value, and a per-iteration key so the results are
+// distinguishable.
+func substituteInput(t store.Task, parentKey, input string) store.Task {
+	t.Key = fmt.Sprintf("%s_%s", parentKey, input)
+	if len(t.PythonParams) > 0 {
+		params := make([]string, len(t.PythonParams))
+		for i, p := range t.PythonParams {
+			params[i] = strings.ReplaceAll(p, "{{input}}", input)
+		}
+		t.PythonParams = params
+	}
+	if len(t.NotebookParams) > 0 {
+		params := make(map[string]string, len(t.NotebookParams))
+		for k, v := range t.NotebookParams {
+			params[k] = strings.ReplaceAll(v, "{{input}}", input)
+		}
+		t.NotebookParams = params
+	}
+	return t
+}
+func (s *Server) runTask(t store.Task, depth int) store.TaskRun {
 	tr := store.TaskRun{Key: t.Key, LifeCycle: "TERMINATED"}
 	env, err := s.resolveSecrets(t.SparkEnvVars)
 	if err != nil {
@@ -552,6 +718,12 @@ func (s *Server) runTask(t store.Task) store.TaskRun {
 	// statement it produces is generated rather than read from a file.
 	if t.Dbt != nil {
 		return s.runDbtTask(t, env, conf)
+	}
+	if t.RunJob != nil {
+		return s.runJobTask(t, depth)
+	}
+	if t.ForEach != nil {
+		return s.runForEachTask(t, depth)
 	}
 	code, path, err := s.loadTaskCode(t)
 	if err != nil {
@@ -712,6 +884,28 @@ func runJSON(run *store.Run) map[string]any {
 		if t.ConditionOutcome != "" {
 			m["condition_task"] = map[string]any{"outcome": t.ConditionOutcome}
 		}
+		// Per-input outcome counts, the shape the API reports for a loop. The
+		// task's own result_state says only whether ANY iteration failed.
+		if t.Iterations != nil {
+			succeeded := 0
+			for _, it := range t.Iterations {
+				if it.ResultState == "SUCCESS" {
+					succeeded++
+				}
+			}
+			m["for_each_task"] = map[string]any{"task_run_stats": map[string]any{
+				"total_iterations":     len(t.Iterations),
+				"succeeded_iterations": succeeded,
+				"failed_iterations":    len(t.Iterations) - succeeded,
+			}}
+		}
+		// Why a task failed, where the caller looks for it. Without this a
+		// refusal — a nesting bound, a missing job_id — arrives as a bare
+		// FAILED and the operator has to read the emulator's logs to learn
+		// which of several possible causes it was.
+		if t.ResultState == "FAILED" && t.Stderr != "" {
+			m["state"].(map[string]any)["state_message"] = t.Stderr
+		}
 		tasks = append(tasks, m)
 	}
 	return map[string]any{
@@ -721,6 +915,49 @@ func runJSON(run *store.Run) map[string]any {
 		"tasks":      tasks,
 		"executedBy": run.ExecutedBy,
 	}
+}
+
+// num reads a JSON number, which arrives as float64 through encoding/json.
+// Returns 0 for anything else, so a caller that requires the value checks it.
+func num(v any) float64 {
+	f, _ := v.(float64)
+	return f
+}
+
+// decodeForEachInputs reads for_each_task.inputs, which the Jobs API carries as
+// a JSON-ENCODED STRING rather than a list — `"[\"a\",\"b\"]"`. Accepting a
+// real list too, because an SDK that has already decoded it is not wrong and
+// refusing that would be a distinction with no user.
+//
+// Elements are stringified rather than required to be strings: real inputs are
+// commonly numbers, and `{{input}}` substitutes text either way.
+func decodeForEachInputs(v any) ([]string, error) {
+	var raw []any
+	switch t := v.(type) {
+	case string:
+		if strings.TrimSpace(t) == "" {
+			return nil, fmt.Errorf("for_each_task.inputs is required")
+		}
+		if err := json.Unmarshal([]byte(t), &raw); err != nil {
+			return nil, fmt.Errorf("for_each_task.inputs is not a JSON array: %w", err)
+		}
+	case []any:
+		raw = t
+	case nil:
+		return nil, fmt.Errorf("for_each_task.inputs is required")
+	default:
+		return nil, fmt.Errorf("for_each_task.inputs must be a JSON array (or its string form)")
+	}
+	if len(raw) == 0 {
+		// A loop over nothing that reports SUCCESS is the silent no-op this
+		// repo's refusals exist to prevent.
+		return nil, fmt.Errorf("for_each_task.inputs is empty: a loop over no inputs runs nothing")
+	}
+	out := make([]string, 0, len(raw))
+	for _, e := range raw {
+		out = append(out, fmt.Sprint(e))
+	}
+	return out, nil
 }
 
 func str(v any) string {

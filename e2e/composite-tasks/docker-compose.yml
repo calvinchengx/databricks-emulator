@@ -1,0 +1,44 @@
+# Sail + spark-agent. The tasks write Delta straight from the agent with
+# delta-rs, so Sail is here only because the agent expects an engine behind it.
+#
+# The agent digest is NEWER than the one e2e/condition-task pins, and
+# deliberately so. This suite runs PARAMETERISED tasks CONCURRENTLY
+# (for_each_task with concurrency=2), and the agent delivered
+# spark_python_task.parameters through a process-wide `sys.argv` until
+# fabric-emulator#338 gave each Livy session its own. Against the older digest
+# (0.30.0, sha256:4264904…) this suite fails exactly as that bug predicts:
+# `alpha` leaves no table and disk holds only `beta` and `gamma`, because two
+# concurrent iterations read the same argv. Measured, not assumed — it is why
+# this pin is not simply copied from the sibling suite.
+services:
+  sail:
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:b35451c4627b14a885f3867c75870406b0e80e830fbc7dff939acc50c3d7fca0}
+    ports:
+      - "15057:50051"
+    environment:
+      SAIL_SPARK__SESSION_TIMEOUT_SECS: "3600"
+      RUST_LOG: "info"
+    volumes:
+      - ${COMP_DATA}:/data/comp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 30
+
+  spark-agent:
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:bd4d1477573d2c86406b281d9deb226597c5dbd633df17a5b1135ac0769c757a}
+    depends_on:
+      sail:
+        condition: service_healthy
+    ports:
+      - "18107:8099"
+    environment:
+      SPARK_REMOTE: "sc://sail:50051"
+    volumes:
+      - ${COMP_DATA}:/data/comp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health', timeout=3)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
