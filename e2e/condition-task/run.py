@@ -28,14 +28,17 @@ suite fails if one appears -- otherwise "the right table exists" would also be
 true of an emulator that ran both arms.
 
 EACH ARM IS ITS OWN FILE, and deliberately not one file taking a parameter. The
-parameter route does not survive this test: `pythonPreamble` passes parameters by
-assigning `sys.argv` on the agent, and `sys` is one module object shared by every
-session in that interpreter, so two tasks dispatched in the same wave overwrite
-each other's argv and both read the winner's. Building this suite the obvious way
-is what surfaced that -- both arms reported SUCCESS while writing the same table.
-Hard-coding the destination keeps this suite a test of `condition_task` rather
-than a hostage to argv passing, and leaves the "both arms ran" case detectable
-instead of collapsing it into one table.
+parameter route did not survive this test when it was written: `pythonPreamble`
+passes parameters by assigning `sys.argv` on the agent, and `sys` is one module
+object per interpreter, so two tasks dispatched in the same wave overwrote each
+other's argv and both read the winner's. Building this suite the obvious way is
+what surfaced that -- both arms reported SUCCESS while writing the same table.
+The agent scopes argv per session now (fabric-emulator
+`python/spark_agent/task_scope.py`, witnessed by `e2e/task-parameters`), so the
+parameter route would work today. The destination stays hard-coded anyway: it
+keeps this suite a test of `condition_task` rather than a hostage to parameter
+passing, and leaves the "both arms ran" case detectable instead of collapsing it
+into one table.
 """
 
 from __future__ import annotations
