@@ -41,6 +41,11 @@ jobs:
         run: go test -count=5 -race $(go list ./... | grep -v '/internal/hs2/cliservice$')
       - name: Witness map
         run: python3 scripts/check_witnesses.py
+      # The site build does NOT catch a dangling intra-doc link: measured, it
+      # exits 0 and publishes a 404. Nor can it see a page missing from the
+      # sidebar, which is published but unreachable by navigation.
+      - name: Doc links and sidebar
+        run: python3 scripts/check_docs_links.py --strict
 
   e2e-sdk:
     name: Unmodified databricks-sdk
