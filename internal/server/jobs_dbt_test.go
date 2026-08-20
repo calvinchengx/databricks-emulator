@@ -38,8 +38,18 @@ func profileHTTPPath(t *testing.T, code string) string {
 	if err := json.Unmarshal([]byte(raw), &prof); err != nil {
 		t.Fatalf("profile is not JSON: %v", err)
 	}
+	if len(prof) != 1 {
+		t.Fatalf("a generated profile holds exactly one profile, got %d: %s", len(prof), raw)
+	}
 	node := any(prof)
-	for _, key := range []string{"databricks_emulator", "outputs", "emulator", "http_path"} {
+	// The profile's NAME is the project's to choose, so it is discovered here
+	// rather than asserted -- TestDbtProfileIsKeyedByTheProjectsOwnName is
+	// where the name itself is checked.
+	var name string
+	for k := range prof {
+		name = k
+	}
+	for _, key := range []string{name, "outputs", "emulator", "http_path"} {
 		m, ok := node.(map[string]any)
 		if !ok {
 			t.Fatalf("profile is not the shape dbt reads: %q is not under a map: %s", key, raw)
@@ -496,3 +506,60 @@ func TestGeneratedDbtCodeEmitsArtefactsBeforeRaising(t *testing.T) {
 // strconvQuote is strconv.Quote under a local name, so the test reads as
 // "this JSON, embedded as a JSON string" rather than as an import detail.
 func strconvQuote(s string) string { return strconv.Quote(s) }
+
+// A dbt project names the profile it wants in dbt_project.yml, and dbt looks
+// that name up in profiles.yml. dbt_task GENERATES the profile, so if it files
+// it under a name of its own choosing, the only projects that can run here are
+// the ones edited to say that name -- which is an edit that makes a project
+// emulator-only. The name travels from the project.
+func TestDbtProfileIsKeyedByTheProjectsOwnName(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		project string
+		want    string
+	}{
+		{"plain", "name: p\nprofile: contoso_gold\n", "contoso_gold"},
+		{"quoted", "profile: \"contoso_gold\"\n", "contoso_gold"},
+		{"single quoted", "profile: 'contoso_gold'\n", "contoso_gold"},
+		{"trailing comment", "profile: contoso_gold # what it is called\n", "contoso_gold"},
+		{"crlf", "profile: contoso_gold\r\n", "contoso_gold"},
+		// dbt requires `profile:`, so a project without one is already broken.
+		// Falling back keeps the generator total instead of adding an error
+		// path for a project dbt would reject on its own.
+		{"absent", "name: p\n", defaultDbtProfile},
+		// Only column zero is the project's own key. An indented `profile:`
+		// belongs to whatever block encloses it.
+		{"nested only", "name: p\nmodels:\n  profile: not_mine\n", defaultDbtProfile},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			files := map[string][]byte{
+				"dbt_project.yml": []byte(tc.project),
+				"models/m.sql":    []byte("select 1"),
+			}
+			code := dbtCode(&store.Dbt{Commands: []string{"dbt run"}, WarehouseID: "w"}, files, "http://h", "t")
+			// Read the profile the way the agent will, and assert on the name
+			// it is filed under -- not on the source text, which would match a
+			// name that never reaches dbt.
+			const marker = "_profile = json.loads("
+			i := strings.Index(code, marker)
+			if i < 0 {
+				t.Fatal("generated code carries no profile")
+			}
+			rest := code[i+len(marker):]
+			raw, err := strconv.Unquote(rest[:strings.Index(rest, ")\n")])
+			if err != nil {
+				t.Fatalf("profile literal is not a Go quoted string: %v", err)
+			}
+			var prof map[string]any
+			if err := json.Unmarshal([]byte(raw), &prof); err != nil {
+				t.Fatalf("profile is not JSON: %v", err)
+			}
+			if _, ok := prof[tc.want]; !ok {
+				t.Fatalf("dbt will look up profile %q and it is not there; the profile is %s", tc.want, raw)
+			}
+			if len(prof) != 1 {
+				t.Fatalf("profile carries names dbt did not ask for: %s", raw)
+			}
+		})
+	}
+}

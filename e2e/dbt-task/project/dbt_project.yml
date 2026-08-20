@@ -1,14 +1,20 @@
 name: emulator_dbt_task
 version: "1.0.0"
 config-version: 2
-profile: databricks_emulator
+profile: emulator_dbt_task
 model-paths: ["models"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
-# The profile name is NOT free: dbt_task generates the profile itself, under
-# the key `databricks_emulator`, so a project naming anything else would send
-# dbt looking for a profile that was never written. That coupling is the point
-# of the fixture -- it is what a user's project has to satisfy.
+# The profile name IS free, and this fixture is what proves it. dbt_task
+# generates the profile itself, and it once filed it under a fixed key --
+# so the only projects that ran here were the ones edited to say that key,
+# an edit that makes a project emulator-only on the one surface whose whole
+# purpose is rehearsing the real Databricks. It now keys the generated profile
+# by whatever `profile:` this file declares.
+#
+# So this name is deliberately NOT the emulator's default: a project named
+# `databricks_emulator` would pass whether or not the name travels, and prove
+# nothing. See TestDbtProfileIsKeyedByTheProjectsOwnName for the unit half.
 #
 # v2 builds a temp view then INSERT BY NAME. The classic path is
 # CREATE OR REPLACE TABLE … AS SELECT, which is the SQL this attach runs.

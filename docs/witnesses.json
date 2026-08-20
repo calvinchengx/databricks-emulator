@@ -85,6 +85,7 @@
     "witnesses": [
       "ci:e2e-dbt-task",
       "go:TestDbtTaskReachesTheAgentAsADbtInvocation",
+      "go:TestDbtProfileIsKeyedByTheProjectsOwnName",
       "go:TestDbtCodeCarriesProjectProfileAndArgv",
       "go:TestDbtArgvDropsTheCLIName",
       "go:TestDbtTaskValidationRefusesByField"
