@@ -9,7 +9,7 @@ from __future__ import annotations
 import shlex
 import sys
 
-from . import Target, TargetError, _env, target as resolve
+from . import Target, TargetError, target as resolve
 
 
 def _pairs(t: Target):
