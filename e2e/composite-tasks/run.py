@@ -168,7 +168,13 @@ def main() -> int:
                 task_key="fan",
                 for_each_task=jobs.ForEachTask(
                     inputs=json.dumps(INPUTS),
-                    concurrency=1,  # serial: concurrency > 1 loses an iteration, issue #64
+                    # 3, not 1. Serial was a workaround for #64, where the agent
+                    # shared sys.argv across sessions so every iteration wrote the
+                    # same table. Fixed in the agent by fabric-emulator#338, shipped
+                    # in v0.32.0, and the digest above is the first to carry it.
+                    # Running at 3 is what makes the fix witnessed rather than
+                    # assumed: at 1 this suite passes either way.
+                    concurrency=len(INPUTS),
                     task=jobs.Task(
                         task_key="inner",
                         spark_python_task=jobs.SparkPythonTask(
