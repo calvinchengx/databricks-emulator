@@ -164,7 +164,7 @@ func projectProfileName(b []byte) string {
 // Python statements and is not a shell, so shelling out would be inventing a
 // capability it does not have; `dbtRunner().invoke` is dbt's supported
 // programmatic entry point and takes the same argv the CLI does.
-func dbtCode(d *store.Dbt, files map[string][]byte, host, token string) string {
+func dbtCode(d *store.Dbt, files map[string][]byte, host, token string, env map[string]string) string {
 	type file struct {
 		Path string `json:"path"`
 		B64  string `json:"b64"`
@@ -179,6 +179,24 @@ func dbtCode(d *store.Dbt, files map[string][]byte, host, token string) string {
 	sort.Slice(payload, func(i, j int) bool { return payload[i].Path < payload[j].Path })
 	filesJSON, _ := json.Marshal(payload)
 	argvJSON, _ := json.Marshal(dbtArgv(d.Commands))
+	// The task's spark_env_vars, carried INTO the generated code rather than
+	// left to the agent's own `env` field.
+	//
+	// Measured, not assumed: the fabric statement agent accepts `env` in the
+	// request and never applies it -- a statement asking for os.environ back
+	// answers None. So a task's spark_env_vars looked supported and did
+	// nothing, and dbt failed with "Env var required but not provided" for a
+	// variable the task had plainly set. A project reads its sources through
+	// env_var(), so this is not a detail: it is whether the task can name the
+	// data it reads.
+	//
+	// Setting them here makes them the dbt process's environment whatever the
+	// agent does with the field, which is the only version of this that is
+	// true on every agent.
+	if env == nil {
+		env = map[string]string{}
+	}
+	envJSON, _ := json.Marshal(env)
 	profile, _ := json.Marshal(map[string]any{
 		projectProfileName(files["dbt_project.yml"]): map[string]any{
 			"target": "emulator",
@@ -214,6 +232,7 @@ func dbtCode(d *store.Dbt, files map[string][]byte, host, token string) string {
 import base64, json, os, pathlib, sys, tempfile
 _files = json.loads(%q)
 _argv = json.loads(%q)
+os.environ.update(json.loads(%q))
 _profile = json.loads(%q)
 _root = pathlib.Path(tempfile.mkdtemp(prefix="dbt-task-"))
 for _f in _files:
@@ -279,7 +298,7 @@ if _rr.exists():
 print("%s" + json.dumps({"artifacts": _arts, "failure": _failure}) + "%s")
 if not _failure:
     print("dbt ok:", " | ".join(" ".join(c) for c in _argv))
-`, string(filesJSON), string(argvJSON), string(profile), dbtArtifactsOpen, dbtArtifactsClose)
+`, string(filesJSON), string(argvJSON), string(envJSON), string(profile), dbtArtifactsOpen, dbtArtifactsClose)
 }
 
 // dbtArgv turns Databricks' command strings into dbt argv.
@@ -323,7 +342,7 @@ func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.Tas
 	}
 	res, err := s.Spark.Run(spark.Request{
 		Session: "job-" + t.Key,
-		Code:    dbtCode(t.Dbt, files, s.AgentOrigin, s.Store.AdminPAT),
+		Code:    dbtCode(t.Dbt, files, s.AgentOrigin, s.Store.AdminPAT, env),
 		Kind:    "python",
 		Env:     env,
 		Conf:    conf,

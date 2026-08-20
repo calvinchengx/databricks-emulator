@@ -91,7 +91,8 @@
       "go:TestDbtTaskValidationRefusesByField",
       "go:TestDbtProfilePointsAtTheAgentFacingOrigin",
       "go:TestAFailingDbtRunReportsThroughTheEnvelopeNotAnException",
-      "go:TestAgentOriginDefaultsToTheAdvertisedOrigin"
+      "go:TestAgentOriginDefaultsToTheAdvertisedOrigin",
+      "go:TestSparkEnvVarsReachTheDbtProcess"
     ]
   },
   "secrets-databricks-injection": {

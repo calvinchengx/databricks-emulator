@@ -108,7 +108,7 @@ func TestDbtCodeCarriesProjectProfileAndArgv(t *testing.T) {
 		"models/fct.sql":    []byte("select 1"),
 		"models/schema.yml": []byte("version: 2\n"),
 	}
-	code := dbtCode(d, files, "http://127.0.0.1:8447", "dapi-secret")
+	code := dbtCode(d, files, "http://127.0.0.1:8447", "dapi-secret", nil)
 
 	// The project travels inline: every file, base64'd, so no shared volume is
 	// needed between this process and the agent container.
@@ -162,9 +162,9 @@ func TestDbtCodeIsStableAcrossRuns(t *testing.T) {
 	for _, n := range []string{"dbt_project.yml", "a.sql", "b.sql", "c.sql", "d.sql", "e.sql"} {
 		files[n] = []byte(n)
 	}
-	first := dbtCode(d, files, "http://h", "t")
+	first := dbtCode(d, files, "http://h", "t", nil)
 	for i := 0; i < 20; i++ {
-		if got := dbtCode(d, files, "http://h", "t"); got != first {
+		if got := dbtCode(d, files, "http://h", "t", nil); got != first {
 			t.Fatal("the same project produced two different statements; the file " +
 				"payload is being built in map order")
 		}
@@ -499,7 +499,7 @@ func TestDbtArtifactsMalformedPayloadKeepsTheLog(t *testing.T) {
 func TestAFailingDbtRunReportsThroughTheEnvelopeNotAnException(t *testing.T) {
 	code := dbtCode(&store.Dbt{Commands: []string{"dbt test"}}, map[string][]byte{
 		"dbt_project.yml": []byte("name: p\n"),
-	}, "http://host", "pat")
+	}, "http://host", "pat", nil)
 	if strings.Contains(code, "raise SystemExit(_failure)") {
 		t.Fatal("the dbt failure is still raised; an agent that does not answer " +
 			"exceptions loses the artefacts and reports a transport error instead")
@@ -550,7 +550,7 @@ func TestDbtProfileIsKeyedByTheProjectsOwnName(t *testing.T) {
 				"dbt_project.yml": []byte(tc.project),
 				"models/m.sql":    []byte("select 1"),
 			}
-			code := dbtCode(&store.Dbt{Commands: []string{"dbt run"}, WarehouseID: "w"}, files, "http://h", "t")
+			code := dbtCode(&store.Dbt{Commands: []string{"dbt run"}, WarehouseID: "w"}, files, "http://h", "t", nil)
 			// Read the profile the way the agent will, and assert on the name
 			// it is filed under -- not on the source text, which would match a
 			// name that never reaches dbt.
@@ -647,5 +647,55 @@ func TestAgentOriginDefaultsToTheAdvertisedOrigin(t *testing.T) {
 	}
 	if s.AgentOrigin != s.Origin {
 		t.Fatalf("AgentOrigin = %q, want it to fall back to Origin %q", s.AgentOrigin, s.Origin)
+	}
+}
+
+// A task's spark_env_vars must reach the DBT PROCESS, not merely the request.
+//
+// The agent accepts an `env` field and, on the fabric image, never applies it:
+// a statement asking os.environ back answers None. Relying on it made
+// spark_env_vars look supported while doing nothing, and dbt failed with "Env
+// var required but not provided" for a variable the task had plainly set. A
+// project reads its sources through env_var(), so this decides whether a task
+// can name the data it reads.
+//
+// Asserted on the GENERATED CODE, because that is what survives an agent that
+// ignores the field.
+func TestSparkEnvVarsReachTheDbtProcess(t *testing.T) {
+	exec := &spark.Scripted{}
+	s, err := New(&config.Config{
+		Addr: ":0", DataDir: t.TempDir(), DisableTLS: true, PublicURL: "http://dbx.test",
+	}, clock.New(), exec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.Store.Workspace.Mkdir("/gold")
+	_ = s.Store.Workspace.Put("/gold/dbt_project.yml", []byte("profile: p\n"), "FILE", "PYTHON")
+	wh := s.Store.SQL.CreateWarehouse("w", "SMALL")
+
+	var code string
+	exec.Hook = func(req spark.Request) (spark.Result, error) {
+		code = req.Code
+		return spark.Result{OK: true, Stdout: "dbt ok"}, nil
+	}
+	s.runDbtTask(store.Task{
+		Key:          "g",
+		SparkEnvVars: map[string]string{"LAKEHOUSE_ID": "contoso"},
+		Dbt: &store.Dbt{
+			Commands: []string{"dbt run"}, ProjectDirectory: "/gold", WarehouseID: wh.ID,
+		},
+	}, map[string]string{"LAKEHOUSE_ID": "contoso"}, nil)
+
+	if !strings.Contains(code, "os.environ.update(") {
+		t.Fatal("the generated code never sets the environment, so it depends on " +
+			"an agent field that one agent silently drops")
+	}
+	if !strings.Contains(code, `LAKEHOUSE_ID`) || !strings.Contains(code, `contoso`) {
+		t.Fatalf("the task's env did not travel into the code:\n%s", code[:600])
+	}
+	// Before dbt is imported, or the parse that reads env_var() has already run.
+	if strings.Index(code, "os.environ.update(") > strings.Index(code, "from dbt.cli.main") {
+		t.Fatal("the environment is set after dbt is imported, which is after " +
+			"the project parse that reads env_var()")
 	}
 }
