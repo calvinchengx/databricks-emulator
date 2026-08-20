@@ -125,7 +125,7 @@ def main() -> int:
         sql(w, wh.id, f"CREATE TABLE events (id INT, name STRING) USING delta LOCATION '{TABLE}'")
         sql(w, wh.id, "INSERT INTO events VALUES (1, 'alice'), (2, 'bob')")
         v1 = confirm(host_table, [(1, "alice"), (2, "bob")], min_version=0)
-        sql(w, wh.id, f"OPTIMIZE events ZORDER BY name")
+        sql(w, wh.id, "OPTIMIZE events ZORDER BY name")
         v2 = confirm(host_table, [(1, "alice"), (2, "bob")], min_version=v1)
         print(f"e2e/delta-jvm: JVM wrote, delta-rs confirmed v{v1} then ZORDER v{v2}")
         return 0

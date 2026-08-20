@@ -1,0 +1,41 @@
+# ruff and ty, as their own workflow.
+#
+# Neither ran here before. ruff had no configuration at all in this repo, and
+# turning it on found real defects rather than style noise: an f-string with no
+# placeholders, unused imports, and in snowflake-emulator a dict key defined
+# twice whose first definition was dead text contradicting the live one.
+#
+# ty runs inside a SYNCED environment, which is not a detail. Unresolved
+# imports mask everything downstream of them, so checking without the
+# dependencies installed reports fewer problems, not more, and reads as health.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: ruff and ty
+    runs-on: ubuntu-latest
+    # A wedged run must fail rather than sit in GitHub's 6-hour default, where
+    # 'pending' and 'stuck' look identical.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.12.3"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: ruff
+        run: uvx ruff@0.15.22 check .
+
+      - name: ty
+        run: uv run --frozen --group sdk --group engine --group delta --group sql --group target --with ty ty check

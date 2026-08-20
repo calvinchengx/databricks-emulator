@@ -91,3 +91,22 @@ conflicts = [
 
 [tool.uv.sources]
 databricks-target = { path = "python/databricks-target" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ty.environment]
+# The package lives at python/databricks-target/databricks_target, and the
+# hyphenated directory between them is not importable, so a root of `python`
+# cannot resolve the package's own relative imports.
+root = ["python/databricks-target"]
+
+[tool.ty.src]
+# The 14 e2e directories are DRIVERS, not shipped code: standalone scripts that
+# start a stack and assert against it. ty reports 51 diagnostics across them,
+# almost all in one file and mostly the loosened `log_message` overrides every
+# quiet HTTP handler uses. Checking them is worth doing and is not this change;
+# gating on the package that actually ships is, and a gate that covers the
+# product is worth more than one deferred until it can cover the harness too.
+include = ["python"]
