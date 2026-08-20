@@ -168,7 +168,7 @@ def main() -> int:
                 task_key="fan",
                 for_each_task=jobs.ForEachTask(
                     inputs=json.dumps(INPUTS),
-                    concurrency=1,  # serial: see the note in the module docstring
+                    concurrency=1,  # serial: concurrency > 1 loses an iteration, issue #64
                     task=jobs.Task(
                         task_key="inner",
                         spark_python_task=jobs.SparkPythonTask(
