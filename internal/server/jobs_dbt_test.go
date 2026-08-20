@@ -426,3 +426,73 @@ func TestDbtTaskReportsATransportFailure(t *testing.T) {
 		t.Errorf("the transport error was lost: %q", tr.Stderr)
 	}
 }
+
+// The artefact is worth most on the run that FAILED, so the payload must not
+// be attached to success only.
+func TestDbtArtifactsSurviveTheMarkersAndTheFailure(t *testing.T) {
+	rr := `{"args":{"which":"test"},"results":[{"unique_id":"test.p.c.1","status":"fail"}]}`
+	stdout := "12:00 Running with dbt=1.9\n" +
+		dbtArtifactsOpen + `{"run_results.json":` + strconvQuote(rr) + `}` + dbtArtifactsClose +
+		"\nsomething after\n"
+
+	cleaned, arts := splitDbtArtifacts(stdout)
+	if got := arts["run_results.json"]; got != rr {
+		t.Fatalf("run_results.json round-tripped wrong:\n got %q\nwant %q", got, rr)
+	}
+	// The log a caller reads must not carry the payload: it is megabytes of
+	// JSON in a field meant for what dbt printed.
+	if strings.Contains(cleaned, dbtArtifactsOpen) || strings.Contains(cleaned, "unique_id") {
+		t.Fatalf("payload leaked into logs: %q", cleaned)
+	}
+	for _, want := range []string{"Running with dbt=1.9", "something after"} {
+		if !strings.Contains(cleaned, want) {
+			t.Fatalf("real output lost from logs: %q", cleaned)
+		}
+	}
+}
+
+// Losing an artefact must not also lose the log that would explain why.
+func TestDbtArtifactsMalformedPayloadKeepsTheLog(t *testing.T) {
+	for _, tc := range []struct {
+		name, stdout string
+	}{
+		{"no markers", "plain dbt output"},
+		{"unterminated", "before " + dbtArtifactsOpen + `{"a":"b"}`},
+		{"not json", "before " + dbtArtifactsOpen + `{oops` + dbtArtifactsClose + " after"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cleaned, arts := splitDbtArtifacts(tc.stdout)
+			if arts != nil {
+				t.Fatalf("artefacts from a broken payload: %#v", arts)
+			}
+			if cleaned != tc.stdout {
+				t.Fatalf("stdout altered when the payload could not be read:\n got %q\nwant %q",
+					cleaned, tc.stdout)
+			}
+		})
+	}
+}
+
+// The generated agent code must emit the artefacts BEFORE it raises, or the
+// failing run -- the one worth inspecting -- returns none.
+func TestGeneratedDbtCodeEmitsArtefactsBeforeRaising(t *testing.T) {
+	code := dbtCode(&store.Dbt{Commands: []string{"dbt test"}}, map[string][]byte{
+		"dbt_project.yml": []byte("name: p\n"),
+	}, "http://host", "pat")
+	emit := strings.Index(code, dbtArtifactsOpen)
+	raise := strings.Index(code, "raise SystemExit(_failure)")
+	if emit < 0 || raise < 0 {
+		t.Fatalf("generated code lost the artefact emit (%d) or the failure raise (%d)", emit, raise)
+	}
+	if emit > raise {
+		t.Fatal("artefacts are emitted after the raise, so a failing run returns none -- " +
+			"which is the run they exist for")
+	}
+	if !strings.Contains(code, "run_results.json") {
+		t.Fatal("generated code does not read run_results.json")
+	}
+}
+
+// strconvQuote is strconv.Quote under a local name, so the test reads as
+// "this JSON, embedded as a JSON string" rather than as an import detail.
+func strconvQuote(s string) string { return strconv.Quote(s) }
