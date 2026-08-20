@@ -56,8 +56,13 @@ func TestCancelIsIdempotent(t *testing.T) {
 	job := s.Jobs.Create("j", []Task{{Key: "only", NotebookPath: "/n"}})
 	run := s.Jobs.NewRun(job.ID)
 
-	if !s.Jobs.CancelRun(run.ID) || !s.Jobs.CancelRun(run.ID) {
-		t.Fatal("CancelRun should report success both times")
+	// Both calls made before either is judged. Written as `!first || !second`
+	// the || short-circuits, so a failing FIRST cancel skipped the second and
+	// the idempotence this test is named for was never exercised.
+	first := s.Jobs.CancelRun(run.ID)
+	second := s.Jobs.CancelRun(run.ID)
+	if !first || !second {
+		t.Fatalf("CancelRun should report success both times, got %v then %v", first, second)
 	}
 	got, _ := s.Jobs.GetRun(run.ID)
 	if got.ResultState != ResultCanceled {

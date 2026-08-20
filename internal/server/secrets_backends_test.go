@@ -94,10 +94,10 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	var value atomic.Value
 	value.Store("first")
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/secrets/pw":
+		switch r.URL.Path {
+		case "/secrets/pw":
 			_ = json.NewEncoder(w).Encode(map[string]string{"value": value.Load().(string)})
-		case r.URL.Path == "/secrets":
+		case "/secrets":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"value": []map[string]string{{"id": "https://vault/secrets/pw"}},
 			})

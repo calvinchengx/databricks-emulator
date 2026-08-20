@@ -478,9 +478,10 @@ func TestMLflowEveryStoreBranch(t *testing.T) {
 	if _, err := s2.MLflow.CreateExperiment("x", "", nil, 1); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(s2.MLflow.dir, "state.json"), 0o755); err == nil {
-		// may fail if file exists; replace file with dir
-	}
+	// Replace state.json with a DIRECTORY, so the write below has to fail.
+	// Remove first: the path is a file at this point, and Mkdir over a file
+	// errors. The previous attempt-then-remove-then-retry did the same thing
+	// with an empty if body that read as a forgotten assertion.
 	_ = os.Remove(filepath.Join(s2.MLflow.dir, "state.json"))
 	if err := os.Mkdir(filepath.Join(s2.MLflow.dir, "state.json"), 0o755); err != nil {
 		t.Fatal(err)

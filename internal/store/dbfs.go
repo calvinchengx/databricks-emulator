@@ -232,7 +232,9 @@ func (d *DBFS) ReadAt(p string, offset, length int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	// Read path: the file is not being written, so a Close error has nothing
+	// to report and nowhere to go.
+	defer func() { _ = f.Close() }()
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return nil, err
 	}
