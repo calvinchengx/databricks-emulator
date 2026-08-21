@@ -63,7 +63,7 @@ jobs:
           gh release upload "$tag" dist/target/*.whl --clobber
 
   dispatch:
-    name: Tell contoso-databricks-platform to verify this release
+    name: Tell the platforms to verify this release
     needs: [image, target-wheel]
     runs-on: ubuntu-latest
     steps:
@@ -71,16 +71,58 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ACCEPTANCE_DISPATCH_TOKEN }}
         run: |
+          # ONE TARGET, and that is a fact about the consumers rather than a
+          # shortcut: databricks-platform-airflow3 pins this emulator too but
+          # has no repository_dispatch trigger, so naming it here would post
+          # an event nothing listens for and report it as delivered.
+          # Give that repo the trigger and add it here in the same change.
+          targets="databricks-platform-jobs"
+          # A MISSING TOKEN IS AN ERROR, NOT A WARNING. This warned and exited
+          # 0, so every release since this job existed reported success having
+          # told nobody -- the image and the wheel shipped and the consumers
+          # were never asked to verify them. The release itself is already
+          # published by the jobs this one needs, so a red here means "shipped
+          # but unannounced", which is exactly the state worth seeing.
           if [ -z "$GH_TOKEN" ]; then
-            echo "::warning::ACCEPTANCE_DISPATCH_TOKEN is not set — the release " \
-                 "shipped but nothing downstream was told. The consumer's daily " \
-                 "cron still verifies the pin. Add a PAT with contents:write on " \
-                 "calvinchengx/contoso-databricks-platform to dispatch."
-            exit 0
+            echo "::error::ACCEPTANCE_DISPATCH_TOKEN is not set -- the release " \
+                 "shipped but nothing downstream was told. Add a PAT with " \
+                 "'contents: write' on: $targets"
+            exit 1
           fi
+          # THE NAME MUST BE THE REPOSITORY'S OWN, not one GitHub redirects for
+          # us. This job addressed a pre-split name for every release after the
+          # platforms were renamed, and each one succeeded: the API follows a
+          # rename silently, so nothing here could tell. A redirect that works
+          # is still a name we did not update, and the day the old one is reused
+          # by something else this dispatch reaches the wrong repository.
+          for name in $targets; do
+            target="calvinchengx/$name"
+            actual=$(gh api "repos/$target" -q .full_name)
+            if [ "$actual" != "$target" ]; then
+              echo "::error::$target now resolves to $actual. The dispatch is " \
+                   "riding a GitHub redirect: update the name here rather than " \
+                   "relying on it."
+              exit 1
+            fi
+          done
+          # The version travels WITH the event. Without it the downstream repo
+          # would verify whatever its own versions.env pins -- quite possibly
+          # the previous release -- and report success for a release nobody
+          # tested.
           version="${GITHUB_REF_NAME#v}"
-          gh api repos/calvinchengx/contoso-databricks-platform/dispatches \
-            -f event_type=databricks-emulator-release \
-            -F "client_payload[version]=$version" \
-            -F "client_payload[tag]=${GITHUB_REF_NAME}"
-          echo "dispatched databricks-emulator-release for $version"
+          failed=""
+          for name in $targets; do
+            if gh api "repos/calvinchengx/$name/dispatches" \
+                 -f event_type=databricks-emulator-release \
+                 -F "client_payload[version]=$version" \
+                 -F "client_payload[tag]=${GITHUB_REF_NAME}"; then
+              echo "dispatched databricks-emulator-release $version to $name"
+            else
+              echo "::error::could not dispatch to $name"
+              failed="$failed $name"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::not dispatched:$failed"
+            exit 1
+          fi
