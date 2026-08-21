@@ -53,7 +53,14 @@ engine — an honest pass for the chain test, not a green Jobs row.
 
 ## What the agent must do
 
-`POST {url}/statements` with `{session, code, kind, env, spark_conf}`.
+`POST {url}/statements` with `{session, code, kind}`, and **nothing else**.
+
+The body used to carry `env` and `spark_conf` too. The agent reads neither on
+this route -- `sparkConfig` is read only by `/environment` -- so both were
+discarded without comment, which made a task's `spark_env_vars` look supported
+while doing nothing. A task's environment travels in the **generated code**
+instead (below), and the fields are gone rather than left in as decoration:
+[#73](https://github.com/calvinchengx/databricks-emulator/issues/73).
 
 - `kind: python` — run the code. Cluster create sends `print(1)`. A Python
   job sends the workspace/DBFS file, with an argv or notebook-param preamble.

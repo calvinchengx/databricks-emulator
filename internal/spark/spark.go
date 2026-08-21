@@ -13,12 +13,20 @@ import (
 )
 
 // Request is one task submission.
+//
+// NO Env AND NO Conf, deliberately. The agent's /statements handler reads
+// `session`, `code`, `kind` and its identity fields and NOTHING ELSE: an `env`
+// or `spark_conf` key in this body is discarded without comment, which was
+// measured rather than inferred (a statement asking for os.environ back after
+// sending env answers None, and `sparkConfig` is read only by /environment).
+// Carrying them here made the emulator look like it delivered a task's
+// environment when the only thing that ever did was the generated code --
+// `pythonPreamble` in internal/server/jobs.go. One delivery path, so a test
+// cannot pass by asserting on the other one.
 type Request struct {
 	Session string
 	Code    string
 	Kind    string
-	Env     map[string]string
-	Conf    map[string]string
 }
 
 // Result is what the engine returned.
@@ -56,11 +64,9 @@ func (a *Agent) Run(req Request) (Result, error) {
 		return Result{}, fmt.Errorf("no Spark engine is attached — set DATABRICKS_SPARK_CONNECT_URL to a statement agent")
 	}
 	body, _ := json.Marshal(map[string]any{
-		"session":    req.Session,
-		"code":       req.Code,
-		"kind":       req.Kind,
-		"env":        req.Env,
-		"spark_conf": req.Conf,
+		"session": req.Session,
+		"code":    req.Code,
+		"kind":    req.Kind,
 	})
 	resp, err := a.Client.Post(a.URL+"/statements", "application/json", bytes.NewReader(body))
 	if err != nil {

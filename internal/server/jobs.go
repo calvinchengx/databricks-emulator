@@ -358,7 +358,41 @@ func parseTask(t map[string]any) (store.Task, error) {
 	}
 	if nc, ok := t["new_cluster"].(map[string]any); ok {
 		task.SparkEnvVars = stringMap(nc["spark_env_vars"])
-		task.SparkConf = stringMap(nc["spark_conf"])
+		// spark_conf is refused rather than accepted and dropped. Real
+		// Databricks applies it when it CREATES the cluster; here the statement
+		// agent's Spark session already exists when the task arrives, so the
+		// only thing this process could do is set it on a live session -- which
+		// is a different operation, cannot carry static confs at all, and would
+		// leak into whatever else that session runs. The same reasoning already
+		// refuses `libraries` a few lines above.
+		//
+		// It was accepted and silently discarded before: the request body
+		// carried a `spark_conf` key that the agent reads on /environment and
+		// never on /statements, so every task that set one reported SUCCESS
+		// having applied nothing.
+		if len(stringMap(nc["spark_conf"])) > 0 {
+			return task, fmt.Errorf("new_cluster.spark_conf is refused: it is applied at " +
+				"CLUSTER CREATION on real Databricks, and the statement agent's Spark " +
+				"session exists before this task does. Set runtime configuration from the " +
+				"task's own code with spark.conf.set(...), which is honest about when it " +
+				"takes effect")
+		}
+	}
+	// spark_env_vars reaches a task ONLY through the code this process
+	// generates -- `pythonPreamble` for notebook and python tasks, `dbtCode`
+	// for a dbt_task. A task kind with no generated code has nowhere to put
+	// them, and accepting them there meant a run could report SUCCESS having
+	// never seen a variable it set. That matters most for
+	// `{{secrets/scope/key}}`: the resolution was real and the delivery was
+	// not, so a green run was compatible with the secret never arriving.
+	if len(task.SparkEnvVars) > 0 {
+		if kind := envUndeliverableOn(task); kind != "" {
+			return task, fmt.Errorf("new_cluster.spark_env_vars on a %s is refused: the "+
+				"emulator delivers a task's environment by writing os.environ into the "+
+				"code it generates, and a %s has none. Put the values the task needs in "+
+				"a notebook_task, spark_python_task or dbt_task, which do carry them",
+				kind, kind)
+		}
 	}
 	if task.NotebookPath == "" && task.PythonFile == "" && task.SQLFile == "" &&
 		task.Condition == nil && task.Dbt == nil && task.RunJob == nil && task.ForEach == nil {
@@ -366,6 +400,44 @@ func parseTask(t map[string]any) (store.Task, error) {
 			"sql_task.file, condition_task, or dbt_task", task.Key)
 	}
 	return task, nil
+}
+
+// envUndeliverableOn names the task kind that cannot carry spark_env_vars, or
+// "" when this task can.
+//
+// The rule is mechanical rather than a list of opinions: a task gets its
+// environment from Python this process generates, so it can have one exactly
+// when it has generated Python. notebook_task and spark_python_task get
+// `pythonPreamble`; a dbt_task gets `dbtCode`, which writes the same
+// os.environ.update before invoking dbt.
+//
+// The rest cannot, each for its own reason, and none of them can be fixed by
+// trying harder here:
+//
+//   - sql_task runs a SQL statement. There is no preamble to put an assignment
+//     in, and Spark SQL cannot read the process environment anyway. On real
+//     Databricks a sql_task runs on a SQL warehouse, where a cluster's
+//     spark_env_vars have no meaning either.
+//   - condition_task is evaluated in THIS process and never reaches an agent.
+//   - run_job_task and for_each_task run other tasks. Their children carry
+//     their own new_cluster, and silently widening a parent's environment over
+//     children that did not ask for it would be a different feature.
+func envUndeliverableOn(task store.Task) string {
+	switch {
+	case task.NotebookPath != "", task.PythonFile != "", task.Dbt != nil:
+		return ""
+	case task.SQLFile != "":
+		return "sql_task"
+	case task.Condition != nil:
+		return "condition_task"
+	case task.RunJob != nil:
+		return "run_job_task"
+	case task.ForEach != nil:
+		return "for_each_task"
+	}
+	// No kind was recognised. The catch-all below reports that, and reporting
+	// the environment first would name the wrong problem.
+	return ""
 }
 
 // conditionOps is the ConditionTaskOp enum, verbatim from databricks-sdk
@@ -708,16 +780,10 @@ func (s *Server) runTask(t store.Task, depth int) store.TaskRun {
 		tr.Stderr = err.Error()
 		return tr
 	}
-	conf, err := s.resolveSecrets(t.SparkConf)
-	if err != nil {
-		tr.ResultState = "FAILED"
-		tr.Stderr = err.Error()
-		return tr
-	}
 	// dbt loads no task code: its "code" is a project directory, and the
 	// statement it produces is generated rather than read from a file.
 	if t.Dbt != nil {
-		return s.runDbtTask(t, env, conf)
+		return s.runDbtTask(t, env)
 	}
 	if t.RunJob != nil {
 		return s.runJobTask(t, depth)
@@ -733,15 +799,15 @@ func (s *Server) runTask(t store.Task, depth int) store.TaskRun {
 	}
 	var req spark.Request
 	if t.SQLFile != "" {
+		// No environment here, and none is dropped: parseTask refuses
+		// spark_env_vars on a sql_task, because a SQL statement has no
+		// preamble to carry them.
 		req = sparkSQLRequest(code, "job-"+t.Key)
-		req.Env, req.Conf = env, conf
 	} else {
 		req = spark.Request{
 			Session: "job-" + t.Key,
 			Code:    pythonPreamble(t, path, env) + code,
 			Kind:    "python",
-			Env:     env,
-			Conf:    conf,
 		}
 	}
 	res, err := s.Spark.Run(req)

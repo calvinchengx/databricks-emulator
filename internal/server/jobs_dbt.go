@@ -179,20 +179,20 @@ func dbtCode(d *store.Dbt, files map[string][]byte, host, token string, env map[
 	sort.Slice(payload, func(i, j int) bool { return payload[i].Path < payload[j].Path })
 	filesJSON, _ := json.Marshal(payload)
 	argvJSON, _ := json.Marshal(dbtArgv(d.Commands))
-	// The task's spark_env_vars, carried INTO the generated code rather than
-	// left to the agent's own `env` field.
+	// The task's spark_env_vars, carried INTO the generated code. This is the
+	// ONLY delivery path, for dbt and for every other kind that has one.
 	//
-	// Measured, not assumed: the fabric statement agent accepts `env` in the
-	// request and never applies it -- a statement asking for os.environ back
-	// answers None. So a task's spark_env_vars looked supported and did
-	// nothing, and dbt failed with "Env var required but not provided" for a
-	// variable the task had plainly set. A project reads its sources through
-	// env_var(), so this is not a detail: it is whether the task can name the
-	// data it reads.
+	// Measured, not assumed: the statement agent reads `session`, `code`,
+	// `kind` and its identity fields, so an `env` in the request body was
+	// discarded -- a statement asking for os.environ back answered None. A
+	// task's spark_env_vars therefore looked supported and did nothing, and
+	// dbt failed with "Env var required but not provided" for a variable the
+	// task had plainly set. A project reads its sources through env_var(), so
+	// this is not a detail: it is whether the task can name the data it reads.
 	//
-	// Setting them here makes them the dbt process's environment whatever the
-	// agent does with the field, which is the only version of this that is
-	// true on every agent.
+	// The request no longer carries the field at all (internal/spark), so
+	// there is one place a test can assert delivery and no second place a
+	// green assertion can come from.
 	if env == nil {
 		env = map[string]string{}
 	}
@@ -324,7 +324,7 @@ func dbtArgv(commands []string) [][]string {
 
 // runDbtTask materialises the project, generates the statement, and maps the
 // agent's answer the way every other task kind does.
-func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.TaskRun {
+func (s *Server) runDbtTask(t store.Task, env map[string]string) store.TaskRun {
 	tr := store.TaskRun{Key: t.Key, LifeCycle: "TERMINATED"}
 	files, err := s.dbtProjectFiles(t.Dbt.ProjectDirectory)
 	if err != nil {
@@ -344,8 +344,6 @@ func (s *Server) runDbtTask(t store.Task, env, conf map[string]string) store.Tas
 		Session: "job-" + t.Key,
 		Code:    dbtCode(t.Dbt, files, s.AgentOrigin, s.Store.AdminPAT, env),
 		Kind:    "python",
-		Env:     env,
-		Conf:    conf,
 	})
 	if err != nil {
 		tr.ResultState = "FAILED"

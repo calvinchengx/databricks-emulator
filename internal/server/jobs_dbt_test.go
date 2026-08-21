@@ -430,7 +430,7 @@ func TestDbtTaskReportsATransportFailure(t *testing.T) {
 	}
 	tr := h.srv.runDbtTask(store.Task{Key: "g", Dbt: &store.Dbt{
 		Commands: []string{"dbt run"}, ProjectDirectory: "/gold", WarehouseID: wh.ID,
-	}}, nil, nil)
+	}}, nil)
 	if tr.ResultState != "FAILED" {
 		t.Fatalf("ResultState = %q, want FAILED", tr.ResultState)
 	}
@@ -622,7 +622,7 @@ func TestDbtProfilePointsAtTheAgentFacingOrigin(t *testing.T) {
 	}
 	s.runDbtTask(store.Task{Key: "g", Dbt: &store.Dbt{
 		Commands: []string{"dbt run"}, ProjectDirectory: "/gold", WarehouseID: wh.ID,
-	}}, nil, nil)
+	}}, nil)
 	if code == "" {
 		t.Fatal("the task never reached the agent, so this asserts nothing")
 	}
@@ -684,14 +684,17 @@ func TestSparkEnvVarsReachTheDbtProcess(t *testing.T) {
 		Dbt: &store.Dbt{
 			Commands: []string{"dbt run"}, ProjectDirectory: "/gold", WarehouseID: wh.ID,
 		},
-	}, map[string]string{"LAKEHOUSE_ID": "contoso"}, nil)
+	}, map[string]string{"LAKEHOUSE_ID": "contoso"})
 
 	if !strings.Contains(code, "os.environ.update(") {
 		t.Fatal("the generated code never sets the environment, so it depends on " +
 			"an agent field that one agent silently drops")
 	}
-	if !strings.Contains(code, `LAKEHOUSE_ID`) || !strings.Contains(code, `contoso`) {
-		t.Fatalf("the task's env did not travel into the code:\n%s", code[:600])
+	// Decoded, not grepped: both strings also appear in the profile and the
+	// project payload, so a substring match here would pass on a statement
+	// that set no environment at all.
+	if got := deliveredEnv(t, code)["LAKEHOUSE_ID"]; got != "contoso" {
+		t.Fatalf("the task's env did not travel into the code: LAKEHOUSE_ID = %q", got)
 	}
 	// Before dbt is imported, or the parse that reads env_var() has already run.
 	if strings.Index(code, "os.environ.update(") > strings.Index(code, "from dbt.cli.main") {

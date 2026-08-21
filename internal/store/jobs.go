@@ -65,7 +65,6 @@ type Task struct {
 	RunJob         *RunJob
 	ForEach        *ForEach
 	SparkEnvVars   map[string]string
-	SparkConf      map[string]string
 }
 
 // RunJob is a run_job_task: this task's work is another job's run.

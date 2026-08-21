@@ -36,11 +36,15 @@ func TestSecretsCRUDGetRefusedAndJobInjection(t *testing.T) {
 	var run map[string]any
 	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
 	h.waitRun(int64(run["run_id"].(float64)))
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "s3cret" {
-		t.Fatalf("secret not injected: %+v", h.exec.Calls)
+	if len(h.exec.Calls) == 0 {
+		t.Fatal("the task never reached the engine, so this asserts nothing")
 	}
-	if !strings.Contains(h.exec.Calls[0].Code, "os.environ.update") || !strings.Contains(h.exec.Calls[0].Code, "s3cret") {
-		t.Fatalf("resolved secret never reached the driver preamble: %s", h.exec.Calls[0].Code)
+	// Decoded from the preamble, which is the only thing that delivers. The
+	// old form here asserted the RESOLVED value was on the request's `Env`
+	// field, which no agent reads -- true and green while the secret never
+	// arrived.
+	if got := deliveredEnv(t, h.exec.Calls[0].Code)["PW"]; got != "s3cret" {
+		t.Fatalf("the resolved secret reaches the task as %q", got)
 	}
 
 	h.exec.Calls = nil

@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,4 +167,36 @@ func (h *harness) waitRun(runID int64) map[string]any {
 	}
 	h.t.Fatal("run did not terminate")
 	return nil
+}
+
+// deliveredEnv decodes what a generated statement will actually put in
+// os.environ, by reading the `os.environ.update(json.loads("..."))` the
+// preamble emits and undoing both quotings.
+//
+// Tests used to assert on the request's `Env` field instead. That field was
+// never read by the agent, so those assertions proved the emulator had
+// RESOLVED a secret and said nothing about whether the task ever saw it -- a
+// green suite was compatible with the value never arriving. The field is gone
+// now (internal/spark), and this reads the only path that delivers, so a test
+// cannot pass on the strength of the other one.
+func deliveredEnv(t *testing.T, code string) map[string]string {
+	t.Helper()
+	const marker = "os.environ.update(json.loads("
+	i := strings.Index(code, marker)
+	if i < 0 {
+		return nil
+	}
+	lit, err := strconv.QuotedPrefix(code[i+len(marker):])
+	if err != nil {
+		t.Fatalf("os.environ.update argument is not a quoted literal: %v", err)
+	}
+	raw, err := strconv.Unquote(lit)
+	if err != nil {
+		t.Fatalf("unquote os.environ.update argument: %v", err)
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		t.Fatalf("os.environ.update argument is not a JSON object: %v (%q)", err, raw)
+	}
+	return out
 }
