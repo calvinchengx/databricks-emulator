@@ -5,6 +5,13 @@
 # has to dial back OUT to the emulator on the host -- which is what a dbt_task
 # does on real Databricks too, where the compute reaches the warehouse over the
 # network rather than through the process that scheduled it.
+#
+# host.docker.internal is what the agent dials, and it is NOT what the emulator
+# advertises to clients any more: run.py sets DATABRICKS_PUBLIC_URL to loopback
+# and DATABRICKS_AGENT_URL to this name, so a generated profile built from the
+# wrong one lands on the agent's own container and the run fails. They used to
+# be the same string here, which is why the profile defect fixed in #71 was
+# invisible to this suite while it broke every dbt_task on a compose stack.
 services:
   sail:
     image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:b35451c4627b14a885f3867c75870406b0e80e830fbc7dff939acc50c3d7fca0}
@@ -21,6 +28,23 @@ services:
       timeout: 2s
       retries: 30
 
+  # THE DIGEST IS THE WHOLE PIN. THE TAG BESIDE IT IS NOT CHECKED BY ANYTHING.
+  #
+  # Measured, because issue #72 assumed the opposite: `docker pull
+  # repo:0.32.0@sha256:<the 0.31.0 digest>` succeeds and fetches the 0.31.0
+  # image. Docker resolves by digest and does not verify that the tag names it,
+  # so a tag here can say anything at all and nothing will notice.
+  #
+  # Which matters because the tag is ALSO a moving target. fabric-emulator's
+  # release.yml publishes one build under two names -- `emulator-spark-agent`
+  # and `fabric-emulator-spark-agent` -- with three tags: the dependency
+  # version (4.2.0, below), the release semver (0.32.0), and latest. The
+  # dependency tag is REBUILT AND OVERWRITTEN by every release; only the semver
+  # one is stable. The platforms pin `emulator-spark-agent:0.32.0`, and today
+  # that resolves to the same sha256:8983695e… this line pins, so this suite
+  # and the platforms run identical bits.
+  #
+  # If you change one of these two, the other is not going to stop you.
   spark-agent:
     image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:8983695ef6516fd1a7965335b830a3b69b98c773dfbc1fd3c8122faa76cdd348}
     depends_on:
