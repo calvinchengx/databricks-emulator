@@ -66,7 +66,8 @@
     "claim": "Jobs 2.2 \u2014 notebook / Python",
     "witnesses": [
       "ci:e2e-engine",
-      "go:TestJobsPythonRunsAndMutation"
+      "go:TestJobsPythonRunsAndMutation",
+      "ci:e2e-task-parameters"
     ]
   },
   "jobs-2-2-if-else-conditiontask": {

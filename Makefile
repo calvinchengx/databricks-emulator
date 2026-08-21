@@ -100,11 +100,9 @@ e2e-condition-task: ## if/else condition_task via the SDK; delta-rs reads the br
 e2e-task-parameters: ## Two parameterised spark_python_tasks in one wave keep their own argv/env
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
 	@command -v docker >/dev/null || { echo "docker is required on PATH" >&2; exit 1; }
-	# NOT in ci.yml yet, and deliberately: this suite FAILS against the pinned
-	# agent digest, which is the unfixed 4.2.0. The fix is agent-side, in
-	# fabric-emulator's python/spark_agent/task_scope.py. Wire the CI job in the
-	# same PR that bumps SPARK_CLIENT_DIGEST -- adding it before then would put a
-	# known-red job on main, which trains people to ignore it.
+	# In ci.yml as `e2e-task-parameters`, since the digest bump that carries
+	# fabric-emulator's python/spark_agent/task_scope.py. Before that the agent
+	# shared sys.argv across sessions and this suite was red by design.
 	$(UV) run --frozen --group delta python e2e/task-parameters/run.py
 e2e-dbt-uc: ## Unmodified dbt-databricks against a Unity Catalog catalog
 	@command -v $(UV) >/dev/null || { echo "uv is required" >&2; exit 1; }
