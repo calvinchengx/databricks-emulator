@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,7 +17,7 @@ import (
 	"github.com/calvinchengx/databricks-emulator/internal/store"
 )
 
-func TestSecretsBytesValueAndSparkConf(t *testing.T) {
+func TestSecretsBytesValueReachesTheTask(t *testing.T) {
 	h := newHarness(t)
 	pat := h.srv.Store.AdminPAT
 	if st := h.json("POST", "/api/2.0/secrets/scopes/create", pat, map[string]any{"scope": "kv"}, nil); st != 200 {
@@ -37,21 +38,65 @@ func TestSecretsBytesValueAndSparkConf(t *testing.T) {
 			"spark_python_task": map[string]any{"python_file": "/s.py"},
 			"new_cluster": map[string]any{
 				"spark_env_vars": map[string]any{"PW": "{{secrets/kv/pw}}"},
-				"spark_conf":     map[string]any{"spark.hadoop.fs.s3a.secret": "{{secrets/kv/pw}}"},
 			},
 		}},
 	}, &created)
 	var run map[string]any
 	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
 	h.waitRun(int64(run["run_id"].(float64)))
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "from-bytes" {
-		t.Fatalf("env %v", h.exec.Calls)
+	if len(h.exec.Calls) == 0 {
+		t.Fatalf("the task never reached the engine, so this asserts nothing")
 	}
-	if h.exec.Calls[0].Conf["spark.hadoop.fs.s3a.secret"] != "from-bytes" {
-		t.Fatalf("spark_conf not resolved: %+v", h.exec.Calls[0].Conf)
+	// The decoded preamble, which is what the task's own os.environ will hold.
+	// A `bytes_value` secret is stored base64 and must arrive DECODED: the
+	// task reads a password, not a base64 blob.
+	if got := deliveredEnv(t, h.exec.Calls[0].Code)["PW"]; got != "from-bytes" {
+		t.Fatalf("PW reaches the task as %q, want the decoded secret", got)
 	}
-	if !strings.Contains(h.exec.Calls[0].Code, "from-bytes") {
-		t.Fatalf("bytes secret never reached the driver preamble: %s", h.exec.Calls[0].Code)
+}
+
+// A spark_conf is refused rather than accepted and dropped.
+//
+// The request carried it as a `spark_conf` key the agent reads only on
+// /environment, so every task that set one ran with none of it applied and
+// reported SUCCESS. Silently applying nothing is the failure mode this repo
+// refuses by name elsewhere (`libraries`), and it is worse here because
+// `{{secrets/...}}` resolves inside it: the secret was fetched, and then went
+// nowhere.
+func TestSparkConfIsRefusedRatherThanDropped(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	_ = h.srv.Store.Workspace.Put("/s.py", []byte("print(1)"), "FILE", "PYTHON")
+	var out map[string]any
+	st := h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "conf",
+		"tasks": []map[string]any{{
+			"task_key":          "t",
+			"spark_python_task": map[string]any{"python_file": "/s.py"},
+			"new_cluster": map[string]any{
+				"spark_conf": map[string]any{"spark.sql.shuffle.partitions": "8"},
+			},
+		}},
+	}, &out)
+	if st == 200 {
+		t.Fatalf("spark_conf was accepted (%d): %v", st, out)
+	}
+	if !strings.Contains(fmt.Sprint(out), "spark_conf") {
+		t.Fatalf("the refusal does not name the field the caller set: %v", out)
+	}
+	// An EMPTY spark_conf is not a refusal. A caller templating job JSON
+	// commonly emits the key with nothing in it, and failing that would refuse
+	// a job that asks for nothing.
+	st = h.json("POST", "/api/2.2/jobs/create", pat, map[string]any{
+		"name": "empty-conf",
+		"tasks": []map[string]any{{
+			"task_key":          "t",
+			"spark_python_task": map[string]any{"python_file": "/s.py"},
+			"new_cluster":       map[string]any{"spark_conf": map[string]any{}},
+		}},
+	}, nil)
+	if st != 200 {
+		t.Fatalf("an empty spark_conf must not be refused: %d", st)
 	}
 }
 
@@ -154,11 +199,11 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	var run map[string]any
 	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
 	h.waitRun(int64(run["run_id"].(float64)))
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "first" {
-		t.Fatalf("first resolve %+v", h.exec.Calls)
+	if len(h.exec.Calls) == 0 {
+		t.Fatal("the task never reached the engine, so this asserts nothing")
 	}
-	if !strings.Contains(h.exec.Calls[0].Code, "first") {
-		t.Fatalf("first vault value never reached the driver: %s", h.exec.Calls[0].Code)
+	if got := deliveredEnv(t, h.exec.Calls[0].Code)["PW"]; got != "first" {
+		t.Fatalf("first vault value reaches the task as %q", got)
 	}
 
 	value.Store("rotated")
@@ -166,11 +211,11 @@ func TestAKVScopeReadThroughAndRotate(t *testing.T) {
 	var run2 map[string]any
 	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run2)
 	h.waitRun(int64(run2["run_id"].(float64)))
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "rotated" {
-		t.Fatalf("rotate did not read through: %+v", h.exec.Calls)
+	if len(h.exec.Calls) == 0 {
+		t.Fatal("the second run never reached the engine")
 	}
-	if !strings.Contains(h.exec.Calls[0].Code, "rotated") {
-		t.Fatalf("rotated vault value never reached the driver: %s", h.exec.Calls[0].Code)
+	if got := deliveredEnv(t, h.exec.Calls[0].Code)["PW"]; got != "rotated" {
+		t.Fatalf("rotate did not read through: the task sees %q", got)
 	}
 
 	var scopes map[string]any
@@ -230,11 +275,11 @@ func TestAKVScopeUsesVaultAudienceToken(t *testing.T) {
 	var run map[string]any
 	h.json("POST", "/api/2.2/jobs/run-now", pat, map[string]any{"job_id": created["job_id"]}, &run)
 	h.waitRun(int64(run["run_id"].(float64)))
-	if len(h.exec.Calls) == 0 || h.exec.Calls[0].Env["PW"] != "from-vault" {
-		t.Fatalf("resolve %+v", h.exec.Calls)
+	if len(h.exec.Calls) == 0 {
+		t.Fatal("the task never reached the engine, so this asserts nothing")
 	}
-	if !strings.Contains(h.exec.Calls[0].Code, "from-vault") {
-		t.Fatalf("vault value never reached the driver: %s", h.exec.Calls[0].Code)
+	if got := deliveredEnv(t, h.exec.Calls[0].Code)["PW"]; got != "from-vault" {
+		t.Fatalf("the vault value reaches the task as %q", got)
 	}
 	if sawAuth != "Bearer vault-aud" {
 		t.Fatalf("vault saw %q", sawAuth)

@@ -19,14 +19,27 @@ w.secrets.list_secrets(scope="kv")   # keys only
 Survive process restart with the same `DATABRICKS_DATA_DIR`. Witness:
 `ci:e2e-sdk`.
 
-`{{secrets/scope/key}}` in a task's `spark_env_vars` and `spark_conf` is
-resolved **in this process** before the engine runs. Missing key → the run
-is `FAILED`. That miss is in `ci:e2e-engine`.
+`{{secrets/scope/key}}` in a task's `spark_env_vars` is resolved **in this
+process** before the engine runs. Missing key → the run is `FAILED`. That miss
+is in `ci:e2e-engine`.
 
-Resolved values are sent as `req.Env` / `req.Conf`. The family's spark-agent
-drops `env`, so a Python task also bakes `os.environ.update(...)` into the
-driver preamble — that is the attach, not a lookalike. Witness:
-`ci:e2e-engine` (`SECRET=s3cret` in `get-output`).
+**Resolution is not delivery, and only one of the two is a witness.** The
+resolved value reaches the task exactly one way: `os.environ.update(...)` baked
+into the generated code, before the task's own first line. It used to *also*
+travel as a `req.Env` field on the request, which the agent does not read — so
+a test could assert the secret had been resolved, pass, and say nothing about
+whether the task ever saw it. That field is gone; the preamble is the only
+path, and `ci:e2e-engine` reads it back from the task's own output
+(`SECRET=s3cret` in `get-output`).
+
+`spark_conf` is **refused**, not resolved. Real Databricks applies it when it
+creates the cluster; here the agent's Spark session already exists, so there is
+no moment at which this process could apply it the way Databricks does. It was
+accepted and dropped before — including the secrets resolved inside it.
+
+`spark_env_vars` is likewise refused on the task kinds with no generated code
+to carry it: `sql_task`, `condition_task`, `run_job_task` and `for_each_task`.
+`notebook_task`, `spark_python_task` and `dbt_task` carry it.
 
 ## Azure Key Vault-backed
 

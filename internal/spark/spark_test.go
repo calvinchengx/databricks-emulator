@@ -58,3 +58,36 @@ func TestScriptedRecords(t *testing.T) {
 		t.Fatalf("scripted: %+v %v", res, err)
 	}
 }
+
+// The posted body carries exactly the keys the agent reads.
+//
+// It used to carry `env` and `spark_conf` as well. The agent's /statements
+// handler reads `session`, `code`, `kind` and its identity fields and nothing
+// else -- `sparkConfig` is read only by /environment -- so both were discarded
+// silently. A task's environment reaches it through the code the emulator
+// generates instead (internal/server, pythonPreamble), and sending a second,
+// inert copy made the field look supported and gave a test somewhere else to
+// pass against.
+func TestPostedBodyCarriesNoInertFields(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(`{"status":"ok","data":{"text/plain":"1"}}`))
+	}))
+	defer srv.Close()
+
+	if _, err := NewAgent(srv.URL).Run(Request{Session: "s", Code: "print(1)", Kind: "python"}); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"session": true, "code": true, "kind": true}
+	for k := range got {
+		if !want[k] {
+			t.Errorf("the body carries %q, which the agent does not read", k)
+		}
+	}
+	for k := range want {
+		if _, ok := got[k]; !ok {
+			t.Errorf("the body is missing %q", k)
+		}
+	}
+}
