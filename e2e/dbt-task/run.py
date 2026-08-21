@@ -6,7 +6,7 @@ the warehouse itself. Here nothing on this host runs dbt at all: a job is
 created with a dbt_task, the emulator ships the project to the statement agent,
 and dbt runs INSIDE that container against the warehouse it was told to use.
 
-Three things make the witness hold.
+Five things make the witness hold.
 
 1. THE HOST HAS NO DBT. This suite runs under the `delta` dependency group,
    which carries deltalake and no dbt of any kind. `dbt_is_absent_here` asserts
@@ -22,6 +22,23 @@ Three things make the witness hold.
 3. ref() IS EXERCISED. task_two selects from task_one, so a dbt that resolved
    the DAG but never ran it, or ran the models in the wrong order, produces a
    missing table rather than a passing run.
+
+4. THE CLIENT'S ADDRESS AND THE AGENT'S ARE DIFFERENT STRINGS, and the suite
+   is arranged so that confusing them FAILS. `DATABRICKS_PUBLIC_URL` is the
+   loopback address only this host can reach; `DATABRICKS_AGENT_URL` is the
+   host-gateway name only the container can. Both were set to the agent-facing
+   one before, which made them interchangeable here and nowhere else -- so the
+   defect that shipped in #71, a profile carrying the CLIENT origin, was
+   invisible to this gate and broke every dbt_task on a real compose stack.
+   With them split, a profile built from the wrong one dials 127.0.0.1 inside
+   the agent, reaches the agent itself, and the run fails.
+
+5. A FAILING dbt RUN IS EXERCISED, not just a passing one. The second job runs
+   a test that must fail, and requires the failure to arrive AS DATA carrying
+   run_results.json. That is the other half of #71: a dbt failure used to leave
+   the generated code as a SystemExit, which this agent answers by closing the
+   connection without replying, so the caller saw a transport EOF and the
+   artefacts were lost. Nothing on the success path can show that.
 
 The agent reaches the emulator over host.docker.internal, which is why the
 emulator binds 0.0.0.0 here rather than loopback: on real Databricks the
@@ -85,7 +102,14 @@ def start_emulator(bin_path: Path, data_dir: Path) -> subprocess.Popen[bytes]:
     # 0.0.0.0, not loopback: the agent is in a container and arrives on the
     # host-gateway address, which a 127.0.0.1 listener refuses.
     env["DATABRICKS_ADDR"] = f"0.0.0.0:{PORT}"
-    env["DATABRICKS_PUBLIC_URL"] = AGENT_FACING
+    # The two origins are DELIBERATELY different, and only one of them works
+    # from inside the agent. PUBLIC_URL is what a client on this host is told;
+    # 127.0.0.1 there means the agent's own container, where nothing listens on
+    # this port. AGENT_URL is what a generated dbt profile has to carry. Setting
+    # both to the agent-facing name -- which this suite used to do -- makes the
+    # two indistinguishable and lets a profile built from the wrong one pass.
+    env["DATABRICKS_PUBLIC_URL"] = HOST
+    env["DATABRICKS_AGENT_URL"] = AGENT_FACING
     env["DATABRICKS_SPARK_CONNECT_URL"] = AGENT
     proc = subprocess.Popen(
         [str(bin_path)], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -181,6 +205,103 @@ def confirm(table_dir: Path, want_rows: list[tuple[int]], model: str) -> int:
     return dt.version()
 
 
+def job_args(warehouse_id: str, commands: list[str]) -> dict:
+    """One job body, so the passing and failing runs differ only in `commands`."""
+    return {
+        "name": "e2e-dbt-task",
+        "tasks": [
+            {
+                "task_key": "gold",
+                "dbt_task": {
+                    "commands": commands,
+                    "project_directory": WORKSPACE_DIR,
+                    "warehouse_id": warehouse_id,
+                    "catalog": "hive_metastore",
+                    "schema": "default",
+                },
+            }
+        ],
+    }
+
+
+def failing_run(token: str, body: dict) -> None:
+    """A dbt test that fails must come back as DATA, carrying run_results.json.
+
+    This is the case #71 fixed and no gate could see. The generated code used to
+    surface a dbt failure by raising SystemExit; the statement agent answers
+    that by closing the connection WITHOUT REPLYING, so the emulator saw
+    `Post /statements: EOF` and the artefacts -- already printed, already
+    correct -- were lost with the response that would have carried them. The
+    caller learned the transport had failed, on a run where dbt had simply
+    reported a failing test.
+
+    So three things are required here, and they are not the same requirement:
+    the run FAILS, the reason is dbt's own and not a transport error, and
+    run_results.json survives and names the test. A run can fail for the wrong
+    reason and satisfy only the first.
+    """
+    job = api("POST", "/api/2.2/jobs/create", token, body)
+    run = api("POST", "/api/2.2/jobs/run-now", token, {"job_id": job["job_id"]})
+    got = wait_run(int(run["run_id"]), token)
+    state = got.get("state", {})
+    out = api("GET", f"/api/2.2/jobs/runs/get-output?run_id={run['run_id']}", token)
+    error = out.get("error", "")
+
+    if state.get("result_state") != "FAILED":
+        raise SystemExit(
+            f"a failing dbt test did not fail the run: {state}\n"
+            f"stdout: {out.get('logs', '')[:2000]}"
+        )
+    # The transport signature. `EOF` here means the agent closed the connection
+    # instead of replying, which is the exact regression, and it arrives as a
+    # FAILED run too -- so asserting FAILED alone would pass on it.
+    for transport in ("EOF", "connection refused", "spark agent: status"):
+        if transport in error:
+            raise SystemExit(
+                f"the run failed at the TRANSPORT, not in dbt: {error[:2000]}\n"
+                "the failure has to travel as a field, or the artefacts go with it"
+            )
+    if "dbt test" not in error:
+        raise SystemExit(f"the failure does not name the dbt command that failed: {error[:2000]}")
+
+    artifacts = (out.get("dbt_output") or {}).get("artifacts") or {}
+    if "run_results.json" not in artifacts:
+        raise SystemExit(
+            f"the run failed and run_results.json did not survive it: "
+            f"{sorted(artifacts)} -- this is exactly what the caller needs on a "
+            f"failing test, and exactly what the old SystemExit path lost"
+        )
+    results = json.loads(artifacts["run_results.json"]).get("results", [])
+    failed = [r for r in results if r.get("status") in ("fail", "error")]
+    if not failed:
+        raise SystemExit(
+            f"run_results.json came back but reports nothing failing: "
+            f"{[(r.get('unique_id'), r.get('status')) for r in results]}"
+        )
+    named = [r for r in failed if "task_one_must_be_empty" in (r.get("unique_id") or "")]
+    if not named:
+        raise SystemExit(
+            f"run_results.json does not name the test the fixture makes fail: "
+            f"{[(r.get('unique_id'), r.get('status')) for r in results]}"
+        )
+    # `fail` is a test that ran and returned rows; `error` is one that could not
+    # run at all. Both keep the artefact, which is what #71 is about, but only
+    # `fail` means the warehouse actually executed the test -- so an `error`
+    # here is reported rather than accepted, since it would mean the suite had
+    # stopped exercising the SQL path it claims to.
+    status = named[0].get("status")
+    if status != "fail":
+        raise SystemExit(
+            f"the test came back as {status!r}, not 'fail': the artefact survived "
+            f"but the test never ran against the warehouse. message: "
+            f"{named[0].get('message')!r}"
+        )
+    print(
+        f"   the failing run kept its evidence: {named[0]['unique_id']} "
+        f"status={status} failures={named[0].get('failures')}"
+    )
+
+
 def main() -> int:
     dbt_is_absent_here()
 
@@ -213,26 +334,9 @@ def main() -> int:
             "POST",
             "/api/2.2/jobs/create",
             pat,
-            {
-                "name": "e2e-dbt-task",
-                "tasks": [
-                    {
-                        "task_key": "gold",
-                        "dbt_task": {
-                            # Whole command lines, the way Databricks documents
-                            # them. Two of them, so the run has to carry order.
-                            "commands": [
-                                "dbt run --select task_one",
-                                "dbt run --select task_two",
-                            ],
-                            "project_directory": WORKSPACE_DIR,
-                            "warehouse_id": wid,
-                            "catalog": "hive_metastore",
-                            "schema": "default",
-                        },
-                    }
-                ],
-            },
+            # Whole command lines, the way Databricks documents them. Two of
+            # them, so the run has to carry order.
+            job_args(wid, ["dbt run --select task_one", "dbt run --select task_two"]),
         )
         job_id = job.get("job_id")
         if not job_id:
@@ -267,8 +371,11 @@ def main() -> int:
                 f"the run succeeded but its output does not show dbt running: {logs[:2000]}"
             )
 
+        failing_run(pat, job_args(wid, ["dbt run --select task_one", "dbt test"]))
+
         print(
-            "dbt ran inside the spark agent as a Jobs dbt_task; delta-rs confirmed the rows"
+            "dbt ran inside the spark agent as a Jobs dbt_task; delta-rs confirmed the "
+            "rows, and a failing dbt test came back as data with run_results.json"
         )
         return 0
     finally:

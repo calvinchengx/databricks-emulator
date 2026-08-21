@@ -1,0 +1,14 @@
+-- A test that MUST fail, and is the point of the second job in run.py.
+--
+-- dbt reports a singular test as failing when it RETURNS ROWS. task_one has
+-- exactly one, so this fails by one row, deterministically, with no dependence
+-- on ordering or on anything the other models do.
+--
+-- Why the suite needs a failing test at all: both defects fixed in #71 live on
+-- the failure path and neither is reachable from a passing run. A dbt failure
+-- used to leave the generated code as a SystemExit, which the statement agent
+-- answers by closing the connection without replying -- so the caller got
+-- `Post /statements: EOF` and run_results.json, already printed and correct,
+-- was lost with the response that would have carried it. A green suite that
+-- only ever ran passing models could not see that.
+select id from {{ ref('task_one') }}
