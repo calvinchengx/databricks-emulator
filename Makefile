@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses
+.PHONY: help doctor build run up down logs test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -31,6 +31,28 @@ doctor: ## Check the toolchain
 
 build: ## Compile the binary
 	go build -o databricks-emulator ./cmd/databricks-emulator
+
+# THE FAMILY'S EVERYDAY VERBS: up, down, logs, beside run. `run` serves the
+# binary you just built; `up` serves the PUBLISHED image, which is what a
+# platform pins and what a newcomer means by "start the emulator". Prefixed
+# variables on purpose (see entra-emulator): Make imports the environment and
+# `?=` loses to any exported PORT or NAME. Override on the command line:
+#   make up DATABRICKS_PORT=18447
+DATABRICKS_IMAGE ?= ghcr.io/calvinchengx/databricks-emulator:latest
+DATABRICKS_NAME  ?= databricks-emulator
+DATABRICKS_PORT  ?= 8447
+
+up: ## Run the published image in the background, plain HTTP (DATABRICKS_PORT=8447)
+	docker run -d --name $(DATABRICKS_NAME) -p $(DATABRICKS_PORT):8447 \
+	  -e DATABRICKS_DISABLE_TLS=1 -e DATABRICKS_PUBLIC_URL=http://127.0.0.1:$(DATABRICKS_PORT) \
+	  $(DATABRICKS_IMAGE)
+	@echo "databricks-emulator: http://localhost:$(DATABRICKS_PORT)  (admin PAT: make logs)"
+
+down: ## Stop and remove that container
+	docker rm -f $(DATABRICKS_NAME)
+
+logs: ## Tail container logs
+	docker logs -f --tail 100 $(DATABRICKS_NAME)
 
 run: build ## Serve natively (DATABRICKS_DISABLE_TLS=1 for plain HTTP)
 	./databricks-emulator
