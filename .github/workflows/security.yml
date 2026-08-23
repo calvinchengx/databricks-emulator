@@ -4,12 +4,41 @@
 # gap that prompted it: govulncheck reported standard-library vulnerabilities
 # in every Go repo, 6 to 25 each, all of them fixed by moving off Go 1.25. A
 # scanner nobody runs is a scanner that finds nothing.
+# DOCS-ONLY CHANGES SKIP THIS WORKFLOW.
+#
+# The list below is the same in ci.yml, lint.yml, make-targets.yml,
+# security.yml and codeql.yml, and it has to stay that way: a change that some
+# of them ignore and others do not produces a half-run whose green is harder to
+# read than either outcome. `paths-ignore` means "run unless EVERY changed file
+# matches", so a PR touching one Go file and forty markdown files still runs
+# everything here. Only a genuinely docs-only change skips.
+#
+# What still covers the skipped case: docs-site.yml builds the site and runs
+# `check_docs_links.py --strict` and `check_witnesses.py` on exactly these
+# paths, so the docs are gated by the workflow that publishes them.
+#
+# Note `docs/**` also covers docs/witnesses.json, which is NOT markdown and IS
+# checked -- by docs-site.yml, for the same reason.
 name: Security
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
+      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
+      # match README.md at the root -- the exact file this is here for.
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
+      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
+      # match README.md at the root -- the exact file this is here for.
+      - '**.md'
   schedule:
     # Vulnerabilities are published against code that has not changed, so this
     # cannot only run on push: a repo that is finished still needs watching.

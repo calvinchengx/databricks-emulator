@@ -1,3 +1,20 @@
+# The docs site, AND the gates that decide whether it is fit to publish.
+#
+# The gates live here rather than in ci.yml because of what each workflow is
+# allowed to skip. ci.yml now ignores docs-only changes -- an 18-job matrix that
+# pulls container images has nothing to say about a paragraph -- and
+# `check_docs_links.py` used to be a step inside its `test` job, so leaving it
+# there would have meant the doc gate never ran on the changes it exists to
+# check. The paths above are therefore the union of what the SITE needs and
+# what the GATES read: README.md and SECURITY.md because the link checker
+# validates the README's links into docs/, and the two scripts themselves
+# because a change to a checker has to re-run it.
+#
+# `check_witnesses.py` runs in BOTH workflows on purpose. It reads
+# docs/witnesses.json, docs/parity.md AND the names of Go tests, so either side
+# can break it: a renamed Go test is a code change ci.yml sees, and an edited
+# witnesses.json is a docs change only this workflow sees. Four duplicated
+# lines, two correct triggers, no gap between them.
 name: Docs site
 
 on:
@@ -6,6 +23,10 @@ on:
     paths:
       - 'docs/**'
       - 'website/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/check_witnesses.py'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -16,6 +37,10 @@ on:
     paths:
       - 'docs/**'
       - 'website/**'
+      - 'README.md'
+      - 'SECURITY.md'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/check_witnesses.py'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -33,6 +58,23 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Cheap, and deliberately NOT a dependency of `build`: a dangling link and a
+  # broken Astro build are independent failures, and seeing both in one run
+  # beats discovering the second after fixing the first. `deploy` waits for
+  # both, so neither can publish past the other.
+  gates:
+    name: Doc links, sidebar and witness map
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The site build does NOT catch a dangling intra-doc link: measured, it
+      # exits 0 and publishes a 404. Nor can it see a page missing from the
+      # sidebar, which is published but unreachable by navigation.
+      - name: Doc links and sidebar
+        run: python3 scripts/check_docs_links.py --strict
+      - name: Witness map
+        run: python3 scripts/check_witnesses.py
+
   build:
     name: Build Starlight site
     runs-on: ubuntu-latest
@@ -57,7 +99,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    needs: build
+    needs: [build, gates]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:

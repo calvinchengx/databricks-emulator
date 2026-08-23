@@ -1,9 +1,38 @@
+# DOCS-ONLY CHANGES SKIP THIS WORKFLOW.
+#
+# The list below is the same in ci.yml, lint.yml, make-targets.yml,
+# security.yml and codeql.yml, and it has to stay that way: a change that some
+# of them ignore and others do not produces a half-run whose green is harder to
+# read than either outcome. `paths-ignore` means "run unless EVERY changed file
+# matches", so a PR touching one Go file and forty markdown files still runs
+# everything here. Only a genuinely docs-only change skips.
+#
+# What still covers the skipped case: docs-site.yml builds the site and runs
+# `check_docs_links.py --strict` and `check_witnesses.py` on exactly these
+# paths, so the docs are gated by the workflow that publishes them.
+#
+# Note `docs/**` also covers docs/witnesses.json, which is NOT markdown and IS
+# checked -- by docs-site.yml, for the same reason.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
+      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
+      # match README.md at the root -- the exact file this is here for.
+      - '**.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'website/**'
+      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
+      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
+      # match README.md at the root -- the exact file this is here for.
+      - '**.md'
 
 permissions:
   contents: read
@@ -39,13 +68,14 @@ jobs:
       # often than it caught them.
       - name: Race detector
         run: go test -count=5 -race $(go list ./... | grep -v '/internal/hs2/cliservice$')
+      # Stays here as well as in docs-site.yml: this one reads the names of
+      # Go tests, so renaming a test breaks it from the CODE side, which
+      # docs-site.yml never sees.
       - name: Witness map
         run: python3 scripts/check_witnesses.py
-      # The site build does NOT catch a dangling intra-doc link: measured, it
-      # exits 0 and publishes a 404. Nor can it see a page missing from the
-      # sidebar, which is published but unreachable by navigation.
-      - name: Doc links and sidebar
-        run: python3 scripts/check_docs_links.py --strict
+      # `check_docs_links.py --strict` used to run here too. It moved to
+      # docs-site.yml: this workflow no longer runs on docs-only changes, and a
+      # docs change is the only thing that can break a doc link.
 
   e2e-sdk:
     name: Unmodified databricks-sdk
