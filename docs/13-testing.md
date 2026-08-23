@@ -140,6 +140,69 @@ job.
 resolve it by name, `SELECT 1`. Real-target conformance is
 secret-gated, not this job.
 
+## What CI runs, and what a docs change skips
+
+An 18-job matrix that pulls container images cannot observe a paragraph, so
+`ci.yml`, `lint.yml`, `make-targets.yml`, `security.yml` and `codeql.yml` all
+carry the same `paths-ignore`:
+
+```yaml
+paths-ignore:
+  - 'site/**'
+  - 'docs/**'
+  - 'website/**'
+  - '**.md'
+```
+
+`paths-ignore` means **run unless every changed file matches**. A pull request
+touching one Go file and forty Markdown files still runs everything; only a
+genuinely docs-only change skips.
+
+Two details that are easy to get wrong and are load-bearing here.
+
+**The doc gates must not live inside a workflow that skips.**
+`check_docs_links.py --strict` used to be a step inside `ci.yml`'s `test` job.
+Filtering that workflow without moving it would have meant the doc-link gate
+never ran on the only kind of change that can break a doc link — a filter that
+quietly disables a checker is worse than no filter. It runs in `docs-site.yml`
+now, gating the deploy.
+
+**`check_witnesses.py` runs in both `ci.yml` and `docs-site.yml`, on purpose.**
+It reads `witnesses.json`, `parity.md` *and* the names of Go tests, so either
+side can break it: renaming a Go test is a code change `docs-site.yml` never
+sees, and editing `witnesses.json` is a docs change `ci.yml` never sees. Two
+triggers, no gap.
+
+The glob is `'**.md'` and not `'**/*.md'`. GitHub's `**` matches any characters
+*including* `/`, so the second form requires a literal slash and does not match
+`README.md` at the repository root.
+
+## How the site is published
+
+`/` is a hand-written landing page, `site/index.html`, copied over the built
+site's root by `docs-site.yml`. The documentation's own contents page is one
+level in at `/overview/`, and **every chapter keeps the URL it always had** —
+Starlight's `base` is unchanged and no chapter slug moves.
+
+Astro never sees the landing page, so nothing that protects the docs protects
+it. `scripts/check_landing_page.py` does, and it fails the build on four
+distinct things: a relative link that resolves nowhere in the assembled site,
+an anchor naming an id the page lacks, a release pill advertising a superseded
+tag, and an evidence figure that has drifted from the ledger.
+
+That last one matters most. The page advertises counts — parity claims,
+claims with a `ci:` witness, surfaces not implemented — and those are exactly
+the numbers that are true the day they are typed and quietly wrong a month
+later. The checker reads them back by **importing `check_witnesses`** rather
+than parsing `parity.md` itself. Its first version did re-parse, counted the
+legend table as capability rows, and reported one more red row than the ledger
+holds; the page agreed with it, and the gate passed. A second parser is a
+second opinion, and a checker holding a page to its own opinion is checking
+nothing.
+
+It also fails when it finds **nothing** to check: rewording a hero stat reports
+that the stat stopped being checked, rather than passing over zero stats.
+
 ## Not a witness
 
 - A Go test that reports SUCCESS from a scripted hook without the production
