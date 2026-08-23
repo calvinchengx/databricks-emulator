@@ -29,6 +29,8 @@ on:
       - 'scripts/check_docs_links.py'
       - 'scripts/check_witnesses.py'
       - 'scripts/check_landing_page.py'
+      - 'scripts/assemble_site.py'
+      - 'website/published-routes.txt'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -45,6 +47,8 @@ on:
       - 'scripts/check_docs_links.py'
       - 'scripts/check_witnesses.py'
       - 'scripts/check_landing_page.py'
+      - 'scripts/assemble_site.py'
+      - 'website/published-routes.txt'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -96,28 +100,28 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter databricks-emulator-docs build
-      # The hand-written landing page becomes the site root, and every doc page
-      # keeps the URL it already had: Starlight's base is unchanged and no
-      # chapter slug moves. The docs' own contents page lives one level in at
-      # /overview/, which is why sync-docs.mjs writes overview.md -- so this
-      # copy ADDS a root page rather than overwriting one Astro built.
+      # THE LANDING PAGE AT THE ROOT, THE DOCS UNDER /docs/, and a redirect
+      # stub at every path this site published before the move. The assembler
+      # holds itself to website/published-routes.txt -- the route list captured
+      # from the build immediately before the base changed -- so an old URL
+      # that would 404 fails the deploy instead of reaching a reader.
       #
-      # AFTER the build, which would otherwise wipe website/dist.
-      - name: Put the landing page at the site root
+      # Its self-test runs first: a gate nobody has watched fail is a gate
+      # nobody knows the direction of.
+      - name: Assemble the site, and prove no published URL moved
         run: |
-          set -euo pipefail
-          test -s site/index.html
-          cp site/index.html website/dist/index.html
+          python3 scripts/assemble_site.py --self-test
+          python3 scripts/assemble_site.py --out _site
       # Astro never sees this page, so none of the checks that protect the docs
       # protect it: a renamed doc, a moved anchor, a superseded release or an
       # evidence count that drifted from witnesses.json would all publish
       # silently as a broken or dishonest front page.
       - name: The landing page holds up
-        run: python3 scripts/check_landing_page.py --site website/dist
+        run: python3 scripts/check_landing_page.py --site _site
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
-          path: website/dist
+          path: _site
 
   deploy:
     name: Deploy to GitHub Pages

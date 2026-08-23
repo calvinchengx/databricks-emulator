@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(here, '..', '..');
 const DOCS_SRC = join(REPO_ROOT, 'docs');
 const OUT = join(here, '..', 'src', 'content', 'docs');
-export const BASE = '/databricks-emulator/';
+export const BASE = '/databricks-emulator/docs/';
 const REPO = 'https://github.com/calvinchengx/databricks-emulator';
 
 const PARITY = collectParity(REPO_ROOT);
@@ -78,15 +78,14 @@ function convert(srcPath, name) {
   return `---\ntitle: ${yamlEscape(title)}\neditUrl: ${yamlEscape(editUrl)}\n---\n\n` + body;
 }
 
-// The site root is NOT this page. site/index.html, a hand-written landing page,
-// is copied over dist/index.html by the docs-site workflow, so the docs get
-// their own front door one level in at /databricks-emulator/overview/ and the
-// header's home link lands on the landing page rather than looping back here.
+// The docs' own front door, at /databricks-emulator/docs/.
 //
-// Every CHAPTER keeps the URL it already had -- Starlight's base is unchanged
-// and no chapter slug moves. The one page that changes address is this
-// generated contents page, which had no inbound links other than the sidebar.
-function writeOverview() {
+// It was `overview` while Starlight was based at the root, because the landing
+// page took index.html and the two would have collided. With the docs under
+// /docs/ there is no collision, so this is the index again and the front door
+// is the directory a reader lands on. `/overview/` keeps working: it is in
+// published-routes.txt and gets a redirect stub like every other old path.
+function writeIndex() {
   const body = rewriteLinks(
     `Local emulator of a **Databricks workspace** in a single Go binary — ` +
       `PAT and this process's own OIDC, workspace files, Jobs, SQL warehouses, ` +
@@ -116,11 +115,11 @@ function writeOverview() {
       `- [Roadmap](15-roadmap.md) — next honest attaches; not implemented\n` +
       `- [Parity ledger](parity.md) — catalog is the workspace REST API reference\n` +
       `- [Parity history](${BASE}parity-history/) — snapshots from git tags\n`,
-    'overview',
+    'index',
   );
   const frontmatter =
     `---\ntitle: Databricks Emulator\ndescription: A local emulator of a Databricks workspace — PAT and OIDC identity, workspace files, Jobs, and an attached Spark engine — refuse what you cannot compute.\neditUrl: false\n---\n\n`;
-  writeFileSync(join(OUT, 'overview.md'), frontmatter + body);
+  writeFileSync(join(OUT, 'index.md'), frontmatter + body);
 }
 
 rmSync(OUT, { recursive: true, force: true });
@@ -130,7 +129,7 @@ const names = readdirSync(DOCS_SRC).filter((n) => DOC_RE.test(n)).sort();
 for (const name of names) {
   writeFileSync(join(OUT, name), convert(join(DOCS_SRC, name), name));
 }
-writeOverview();
+writeIndex();
 const info = writeParityHistory(OUT, PARITY, { convertBody });
 const DATA = join(here, '..', 'src', 'data');
 mkdirSync(DATA, { recursive: true });

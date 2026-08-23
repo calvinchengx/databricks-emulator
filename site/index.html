@@ -72,7 +72,7 @@ a{color:var(--accent)}
      attaches a real engine to do the work, and returns an honest error for everything else &mdash;
      because an emulator that fakes a result is worse than one that says no.</p>
   <div class="cta">
-    <a class="btn primary" href="overview/">Read the docs</a>
+    <a class="btn primary" href="docs/">Read the docs</a>
     <a class="btn ghost" href="https://github.com/calvinchengx/databricks-emulator">Source on GitHub</a>
     <a class="btn ghost" href="#evidence">How it is proved</a>
     <a class="btn ghost" href="#refuses">What it refuses</a>
@@ -96,7 +96,7 @@ a{color:var(--accent)}
      person left behind.</p>
   <p>This runs the real API surface locally, and is deliberate about the line between what it
      really does and what it only appears to do. That line is published as a
-     <a href="parity/">parity ledger</a> rather than described in a README, and every row on the
+     <a href="docs/parity/">parity ledger</a> rather than described in a README, and every row on the
      green side of it names the evidence.</p>
 </section>
 
@@ -204,7 +204,7 @@ export DATABRICKS_TOKEN="$(cat data/admin.pat)"
 databricks workspace list /</code></pre>
   <p>It is one binary with no cgo. Jobs need an engine attached; with none, a run
      <b>fails naming the missing engine</b> and never reports SUCCESS. The
-     <a href="01-quickstart/">quick start</a> attaches one in a single compose file.</p>
+     <a href="docs/01-quickstart/">quick start</a> attaches one in a single compose file.</p>
   <div class="note">
     <p style="margin:0"><b>Local development only.</b> Intentionally insecure: an unauthenticated
        admin surface, a well-known seeded token, and a self-signed certificate. Never expose it to a

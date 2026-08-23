@@ -32,3 +32,6 @@ __pycache__/
 
 # Go coverage profile
 cover.out
+
+# Assembled by scripts/assemble_site.py for the Pages deploy.
+_site/
