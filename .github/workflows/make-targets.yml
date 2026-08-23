@@ -8,8 +8,9 @@
 # everything here. Only a genuinely docs-only change skips.
 #
 # What still covers the skipped case: docs-site.yml builds the site and runs
-# `check_docs_links.py --strict` and `check_witnesses.py` on exactly these
-# paths, so the docs are gated by the workflow that publishes them.
+# `check_docs_links.py --strict`, `check_witnesses.py` and
+# `check_landing_page.py` on exactly these paths, so the docs AND the hand-
+# written landing page in site/ are gated by the workflow that publishes them.
 #
 # Note `docs/**` also covers docs/witnesses.json, which is NOT markdown and IS
 # checked -- by docs-site.yml, for the same reason.
@@ -20,6 +21,7 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - 'site/**'
       - 'docs/**'
       - 'website/**'
       # '**.md', not '**/*.md'. GitHub's '**' matches any characters
@@ -28,6 +30,7 @@ on:
       - '**.md'
   pull_request:
     paths-ignore:
+      - 'site/**'
       - 'docs/**'
       - 'website/**'
       # '**.md', not '**/*.md'. GitHub's '**' matches any characters
