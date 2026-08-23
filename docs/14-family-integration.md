@@ -57,7 +57,7 @@ A bare `--profile fabric` does not depend on `--profile databricks`.
 
 ## The chain test
 
-[azure-emulators `e2e/chain`](https://calvinchengx.github.io/azure-emulators/04-chain-test/)
+[azure-emulators `e2e/chain`](https://calvinchengx.github.io/azure-emulators/docs/04-chain-test/)
 is the check no single emulator repo can make: **released images**, composed
 together, still trust each other. For this workspace it asserts:
 
