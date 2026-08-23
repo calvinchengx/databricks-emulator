@@ -78,7 +78,15 @@ function convert(srcPath, name) {
   return `---\ntitle: ${yamlEscape(title)}\neditUrl: ${yamlEscape(editUrl)}\n---\n\n` + body;
 }
 
-function writeIndex() {
+// The site root is NOT this page. site/index.html, a hand-written landing page,
+// is copied over dist/index.html by the docs-site workflow, so the docs get
+// their own front door one level in at /databricks-emulator/overview/ and the
+// header's home link lands on the landing page rather than looping back here.
+//
+// Every CHAPTER keeps the URL it already had -- Starlight's base is unchanged
+// and no chapter slug moves. The one page that changes address is this
+// generated contents page, which had no inbound links other than the sidebar.
+function writeOverview() {
   const body = rewriteLinks(
     `Local emulator of a **Databricks workspace** in a single Go binary — ` +
       `PAT and this process's own OIDC, workspace files, Jobs, SQL warehouses, ` +
@@ -108,11 +116,11 @@ function writeIndex() {
       `- [Roadmap](15-roadmap.md) — next honest attaches; not implemented\n` +
       `- [Parity ledger](parity.md) — catalog is the workspace REST API reference\n` +
       `- [Parity history](${BASE}parity-history/) — snapshots from git tags\n`,
-    'index',
+    'overview',
   );
   const frontmatter =
     `---\ntitle: Databricks Emulator\ndescription: A local emulator of a Databricks workspace — PAT and OIDC identity, workspace files, Jobs, and an attached Spark engine — refuse what you cannot compute.\neditUrl: false\n---\n\n`;
-  writeFileSync(join(OUT, 'index.md'), frontmatter + body);
+  writeFileSync(join(OUT, 'overview.md'), frontmatter + body);
 }
 
 rmSync(OUT, { recursive: true, force: true });
@@ -122,12 +130,12 @@ const names = readdirSync(DOCS_SRC).filter((n) => DOC_RE.test(n)).sort();
 for (const name of names) {
   writeFileSync(join(OUT, name), convert(join(DOCS_SRC, name), name));
 }
-writeIndex();
+writeOverview();
 const info = writeParityHistory(OUT, PARITY, { convertBody });
 const DATA = join(here, '..', 'src', 'data');
 mkdirSync(DATA, { recursive: true });
 writeFileSync(join(DATA, 'parity-versions.json'), JSON.stringify(parityManifest(PARITY), null, 2) + '\n');
 console.log(
-  `sync-docs: wrote ${names.length} docs + index to src/content/docs/ ` +
+  `sync-docs: wrote ${names.length} docs + overview to src/content/docs/ ` +
     `(parity ${info.version}; ${info.snapshots.length} tagged snapshot(s))`,
 );

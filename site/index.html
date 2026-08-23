@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Databricks Emulator — a local workspace that refuses what it cannot compute</title>
+<meta name="description" content="A clean-room, local emulator of a Databricks workspace. Real PAT and OIDC identity, workspace files, Jobs, SQL warehouses and an attached Spark engine — driven in CI by the unmodified SDK, CLI, Terraform provider, dbt and Spark Connect.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◧</text></svg>">
+<style>
+:root{
+  --bg:#fbfbfa; --panel:#fff; --ink:#16181d; --muted:#5c6270; --line:#e3e5e9;
+  --accent:#b4432c; --accent-soft:#fbeae6;
+  --ship:#1a6b4a; --ship-bg:#e6f3ed;
+  --wip:#8a5a00; --wip-bg:#fdf3e0;
+  --no:#5c6270; --no-bg:#eef0f3;
+  --code:#f4f5f7; --radius:14px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#101216;--panel:#171a20;--ink:#e8eaee;--muted:#9aa2b1;--line:#262a33;
+        --accent:#e8785c;--accent-soft:#2e1a15;--ship:#5cc191;--ship-bg:#12291f;
+        --wip:#e0a33a;--wip-bg:#2e2412;--no:#9aa2b1;--no-bg:#1d2129;--code:#1c2028;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:880px;margin:0 auto;padding:0 24px}
+header{padding:64px 0 40px}
+.release-pill{display:inline-block;text-decoration:none;font-size:.82rem;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:5px 14px;margin-bottom:22px;background:var(--panel)}
+.release-pill span{color:var(--accent);font-weight:700}
+h1{font-size:clamp(2rem,5vw,2.9rem);line-height:1.15;margin:0 0 14px;letter-spacing:-.02em}
+.tag{color:var(--muted);font-size:1.12rem;margin:0 0 26px;max-width:62ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;text-decoration:none;font-weight:600;font-size:.95rem}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{border:1px solid var(--line);color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:34px 0 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.stat b{display:block;font-size:1.8rem;line-height:1.1;color:var(--accent);letter-spacing:-.02em}
+.stat span{display:block;color:var(--muted);font-size:.85rem;margin-top:4px}
+.stat small{font-size:.9rem;font-weight:600}
+section{padding:34px 0;border-top:1px solid var(--line)}
+h2{font-size:1.35rem;margin:0 0 16px;letter-spacing:-.01em}
+h3{font-size:1rem;margin:22px 0 8px}
+p{margin:0 0 16px}
+.lead{font-size:1.05rem}
+ul{margin:0 0 16px;padding-left:20px}
+li{margin-bottom:10px}
+code{font-family:var(--mono);font-size:.88em;background:var(--code);padding:2px 6px;border-radius:5px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:var(--radius);padding:16px;overflow-x:auto;font-family:var(--mono);font-size:.86rem;line-height:1.5}
+pre code{background:none;padding:0}
+table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:.92rem;display:block;overflow-x:auto}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+.k{display:inline-block;font-family:var(--mono);font-size:.76rem;padding:2px 8px;border-radius:999px;font-weight:600}
+.k.ci{background:var(--ship-bg);color:var(--ship)}
+.k.go{background:var(--no-bg);color:var(--no)}
+.note{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:18px 20px;margin:22px 0}
+.note b{color:var(--accent)}
+footer{padding:36px 0 64px;border-top:1px solid var(--line);color:var(--muted);font-size:.9rem}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <a class="release-pill" href="https://github.com/calvinchengx/databricks-emulator/releases/latest"><span>v0.2.9</span> dbt_task reaches the warehouse the agent can actually see &rarr;</a>
+  <h1>A Databricks workspace on your laptop, that refuses what it cannot compute.</h1>
+  <p class="tag">Clean-room, local, single Go binary. It terminates the real Databricks REST API,
+     attaches a real engine to do the work, and returns an honest error for everything else &mdash;
+     because an emulator that fakes a result is worse than one that says no.</p>
+  <div class="cta">
+    <a class="btn primary" href="overview/">Read the docs</a>
+    <a class="btn ghost" href="https://github.com/calvinchengx/databricks-emulator">Source on GitHub</a>
+    <a class="btn ghost" href="#evidence">How it is proved</a>
+    <a class="btn ghost" href="#refuses">What it refuses</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>31</b><span>parity claims, every one witnessed</span></div>
+    <div class="stat"><b>31</b><span>of those proved by an outside client</span></div>
+    <div class="stat"><b>6</b><span>unmodified clients driving it</span></div>
+    <div class="stat"><b>26</b><span>surfaces it openly does not implement</span></div>
+  </div>
+</header>
+
+<section>
+  <h2>The problem this solves</h2>
+  <p class="lead">A Databricks workspace is not something you can stand up to test against. So the
+     code that talks to one gets tested against a mock you wrote, which agrees with you by
+     construction, or against a shared dev workspace that is slow, costs money, and is never in a
+     known state.</p>
+  <p>Both failure modes are the same failure: <b>the thing you test against is not the thing you
+     ship against.</b> A mock returns what you told it to. A shared workspace returns what the last
+     person left behind.</p>
+  <p>This runs the real API surface locally, and is deliberate about the line between what it
+     really does and what it only appears to do. That line is published as a
+     <a href="parity/">parity ledger</a> rather than described in a README, and every row on the
+     green side of it names the evidence.</p>
+</section>
+
+<section>
+  <h2>What it actually does</h2>
+  <table>
+    <tr><th>Surface</th><th>What is real</th></tr>
+    <tr><td><b>Identity</b></td><td>Personal access tokens, this process's own OIDC, and federated JWTs from entra-emulator. Real signed tokens, really verified.</td></tr>
+    <tr><td><b>Workspace &amp; DBFS</b></td><td>Notebooks and workspace files with the SOURCE / RAW / AUTO formats the API defines, and a Repos surface that really clones with git.</td></tr>
+    <tr><td><b>Jobs 2.2</b></td><td><code>notebook_task</code>, <code>spark_python_task</code>, <code>sql_task.file</code>, <code>condition_task</code>, <code>dbt_task</code>, <code>run_job_task</code> and <code>for_each_task</code>, dispatched with real dependency ordering and real concurrency.</td></tr>
+    <tr><td><b>SQL warehouses</b></td><td>The statement API and HiveServer2 Thrift, executing on an attached engine &mdash; the dialect is Spark SQL, not Photon, and the docs say so.</td></tr>
+    <tr><td><b>Compute</b></td><td>Sail (Spark Connect) or JVM Spark, writing genuine Delta bytes that <code>delta-rs</code> reads back independently.</td></tr>
+    <tr><td><b>Secrets</b></td><td>Scopes that persist, <code>{{secrets/scope/key}}</code> resolved into a task's environment, and live read-through to azure-keyvault-emulator.</td></tr>
+    <tr><td><b>Unity Catalog</b></td><td>A proxy in front of the real Unity Catalog OSS server. Grants stay a 501, because that part is not implemented and pretending otherwise would be the lie.</td></tr>
+  </table>
+</section>
+
+<section id="evidence">
+  <h2>How a claim gets to be green</h2>
+  <p>Every green row in the parity ledger names its evidence in
+     <a href="https://github.com/calvinchengx/databricks-emulator/blob/main/docs/witnesses.json">witnesses.json</a>,
+     and CI fails if a row claims something no witness backs. The kinds are not equal, and are not
+     presented as though they were:</p>
+  <table>
+    <tr><th>Kind</th><th>What it is worth</th></tr>
+    <tr><td><span class="k ci">ci:</span></td><td>An <b>unmodified third-party client</b> drives the emulator over a real network in CI. The strongest thing on offer: the client was not written by this project and does not know it is talking to an emulator.</td></tr>
+    <tr><td><span class="k go">go:</span></td><td>This project's own Go tests. They prove routing and refusal. They cannot prove interoperability, because they are the emulator agreeing with itself.</td></tr>
+  </table>
+  <p><b>All 31 claims carry a <code>ci:</code> witness.</b> That was not true a few months ago, and
+     closing the gap is what found most of the defects below.</p>
+</section>
+
+<section>
+  <h2>Defects our own tests could not see</h2>
+  <p>Each of these passed a green Go suite and broke a real client. They are the argument for the
+     witness rule, and they are why the rule is enforced by CI rather than by intention.</p>
+  <h3>A dbt task that could never reach its warehouse</h3>
+  <p>The generated dbt profile carried the origin <b>the client</b> uses. Inside the compute
+     container that address resolves to the container itself, so dbt dialled itself and hung. It
+     passed the end-to-end gate because that gate handed the emulator one address that happened to
+     work from both sides &mdash; the two names were the same string in the test and nowhere else.</p>
+  <h3>A failing dbt test that came back as a network error</h3>
+  <p>When dbt failed, the generated code raised <code>SystemExit</code>. The statement agent answers
+     that by closing the connection without replying, so the caller got
+     <code>Post /statements: EOF</code> and lost the <code>run_results.json</code> that had already
+     been printed and would have said which test failed. The failure now travels as data, beside
+     the evidence, where nothing between the agent and the caller can separate them.</p>
+  <h3>Secrets that were fetched and then dropped</h3>
+  <p>A task's <code>spark_env_vars</code> and <code>spark_conf</code> were sent to the agent in
+     fields the agent does not read. The emulator really did resolve
+     <code>{{secrets/scope/key}}</code>, and then put the value nowhere &mdash; and the run reported
+     SUCCESS. The tests passed because they asserted the secret had been <i>resolved</i>, one level
+     away from whether the task ever <i>saw</i> it.</p>
+  <h3>Two concurrent tasks reading each other's parameters</h3>
+  <p>Task parameters arrive by assigning <code>sys.argv</code>, which is one object per interpreter.
+     Two tasks in the same wave overwrote each other and each read whichever landed last. Both
+     reported SUCCESS. A loop writing one output per input silently produced fewer outputs than it
+     had inputs, and the run was green.</p>
+  <div class="note">
+    <p style="margin:0"><b>The pattern.</b> Not one of these was a crash. Every one of them was a
+       green run that had quietly done the wrong thing, and in each case a test existed that was
+       asserting something one step to the side of the property that mattered.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Who drives it in CI</h2>
+  <p>Six unmodified clients, pinned to exact versions in the lockfile. A floating install is not a
+     witness &mdash; it is whatever the registry shipped the morning CI ran.</p>
+  <table>
+    <tr><th>Client</th><th>What it proves</th></tr>
+    <tr><td><code>databricks-sdk==0.129.0</code></td><td>Workspace, Jobs, secrets and Unity Catalog through the official Python SDK.</td></tr>
+    <tr><td>Databricks CLI <code>v1.12.1</code></td><td>The published binary, against the same surface.</td></tr>
+    <tr><td><code>databricks/databricks</code></td><td>The real Terraform provider, planning and applying.</td></tr>
+    <tr><td><code>databricks-connect==19.1</code></td><td>Spark Connect against the attached engine.</td></tr>
+    <tr><td><code>databricks-sql-connector==4.4.0</code></td><td>HiveServer2 Thrift, the wire a BI tool speaks.</td></tr>
+    <tr><td><code>dbt-databricks==1.12.4</code></td><td>A real dbt project, run both from the host and as a Jobs <code>dbt_task</code>.</td></tr>
+  </table>
+  <p>The engine that writes is never the engine that confirms: models land as Delta on disk and
+     <b>delta-rs</b> &mdash; which never spoke to dbt, the agent, or Spark &mdash; reads the log and
+     the rows back.</p>
+</section>
+
+<section id="refuses">
+  <h2>What it refuses to do</h2>
+  <p>Twenty-six surfaces are marked not-implemented in the ledger, on purpose and by name. A
+     refusal that says what is missing is a feature; a plausible empty response is a bug you find
+     in production.</p>
+  <ul>
+    <li><b>Executing a JAR.</b> <code>spark_jar_task</code> asks this process to run a Java main class. It says so and stops.</li>
+    <li><b>Anything with a cluster lifecycle.</b> <code>python_wheel_task</code>, <code>libraries</code>, instance pools, init scripts &mdash; the emulator does not own a cluster, so it will not pretend to configure one.</li>
+    <li><b>Unity Catalog grants.</b> An honest 501, not an empty list that reads as "no grants".</li>
+    <li><b>Photon and DBR compatibility.</b> The dialect is Spark SQL. Where that differs from Databricks, the difference is documented rather than papered over.</li>
+    <li><b>SCIM, Permissions, Apps, SQL Alerts.</b> Absent, and listed as absent.</li>
+  </ul>
+</section>
+
+<section id="start">
+  <h2>Run it</h2>
+  <pre><code>docker run --rm -p 8443:8443 ghcr.io/calvinchengx/databricks-emulator:latest
+
+# the admin PAT is written to the data directory on first start
+export DATABRICKS_HOST=https://localhost:8443
+export DATABRICKS_TOKEN="$(cat data/admin.pat)"
+databricks workspace list /</code></pre>
+  <p>It is one binary with no cgo. Jobs need an engine attached; with none, a run
+     <b>fails naming the missing engine</b> and never reports SUCCESS. The
+     <a href="01-quickstart/">quick start</a> attaches one in a single compose file.</p>
+  <div class="note">
+    <p style="margin:0"><b>Local development only.</b> Intentionally insecure: an unauthenticated
+       admin surface, a well-known seeded token, and a self-signed certificate. Never expose it to a
+       network you do not control.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Part of the <a href="https://github.com/calvinchengx/azure-emulators">Azure emulator family</a>
+     alongside <a href="https://github.com/calvinchengx/fabric-emulator">fabric-emulator</a>,
+     <a href="https://github.com/calvinchengx/entra-emulator">entra-emulator</a> and
+     <a href="https://github.com/calvinchengx/azure-keyvault-emulator">azure-keyvault-emulator</a>.</p>
+  <p>Apache 2.0. Clean-room: built from published API documentation and the behaviour of unmodified
+     clients, never from Databricks source.</p>
+</footer>
+
+</div>
+</body>
+</html>
