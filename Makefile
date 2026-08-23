@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run up down logs test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses
+.PHONY: help doctor build run up down logs test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses docs-build docs-serve
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -138,3 +138,39 @@ witnesses: ## Verify docs/witnesses.json points at real tests
 clean: ## Remove the built binary and ./data
 	rm -f databricks-emulator databricks-emulator.exe
 	rm -rf data
+
+# ---------------------------------------------------------------------------
+# The documentation site.
+#
+# Not called `docs`: there is a docs/ DIRECTORY here, and a target sharing its
+# name is satisfied by the directory existing. `make docs` would print
+# "nothing to be done" and exit 0, which is the failure that looks like
+# success. .PHONY below would also fix it; a name that cannot collide fixes it
+# whether or not someone remembers .PHONY.
+#
+# `pnpm --filter $(DOCS_PKG) dev` is the fast inner loop for PROSE, and it is
+# not this. It is based at the docs subpath and knows nothing about the tree
+# around it, so under it the landing page does not exist, the redirect stubs do
+# not exist, and the badge endpoints the landing page fetches do not exist. Use
+# it to write a page; use `make docs-serve` before believing the site works.
+#
+# CI runs `make docs-build` and publishes exactly what it leaves in ./_site, so
+# the thing previewed here is the thing that deploys.
+DOCS_PKG  ?= databricks-emulator-docs
+DOCS_PORT ?= 8099
+# The interpreter CI uses, pinned. These scripts are stdlib-only, hence
+# --no-project: no environment to resolve, and a local 3.9 cannot pass
+# something 3.12 would reject.
+UVPY ?= uv run --no-project --python 3.12 python
+
+docs-build: ## Build the published site into ./_site (what CI deploys)
+	@command -v uv >/dev/null 2>&1 || { echo "uv is not on PATH: https://docs.astral.sh/uv/" >&2; exit 1; }
+	pnpm install --frozen-lockfile
+	$(UVPY) scripts/check_docs_links.py --strict
+	pnpm --filter $(DOCS_PKG) build
+	$(UVPY) scripts/assemble_site.py --self-test
+	$(UVPY) scripts/assemble_site.py --out _site
+	$(UVPY) scripts/check_landing_page.py --site _site
+
+docs-serve: docs-build ## …and serve it locally at its published URLs (DOCS_PORT=8099)
+	$(UVPY) scripts/assemble_site.py --serve --site _site --port $(DOCS_PORT)

@@ -31,6 +31,7 @@ stubs exist: so a URL somebody already has keeps answering.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -124,6 +125,117 @@ def assemble(out: Path) -> int:
         f"assemble_site: {len(new)} docs route(s) under {BASE}, "
         f"{len(old)} pre-move route(s) still resolving, landing page at the root"
     )
+    return check_absolute_refs(out)
+
+
+# THE PROJECT PREFIX GitHub Pages serves this whole site under. The docs sit at
+# BASE, the landing page one level up at this, and nothing at all is served
+# outside it.
+SITE_PREFIX = "/" + BASE.strip("/").split("/")[0] + "/"
+
+
+def resolve(request_path: str) -> tuple[str, str]:
+    """Decide a request the way GitHub Pages would, as (verb, argument).
+
+    Pure, so the self-test can exercise it without a socket. `redirect` names
+    the target; `serve` names the path RELATIVE to the assembled tree; `404`
+    names nothing.
+    """
+    path = request_path.split("?", 1)[0].split("#", 1)[0]
+    if path in ("", "/", SITE_PREFIX.rstrip("/")):
+        # Pages serves the user/org site at /, not this project. A preview that
+        # answered the landing page there would hide every absolute link that
+        # is missing the prefix, which is the bug this exists to catch.
+        return "redirect", SITE_PREFIX
+    if not path.startswith(SITE_PREFIX):
+        return "404", ""
+    return "serve", "/" + path[len(SITE_PREFIX) :]
+
+
+def check_absolute_refs(out: Path) -> int:
+    """Every absolute href/src the built docs emit must resolve in the tree.
+
+    Astro bakes the base into these, so nothing downstream re-checks them, and
+    a reference to a file that was never shipped publishes a 404 on every page
+    at once. Not hypothetical: this was written because the built pages asked
+    for `favicon.svg`, website/public/ did not exist, and the live entra site
+    had been 404ing it on all 44 pages unnoticed.
+
+    The hand-written landing page is Astro's blind spot and is checked
+    separately; between the two the whole tree is covered.
+    """
+    dangling: dict[str, set[str]] = {}
+    checked = 0
+    for page in sorted((out / "docs").rglob("*.html")):
+        for ref in re.findall(r'(?:href|src)="(/[^"/][^"]*)"', page.read_text(encoding="utf-8")):
+            checked += 1
+            verb, local = resolve(ref)
+            target = out / local.lstrip("/") if verb == "serve" else None
+            if target is not None and (target.is_file() or (target / "index.html").is_file()):
+                continue
+            dangling.setdefault(ref, set()).add(page.relative_to(out).as_posix())
+    if not checked:
+        print(
+            "assemble_site FAILED: no absolute reference found in any built page. "
+            "The pattern has stopped matching, so this check guards nothing.",
+            file=sys.stderr,
+        )
+        return 1
+    if dangling:
+        print("assemble_site FAILED: these references 404", file=sys.stderr)
+        for ref, pages in sorted(dangling.items()):
+            where = sorted(pages)
+            print(f"  {ref}  ({len(where)} page(s), e.g. {where[0]})", file=sys.stderr)
+        return 1
+    print(f"assemble_site: {checked} absolute reference(s) in the built pages resolve")
+    return 0
+
+
+def serve(site: Path, port: int) -> int:
+    """Serve an already-assembled tree at the URLs it will publish at.
+
+    Not `astro dev`, and not a substitute for it. `astro dev` is based at BASE
+    and knows nothing about the tree around it, so under it the landing page
+    does not exist, the redirect stubs do not exist, and the badge endpoints
+    the landing page fetches do not exist. Everything that has broken on this
+    site broke in that gap. This serves the artifact instead.
+    """
+    from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+    if not (site / "index.html").is_file():
+        raise SystemExit(
+            f"assemble_site: no assembled site at {site}. Run `make docs-build` first."
+        )
+
+    class Handler(SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=str(site), **kw)
+
+        def send_head(self):
+            verb, arg = resolve(self.path)
+            if verb == "redirect":
+                self.send_response(302)
+                self.send_header("Location", arg)
+                self.end_headers()
+                return None
+            if verb == "404":
+                self.send_error(404, f"nothing is published outside {SITE_PREFIX}")
+                return None
+            return super().send_head()
+
+        def translate_path(self, path):
+            verb, arg = resolve(path)
+            return super().translate_path(arg if verb == "serve" else path)
+
+    httpd = HTTPServer(("127.0.0.1", port), Handler)
+    print("the assembled site, at the paths it publishes under:")
+    print(f"    http://localhost:{port}{SITE_PREFIX}   landing page")
+    print(f"    http://localhost:{port}{BASE}   docs")
+    print("Ctrl-C to stop. 404s are logged below, and they are real.")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()
     return 0
 
 
@@ -148,6 +260,23 @@ def self_test() -> int:
         root_is_free = not (out / "index.html").exists()
         ok &= root_is_free
         print(f"  {'ok  ' if root_is_free else 'FAIL'} the root is left for the landing page")
+
+    # The preview server must route the way Pages does, or it is worse than no
+    # preview: it would answer requests the real host refuses and show a site
+    # that works when the published one does not.
+    for request, expected in (
+        ("/", ("redirect", SITE_PREFIX)),
+        (SITE_PREFIX.rstrip("/"), ("redirect", SITE_PREFIX)),
+        (SITE_PREFIX, ("serve", "/")),
+        (f"{BASE}some-page/", ("serve", "/docs/some-page/")),
+        (f"{SITE_PREFIX}witnesses.json?v=2", ("serve", "/witnesses.json")),
+        ("/some-other-project/", ("404", "")),
+        ("/docs/", ("404", "")),  # the docs are NOT at the root; that was the move
+    ):
+        got = resolve(request)
+        ok &= got == expected
+        print(f"  {'ok  ' if got == expected else 'FAIL'} {request} -> {got[0]} {got[1]}")
+
     print("self-test passed" if ok else "self-test FAILED")
     return 0 if ok else 1
 
@@ -156,8 +285,19 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out", type=Path, default=ROOT / "_site")
     p.add_argument("--self-test", action="store_true")
+    p.add_argument(
+        "--serve",
+        action="store_true",
+        help="serve an already-assembled tree at its published paths, instead of assembling",
+    )
+    p.add_argument("--site", type=Path, default=ROOT / "_site", help="tree to serve")
+    p.add_argument("--port", type=int, default=8099)
     a = p.parse_args()
-    return self_test() if a.self_test else assemble(a.out)
+    if a.self_test:
+        return self_test()
+    if a.serve:
+        return serve(a.site, a.port)
+    return assemble(a.out)
 
 
 if __name__ == "__main__":
