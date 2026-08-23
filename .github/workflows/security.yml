@@ -23,25 +23,15 @@
 name: Security
 
 on:
+  # NOT path-filtered, unlike the other workflows here. gitleaks scans for
+  # secrets, and a README with a real token pasted into an example is docs by
+  # path and a credential by content. Filtering prose out would skip the scan
+  # on exactly the commits most likely to carry one, and the weekly cron would
+  # not notice until the credential had been public for days. The saving was
+  # one cheap job; the miss is a live secret.
   push:
     branches: [main]
-    paths-ignore:
-      - 'site/**'
-      - 'docs/**'
-      - 'website/**'
-      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
-      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
-      # match README.md at the root -- the exact file this is here for.
-      - '**.md'
   pull_request:
-    paths-ignore:
-      - 'site/**'
-      - 'docs/**'
-      - 'website/**'
-      # '**.md', not '**/*.md'. GitHub's '**' matches any characters
-      # INCLUDING '/', so '**/*.md' requires a literal slash and would not
-      # match README.md at the root -- the exact file this is here for.
-      - '**.md'
   schedule:
     # Vulnerabilities are published against code that has not changed, so this
     # cannot only run on push: a repo that is finished still needs watching.
