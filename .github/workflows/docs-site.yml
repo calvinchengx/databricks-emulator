@@ -30,6 +30,9 @@ on:
       - 'scripts/check_witnesses.py'
       - 'scripts/check_landing_page.py'
       - 'scripts/assemble_site.py'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/check_landing_page.py'
+      - 'Makefile'
       - 'website/published-routes.txt'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -48,6 +51,9 @@ on:
       - 'scripts/check_witnesses.py'
       - 'scripts/check_landing_page.py'
       - 'scripts/assemble_site.py'
+      - 'scripts/check_docs_links.py'
+      - 'scripts/check_landing_page.py'
+      - 'Makefile'
       - 'website/published-routes.txt'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -98,26 +104,22 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter databricks-emulator-docs build
-      # THE LANDING PAGE AT THE ROOT, THE DOCS UNDER /docs/, and a redirect
-      # stub at every path this site published before the move. The assembler
-      # holds itself to website/published-routes.txt -- the route list captured
-      # from the build immediately before the base changed -- so an old URL
-      # that would 404 fails the deploy instead of reaching a reader.
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+      # ONE STEP, AND IT IS THE ONE A DEVELOPER RUNS. `make docs-serve` builds
+      # with this same target and then serves the result at the paths it
+      # publishes under, so what is previewed locally is what deploys from
+      # here. Spelling the sequence out in YAML instead is how the two drift:
+      # the local recipe is the one nobody updates, and it is also the only one
+      # anyone looks at before pushing.
       #
-      # Its self-test runs first: a gate nobody has watched fail is a gate
-      # nobody knows the direction of.
-      - name: Assemble the site, and prove no published URL moved
-        run: |
-          python3 scripts/assemble_site.py --self-test
-          python3 scripts/assemble_site.py --out _site
-      # Astro never sees this page, so none of the checks that protect the docs
-      # protect it: a renamed doc, a moved anchor, a superseded release or an
-      # evidence count that drifted from witnesses.json would all publish
-      # silently as a broken or dishonest front page.
-      - name: The landing page holds up
-        run: python3 scripts/check_landing_page.py --site _site
+      # What it runs, and why each part is not redundant, is documented at the
+      # target in the Makefile. In short: the doc links (the Astro build exits
+      # 0 on a dangling one and publishes a 404), the Starlight build, the
+      # assembler with its pre-move route oracle and its self-test, and the
+      # landing page, which Astro never sees.
+      - run: make docs-build
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
