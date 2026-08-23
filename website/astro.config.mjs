@@ -4,7 +4,13 @@ import { remarkMermaid } from './plugins/remark-mermaid.mjs';
 
 export default defineConfig({
   site: 'https://calvinchengx.github.io',
-  base: '/databricks-emulator/',
+  // THE DOCS LIVE UNDER /docs/, with the hand-written landing page at the root:
+  // the family's shape (data-agent-service, data-agent-voice, apim, snowflake,
+  // emulators, entra). It moved 32 published routes and none of them broke --
+  // scripts/assemble_site.py writes a redirect stub at every old path and holds
+  // itself to website/published-routes.txt, captured from the build immediately
+  // before the move.
+  base: '/databricks-emulator/docs/',
   markdown: {
     remarkPlugins: [remarkMermaid],
   },
@@ -27,7 +33,11 @@ export default defineConfig({
         {
           label: 'Getting started',
           items: [
-            { slug: 'overview' },
+            // The docs' front door. Slug 'overview' while Starlight was
+            // based at the root and index.html belonged to the landing page;
+            // under /docs/ there is no collision. Starlight names the index
+            // slug with an empty string.
+            { slug: '' },
             { slug: '00-doctrine' },
             { slug: '01-quickstart' },
             { slug: '02-installation' },
