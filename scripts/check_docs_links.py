@@ -41,7 +41,7 @@ README_LINK = re.compile(r"\]\(docs/((?:[a-z0-9-]+/)?[a-z0-9][a-z0-9.-]*\.md)(#[
 SIDEBAR_SLUG = re.compile(r"slug:\s*'([^']+)'")
 
 # The landing page is reached by the site root, not by a sidebar entry.
-EXEMPT_FROM_SIDEBAR = {"index"}
+EXEMPT_FROM_SIDEBAR = {"overview"}
 
 # Routes the site GENERATES rather than reads from docs/. `parity-versions.mjs`
 # writes a `parity-history/` index, a `parity-history/changelog`, and one page
