@@ -32,9 +32,30 @@ warehouse the task names, which is what real Databricks does: dbt is a
 warehouse client either way, and the job only changes who invokes it.
 
 It needs `dbt-databricks` on the statement agent. An agent without it fails
-saying so rather than reporting a run that built nothing. This closes G4 in
-`contoso-data-product`'s plan, the one thing keeping the Databricks · Jobs cell
-at 🟡.
+saying so rather than reporting a run that built nothing.
+
+`target/run_results.json` comes back on the run output as
+`dbt_output.artifacts`, and it comes back on a FAILING run too -- the agent
+emits it before re-raising, because a failing `dbt test` is exactly when a
+caller needs to know which test failed rather than only that one did. Without
+that, a caller whose snapshot lists contract failures would have had to give
+the list up to move onto Jobs, trading the right execution shape for the
+evidence the execution exists to produce. Shipped in v0.2.7; the task itself
+in v0.2.6.
+
+**This does not by itself close G4** in `contoso-data-product`'s plan, and an
+earlier version of this section said it did. Two things stand between the
+capability and that cell being green, and neither is ours:
+
+  * the consumer still runs gold from a host script. A capability nothing
+    invokes changes no cell; its step has to be rewritten as a `dbt_task`.
+  * even then, DoD 3 asks for the pipeline to run through the orchestrator the
+    cell is named for, and gold is one step of seven. The other six --
+    provision, ingest, bronze, silver, register, govern -- also run from the
+    host today.
+
+What this emulator owed that cell, it has now paid: the task type, and the
+artefact that makes it usable.
 
 ## Orchestration the shim can compute
 
