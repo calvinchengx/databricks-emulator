@@ -10,8 +10,18 @@ updates:
       go:
         patterns: ['*']
 
-  - package-ecosystem: pip
-    directory: /e2e/sdk
+  # `uv` at the ROOT, not `pip` at /e2e/sdk. The e2e Python pins moved into the
+  # root pyproject.toml as dependency groups (`sdk`, `engine`, ...) and uv.lock,
+  # and this entry stayed pointed at a directory holding only run.py. Dependabot
+  # answered `dependency_file_not_found` every week, which reads as a broken
+  # scheduled job and was in fact a coverage hole: nothing was watching
+  # databricks-sdk==0.129.0, the pin the sdk witness rests on.
+  #
+  # `uv` rather than `pip` because the lockfile is what CI installs
+  # (`uv run --frozen --group sdk`), so a pip-only bump would not reach it.
+  # This is the shape fabric-emulator uses.
+  - package-ecosystem: uv
+    directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
