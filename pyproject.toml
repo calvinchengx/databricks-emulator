@@ -20,7 +20,7 @@ engine = [
 # Confirmer is delta-rs, not Sail. Same pin family as fabric's delta-rs group.
 delta = [
     { include-group = "sdk" },
-    "deltalake==0.25.5",
+    "deltalake==1.6.3",
 ]
 sql = [
     { include-group = "sdk" },
@@ -38,7 +38,7 @@ target = [
 # databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
 dbt = [
     "dbt-databricks==1.12.4",
-    "deltalake==0.25.5",
+    "deltalake==1.6.3",
 ]
 
 [tool.uv]
