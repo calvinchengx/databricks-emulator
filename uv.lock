@@ -455,11 +455,11 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dbt = [
     { name = "dbt-databricks" },
-    { name = "deltalake" },
+    { name = "deltalake", extra = ["pyarrow"], marker = "extra == 'group-26-databricks-emulator-python-dbt'" },
 ]
 delta = [
     { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "deltalake" },
+    { name = "deltalake", extra = ["pyarrow"], marker = "extra == 'group-26-databricks-emulator-python-delta' or extra == 'group-26-databricks-emulator-python-engine' or extra == 'group-26-databricks-emulator-python-sdk' or extra == 'group-26-databricks-emulator-python-sql' or extra == 'group-26-databricks-emulator-python-target' or extra != 'group-26-databricks-emulator-python-dbt'" },
 ]
 engine = [
     { name = "databricks-connect" },
@@ -483,11 +483,11 @@ target = [
 [package.metadata.requires-dev]
 dbt = [
     { name = "dbt-databricks", specifier = "==1.12.4" },
-    { name = "deltalake", specifier = "==1.6.3" },
+    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.3" },
 ]
 delta = [
     { name = "databricks-sdk", specifier = "==0.129.0" },
-    { name = "deltalake", specifier = "==1.6.3" },
+    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.3" },
 ]
 engine = [
     { name = "databricks-connect", specifier = "==19.1" },
@@ -761,6 +761,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7a/e0/038b81370988e47e80e8e243355a49c3f58c20624375df6c5140f922dfd1/deltalake-1.6.3-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:8f2de230b5cd979b3b984db3b9a24bf14722d4b46a4d062b41fe3fd2e5bfbd68", size = 50802730, upload-time = "2026-08-21T19:26:21.044Z" },
     { url = "https://files.pythonhosted.org/packages/5e/c2/5cf8b65d6ddb2a3b0b0b1f4359ddbfba1afa93764bb6e19fc4d31dd8dba8/deltalake-1.6.3-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:b51d0109b0a86b336c7254a01495536d69c72593663d8de0bc320aa4523c0502", size = 51904607, upload-time = "2026-08-21T19:39:05.074Z" },
     { url = "https://files.pythonhosted.org/packages/63/91/28cb7e0edf10f05f1025e2b4bb0085a1b23aa11472c06e43f1c5897c183e/deltalake-1.6.3-cp310-abi3-win_amd64.whl", hash = "sha256:7920a60510376f3c90feb62d182063b0202f117411e73ff9f23ffe969b800dce", size = 55409423, upload-time = "2026-08-21T20:04:36.967Z" },
+]
+
+[package.optional-dependencies]
+pyarrow = [
+    { name = "pyarrow" },
 ]
 
 [[package]]

@@ -18,9 +18,15 @@ engine = [
     "databricks-connect==19.1",
 ]
 # Confirmer is delta-rs, not Sail. Same pin family as fabric's delta-rs group.
+#
+# `[pyarrow]` BECAUSE 1.0 MADE IT OPTIONAL. delta-rs moved its core to arro3 and
+# demoted pyarrow to an extra, so `to_pyarrow_table` -- which is how the
+# confirmers read a table back -- raises `ModuleNotFoundError: No module named
+# 'pyarrow'` at the moment of use. The bump installed cleanly and six e2e failed
+# at runtime, which is the shape a version pin without its extra always takes.
 delta = [
     { include-group = "sdk" },
-    "deltalake==1.6.3",
+    "deltalake[pyarrow]==1.6.3",
 ]
 sql = [
     { include-group = "sdk" },
@@ -38,7 +44,8 @@ target = [
 # databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
 dbt = [
     "dbt-databricks==1.12.4",
-    "deltalake==1.6.3",
+    # `[pyarrow]` for the same reason as the `delta` group above.
+    "deltalake[pyarrow]==1.6.3",
 ]
 
 [tool.uv]
