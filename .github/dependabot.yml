@@ -28,6 +28,40 @@ updates:
     groups:
       e2e-python:
         patterns: ['*']
+    ignore:
+      # databricks-sdk cannot be bumped here while dbt-databricks holds it
+      # down. `dbt-databricks==1.12.4` requires
+      # `databricks-sdk>=0.68.0,<0.118.0`; the `sdk`, `target`, `engine` and
+      # `delta` groups each pin `databricks-sdk==0.129.0` exactly. That is why
+      # pyproject.toml already declares those groups conflicting with `dbt`.
+      #
+      # `uv lock` honours the conflict and resolves the forks separately, so
+      # EDITING THE PINS AND RE-LOCKING SUCCEEDS -- it simply lets the dbt fork
+      # take 0.117.0. That is not what Dependabot does. It constrains the
+      # package globally, and the constraint reaches every fork:
+      #
+      #   $ uv lock --upgrade-package databricks-sdk==0.133.0
+      #   × No solution found ... Because databricks-emulator-python:delta
+      #     depends on databricks-sdk==0.129.0 and databricks-sdk==0.133.0 ...
+      #     your project's requirements are unsatisfiable.
+      #
+      # Reproduced on this tree and on the tree at the failing run, under uv
+      # 0.12.6 and under 0.12.5 which is the version that run used. A control
+      # upgrade of an unconstrained package (`requests`) succeeds, so this is
+      # about these pins and not about the lockfile generally.
+      #
+      # The `uv in /.` job has failed on this since 25 August. Ignoring is an
+      # admission the dependency is stuck, not a repair: leaving the job red
+      # would hide every LATER failure behind a permanent one.
+      #
+      # SCOPED TO THIS ONE PACKAGE so everything else still reports.
+      #
+      # LIFT THIS when dbt-databricks widens its `databricks-sdk` ceiling past
+      # what the other groups pin; the tell is its `requires_dist` on PyPI. As
+      # of 2026-09-01 there is nothing to move to: 1.12.4 is the newest, 1.12.2
+      # through 1.12.4 all carry the same ceiling, and the only thing beyond is
+      # a 2.0.0rc1 prerelease that goes backwards to `databricks-sdk==0.17.0`.
+      - dependency-name: databricks-sdk
 
   - package-ecosystem: docker
     directory: /
