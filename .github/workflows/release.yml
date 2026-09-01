@@ -71,12 +71,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ACCEPTANCE_DISPATCH_TOKEN }}
         run: |
-          # ONE TARGET, and that is a fact about the consumers rather than a
-          # shortcut: databricks-platform-airflow3 pins this emulator too but
-          # has no repository_dispatch trigger, so naming it here would post
-          # an event nothing listens for and report it as delivered.
-          # Give that repo the trigger and add it here in the same change.
-          targets="databricks-platform-jobs"
+          # BOTH CELLS, and the second one was listening the whole time. This
+          # said "ONE TARGET, and that is a fact about the consumers": that the
+          # airflow3 cell pinned this emulator but had no repository_dispatch
+          # trigger, so naming it would post an event nothing listens for. It
+          # was true when written, at 06:58 on 2026-08-22, and stopped being
+          # true 30-odd minutes later when that repo gained the trigger. The
+          # comment even said "Give that repo the trigger and add it here in the
+          # same change", and the second half never happened.
+          #
+          # Checked before changing, not assumed: the cell's acceptance.yml
+          # declares `types: [databricks-emulator-release]`, which is exactly the
+          # event fired below. It has been ready to be told and never was.
+          #
+          # THE SAME BUG fabric-emulator already fixed: "Telling one of three
+          # meant the other two adopted releases nobody had verified against
+          # them, and their pins moved when somebody remembered."
+          targets="databricks-platform-jobs databricks-platform-airflow3"
           # A MISSING TOKEN IS AN ERROR, NOT A WARNING. This warned and exited
           # 0, so every release since this job existed reported success having
           # told nobody -- the image and the wheel shipped and the consumers
