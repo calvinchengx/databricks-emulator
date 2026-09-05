@@ -43,7 +43,7 @@ target = [
 # dbt-databricks 1.12.4 pins databricks-sdk<0.118 and
 # databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
 dbt = [
-    "dbt-databricks==1.12.4",
+    "dbt-databricks==1.12.5",
     # `[pyarrow]` for the same reason as the `delta` group above.
     "deltalake[pyarrow]==1.6.3",
 ]
