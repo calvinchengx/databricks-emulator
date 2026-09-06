@@ -129,7 +129,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group engine python e2e/engine/run.py
 
   e2e-delta:
@@ -144,7 +144,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group delta python e2e/delta/run.py
 
   e2e-delta-jvm:
@@ -185,7 +185,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group sql python e2e/sql/run.py
 
   e2e-databricks-target:
@@ -200,7 +200,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group target pytest python/databricks-target/tests -q
       - run: uv run --frozen --group target python e2e/databricks-target/run.py
 
@@ -216,7 +216,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group dbt python e2e/dbt/run.py
 
   # dbt as a JOB, which e2e-dbt does not cover: there dbt runs on the runner and
@@ -235,7 +235,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group delta python e2e/dbt-task/run.py
 
   # if/else decided by the emulator, driven by the unmodified SDK, and read back
@@ -252,7 +252,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group delta python e2e/composite-tasks/run.py
 
   # The concurrency dimension nothing else covers: two parameterised tasks in
@@ -270,7 +270,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group delta python e2e/task-parameters/run.py
 
   e2e-condition-task:
@@ -285,7 +285,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group delta python e2e/condition-task/run.py
 
   e2e-dbt-uc:
@@ -300,7 +300,7 @@ jobs:
         with:
           version: "0.12.3"
       - name: GHCR login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        uses: ./.github/actions/ghcr-login
       - run: uv run --frozen --group dbt python e2e/dbt-uc/run.py
 
   lint:

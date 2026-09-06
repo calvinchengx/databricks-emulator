@@ -1,0 +1,49 @@
+name: GHCR login
+description: >-
+  Log in to ghcr.io, retrying the transient network failures that otherwise turn
+  a twenty-minute end-to-end job red before it has run anything.
+
+# WHY THIS EXISTS, and why a retry is not over-engineering here.
+#
+# ci.yml had this login inline, byte-identical, in TEN jobs. On 2026-09-05 one
+# of them failed like this:
+#
+#   Error response from daemon: Get "https://ghcr.io/v2/": net/http: request
+#   canceled while waiting for connection (Client.Timeout exceeded while
+#   awaiting headers)
+#
+# Fifteen seconds, no retry, and `Jobs dbt_task runs dbt on the agent` was red
+# on main without executing a single line of the suite it exists to run.
+#
+# Ten unretried copies means ten independent chances per CI run to hit a flake
+# in someone else's network. The per-run odds are ten times the per-step odds,
+# which is why this was a matter of when rather than whether. Three bounded
+# attempts cost at most ~15s on a genuine credential failure, which still fails
+# the job, loudly, with the reason.
+#
+# It is one action rather than ten inline loops for the ordinary reason: ten
+# copies of anything drift, and this one had already been copied ten times.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        # github.token is available to composite actions; `secrets` is not.
+        GHCR_TOKEN: ${{ github.token }}
+        GHCR_USER: ${{ github.actor }}
+      run: |
+        # No `-e`: a failed attempt must fall through to the next one rather
+        # than end the step.
+        set -uo pipefail
+        for attempt in 1 2 3; do
+          if printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin; then
+            exit 0
+          fi
+          if [ "$attempt" -lt 3 ]; then
+            delay=$((attempt * 5))
+            echo "ghcr.io login attempt ${attempt} failed; retrying in ${delay}s"
+            sleep "$delay"
+          fi
+        done
+        echo "::error::docker login ghcr.io failed three times. If this is not a network timeout, check that the job has packages: read."
+        exit 1
