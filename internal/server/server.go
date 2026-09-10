@@ -153,6 +153,15 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/2.0/preview/scim/v2/Me", s.protect(s.me))
 	mux.HandleFunc("GET /api/2.0/scim/v2/Me", s.protect(s.me))
+
+	// SCIM groups. Both prefixes are served because the SDK and the CLI
+	// disagree about which one they use, and a real workspace answers both.
+	for _, base := range []string{"/api/2.0/preview/scim/v2", "/api/2.0/scim/v2"} {
+		mux.HandleFunc("POST "+base+"/Groups", s.protect(s.scimGroupsCreate))
+		mux.HandleFunc("GET "+base+"/Groups", s.protect(s.scimGroupsList))
+		mux.HandleFunc("GET "+base+"/Groups/{id}", s.protect(s.scimGroupsGet))
+		mux.HandleFunc("DELETE "+base+"/Groups/{id}", s.protect(s.scimGroupsDelete))
+	}
 	mux.HandleFunc("POST /api/2.0/token/create", s.protect(s.tokenCreate))
 	mux.HandleFunc("GET /api/2.0/token/list", s.protect(s.tokenList))
 	mux.HandleFunc("POST /api/2.0/token/delete", s.protect(s.tokenDelete))
