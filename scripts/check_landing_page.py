@@ -80,10 +80,29 @@ def ledger_counts() -> dict[str, int]:
     import check_witnesses
 
     witnesses = json.loads(check_witnesses.MANIFEST.read_text(encoding="utf-8"))
+
+    # GREEN ROWS IN parity.md, NOT ENTRIES IN witnesses.json. The two are not
+    # the same collection, and counting the wrong one is how this failed a
+    # correct page.
+    #
+    # A claim is a 🟢 ROW in the ledger. witnesses.json is the map from a claim
+    # to the things that prove it, and an entry may exist with no row yet --
+    # `check_witnesses.py` prints those under "Manifest keys with no 🟢 row"
+    # and does not fail, because writing the witness before the row is a
+    # legitimate order to work in. On 2026-09-10 the SCIM Groups branch had two
+    # such entries, so this reported 33 claims where the ledger held 31, and
+    # failed a page whose numbers were right.
+    #
+    # Importing check_witnesses was necessary and NOT sufficient. Sharing the
+    # parser only guarantees the same reading of one file; it does not
+    # guarantee the same DEFINITION of what is being counted. `green_claims()`
+    # is that definition, and it is the one CI already enforces.
+    green = {key for _, _, key in check_witnesses.green_claims()}
     return {
-        "claims": len(witnesses),
-        "ci": sum(1 for v in witnesses.values()
-                  if any(w.startswith("ci:") for w in v["witnesses"])),
+        "claims": len(green),
+        "ci": sum(1 for key in green
+                  if any(w.startswith("ci:")
+                         for w in witnesses.get(key, {}).get("witnesses", []))),
         "red": check_witnesses.grade_counts()["\U0001F534"],
     }
 
