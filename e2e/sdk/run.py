@@ -199,6 +199,26 @@ def main() -> int:
         if blob != b"dbfs-bytes":
             raise SystemExit(f"dbfs read {got!r}")
 
+        # SCIM groups. w.groups.list() pages the collection itself, so this
+        # block is the outside-client witness for paging: a server that ignores
+        # startIndex hands back the same record forever and the SDK never
+        # returns. A Go test can imitate that walk; only a real client proves it.
+        grp = w.groups.create(display_name="e2e-platform")
+        if not grp.id:
+            raise SystemExit(f"group create returned no id: {grp}")
+        w.groups.create(display_name="e2e-second")
+        names = [g.display_name for g in w.groups.list()]
+        if "e2e-platform" not in names or "e2e-second" not in names:
+            raise SystemExit(f"group list {names}")
+        if len(names) != len(set(names)):
+            raise SystemExit(f"group list served a duplicate, paging is not advancing: {names}")
+        got = w.groups.get(id=grp.id)
+        if got.display_name != "e2e-platform":
+            raise SystemExit(f"group get {got.display_name!r}")
+        w.groups.delete(id=grp.id)
+        if "e2e-platform" in [g.display_name for g in w.groups.list()]:
+            raise SystemExit("deleted group is still listed")
+
         remote = init_bare_remote(data_dir / "git-remote")
         cred = w.git_credentials.create(git_provider="gitHub", git_username="alice", personal_access_token="unused-for-file")
         if getattr(cred, "personal_access_token", None):
@@ -402,7 +422,7 @@ def main() -> int:
                 continue
             raise SystemExit(f"federated {why} was accepted")
 
-        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + git-repos + cluster-policies + mlflow + secrets-persist + cluster-refuse ok")
+        print("e2e/sdk: pat + oauth-m2m + federated-jwt + workspace + dbfs + scim-groups + git-repos + cluster-policies + mlflow + secrets-persist + cluster-refuse ok")
         return 0
     finally:
         stop(proc)
