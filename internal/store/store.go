@@ -15,6 +15,7 @@ type Store struct {
 	FreshSeed  bool
 
 	Identity  *Identity
+	Groups    *Groups
 	Workspace *Workspace
 	DBFS      *DBFS
 	Jobs      *Jobs
@@ -59,6 +60,10 @@ func Open(dataDir string, now int64) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	groups, err := openGroups(dataDir)
+	if err != nil {
+		return nil, err
+	}
 	mlflow, err := openMLflow(dataDir)
 	if err != nil {
 		return nil, err
@@ -69,6 +74,7 @@ func Open(dataDir string, now int64) (*Store, error) {
 		OIDCSecret: clientSecret,
 		FreshSeed:  fresh,
 		Identity:   ident,
+		Groups:     groups,
 		Workspace:  ws,
 		DBFS:       dbfs,
 		Jobs:       newJobs(),

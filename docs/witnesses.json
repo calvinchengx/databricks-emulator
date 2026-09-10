@@ -271,5 +271,23 @@
       "go:TestForEachTaskRefusesInputsThatRunNothing",
       "go:TestForEachTaskRefusesNesting"
     ]
+  },
+  "scim-groups": {
+    "section": "Identity",
+    "claim": "SCIM \u2014 Groups create/list/get/delete, surviving the process",
+    "witnesses": [
+      "go:TestGroupSurvivesReopen",
+      "go:TestDuplicateGroupIsRefused",
+      "go:TestDeletedGroupIsGoneAfterReopen",
+      "go:TestScimGroupsPagingTerminates"
+    ]
+  },
+  "scim-groups-paging": {
+    "section": "Identity",
+    "claim": "SCIM \u2014 Groups paging honours startIndex/count, so a real SDK terminates",
+    "witnesses": [
+      "go:TestScimGroupsPagingTerminates",
+      "ci:e2e-sdk"
+    ]
   }
 }
