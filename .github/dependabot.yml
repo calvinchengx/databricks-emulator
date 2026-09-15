@@ -63,6 +63,14 @@ updates:
       # a 2.0.0rc1 prerelease that goes backwards to `databricks-sdk==0.17.0`.
       - dependency-name: databricks-sdk
 
+      # Same shape, second package. dbt-databricks 1.12.5 (newest as of
+      # 2026-09-15) requires `databricks-sql-connector[pyarrow]>=4.1.1,<4.4.1`,
+      # so Dependabot's try at 4.5.0 is unsatisfiable and the `uv in /.` job
+      # failed on 09-05 and 09-12. Scoped to versions past the cap, so patch
+      # releases inside it still report. LIFT THIS when that ceiling moves.
+      - dependency-name: databricks-sql-connector
+        versions: ['>=4.4.1']
+
   - package-ecosystem: docker
     directory: /
     schedule:
