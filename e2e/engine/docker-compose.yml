@@ -38,7 +38,7 @@ services:
       retries: 20
 
   sail:
-    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:0d2fe3c7a5a844c939f23ef0930e293e131da10ec0c3ff41022b1e1e4ab77ce2}
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.1}@${SAIL_ENGINE_DIGEST:-sha256:0b37f65f41da5d9493f3e5a5479a622b14ba6ca51492b5a0ab886ed1ffcbb430}
     ports:
       - "50051:50051"
     environment:
@@ -51,7 +51,7 @@ services:
       retries: 30
 
   spark-agent:
-    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:8983695ef6516fd1a7965335b830a3b69b98c773dfbc1fd3c8122faa76cdd348}
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:04509791f172cf11fd08b5aa7277af64079a8d142e9abdfda222aef9ee347bd9}
     depends_on:
       sail:
         condition: service_healthy

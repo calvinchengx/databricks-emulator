@@ -17,7 +17,7 @@ UV ?= uv
 PY ?= $(shell if command -v uv >/dev/null 2>&1; then echo "uv run --frozen --no-sync python"; \
 	else for c in python3 python py; do if "$$c" -c '' >/dev/null 2>&1; then echo "$$c"; break; fi; done; fi)
 
-.PHONY: help doctor build run up down logs test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses docs-build docs-serve
+.PHONY: help doctor build run up down logs test e2e e2e-cli e2e-terraform e2e-engine e2e-delta e2e-delta-jvm e2e-uc e2e-sql e2e-databricks-target e2e-dbt e2e-dbt-task e2e-dbt-uc e2e-condition-task e2e-task-parameters clean witnesses pins docs-build docs-serve
 
 help: ## Show the available targets
 	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -134,6 +134,11 @@ e2e-dbt-uc: ## Unmodified dbt-databricks against a Unity Catalog catalog
 witnesses: ## Verify docs/witnesses.json points at real tests
 	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
 	$(PY) scripts/check_witnesses.py
+
+pins: ## Verify every compose file pins the sidecars in e2e/sidecars.env
+	@test -n "$(PY)" || { echo "no working python found; set PY=" >&2; exit 1; }
+	$(PY) -m unittest discover -s scripts -p 'test_check_sidecar_pins.py'
+	$(PY) scripts/check_sidecar_pins.py --registry
 
 clean: ## Remove the built binary and ./data
 	rm -f databricks-emulator databricks-emulator.exe

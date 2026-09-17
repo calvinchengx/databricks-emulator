@@ -33,8 +33,9 @@ DATABRICKS_DISABLE_TLS=1 \
 ```
 
 The agent listens on `:8099` (`POST /statements`, `GET /health`). Sail is
-`:50051`. Images are `ghcr.io/calvinchengx/emulator-sail:0.7.0` and
-`…/emulator-spark-agent:4.2.0`, both pinned by digest in every compose file.
+`:50051`. Images are `ghcr.io/calvinchengx/emulator-sail:0.7.1` and
+`…/emulator-spark-agent:4.2.0`, both pinned by digest in every compose file,
+from the one fabric-emulator release recorded in `e2e/sidecars.env`.
 
 Each tag names the **dependency the image is pinned for** — the Sail engine
 version, and the pyspark-client version — rather than the release number of the
@@ -46,6 +47,13 @@ did exactly that: `emulator-sail:0.7.0` went `807adeb9…` → `0d2fe3c7…` whi
 remaining Sail 0.7.0. Reading a tag alone would silently change the engine under
 a stack that had been witnessed against a different build, so the digests here
 are refreshed together, from one release, rather than drifting apart.
+
+That rule was not enforced at first, and by September 2026 the ten compose
+files had split three ways: Sail from v0.27.0 in six, from v0.30.0 in four, and
+the agent from v0.32.0 -- all still tagged 0.7.0 and 4.2.0, all green.
+`make pins` (`scripts/check_sidecar_pins.py`, also in CI) now fails when any
+reference disagrees with `e2e/sidecars.env`, and with `--registry` when the
+release named there did not publish the pinned digest.
 
 Family compose in azure-emulators does **not** set this URL. A job created
 from a Fabric Databricks activity against that stack fails naming the missing
