@@ -2,7 +2,7 @@
 # delta-rs, so Sail is here only because the agent expects an engine behind it.
 services:
   sail:
-    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.0}@${SAIL_ENGINE_DIGEST:-sha256:b35451c4627b14a885f3867c75870406b0e80e830fbc7dff939acc50c3d7fca0}
+    image: ghcr.io/calvinchengx/emulator-sail:${SAIL_ENGINE_VERSION:-0.7.1}@${SAIL_ENGINE_DIGEST:-sha256:0b37f65f41da5d9493f3e5a5479a622b14ba6ca51492b5a0ab886ed1ffcbb430}
     ports:
       - "15056:50051"
     environment:

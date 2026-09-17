@@ -76,6 +76,15 @@ jobs:
       # docs-site.yml never sees.
       - name: Witness map
         run: python3 scripts/check_witnesses.py
+      # Ten compose files each carry the Sail and spark-agent pins. They split
+      # across three fabric-emulator builds under unchanged tags before this
+      # existed. --registry asks ghcr.io that the stated release published the
+      # pinned digest; release tags are never overwritten, so it cannot go red
+      # just because fabric-emulator released again.
+      - name: Sidecar pins
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_check_sidecar_pins.py'
+          python3 scripts/check_sidecar_pins.py --registry
       # `check_docs_links.py --strict` used to run here too. It moved to
       # docs-site.yml: this workflow no longer runs on docs-only changes, and a
       # docs change is the only thing that can break a doc link.
