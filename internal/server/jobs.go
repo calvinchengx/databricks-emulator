@@ -802,7 +802,16 @@ func (s *Server) runTask(t store.Task, depth int) store.TaskRun {
 		// No environment here, and none is dropped: parseTask refuses
 		// spark_env_vars on a sql_task, because a SQL statement has no
 		// preamble to carry them.
-		req = sparkSQLRequest(code, "job-"+t.Key)
+		//
+		// THE WAREHOUSE SESSION, NOT THIS TASK'S. A sql_task runs on a SQL
+		// warehouse on Databricks -- that is why it has no cluster environment
+		// to carry -- so its statements belong in the warehouse's catalog, and
+		// a table it creates is one a warehouse query can then read. Under
+		// "job-"+t.Key they landed in a catalog private to the task, which the
+		// agent discards when the run ends: the table existed for exactly as
+		// long as the job, and nothing could see it, including the next task
+		// in the same job.
+		req = sparkSQLRequest(code, spark.WarehouseSession)
 	} else {
 		req = spark.Request{
 			Session: "job-" + t.Key,

@@ -30,7 +30,9 @@ print(stmt.status.state)  # SUCCEEDED
 The official SDK drops unknown fields. `dialect: spark-sql` lives on the wire
 (`GET /api/2.0/sql/statements/{id}`). `executedBy` says Spark SQL, not Photon.
 
-`sql_task.file` jobs take this same path. `sql_task.query`, dashboard, and
+`sql_task.file` jobs take this same path, in the same
+Spark session, so a table such a task creates is readable by a later warehouse
+statement (witnessed by `e2e-delta`). `sql_task.query`, dashboard, and
 alert are refused at job create.
 
 Witness: `ci:e2e-engine`.

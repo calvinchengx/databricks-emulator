@@ -50,9 +50,15 @@ type Request struct {
 // catalog, so a temp view or a `USE` from one connection is visible to the
 // next; on Databricks each connection gets its own. Statements are rewritten
 // to qualified names before they reach the engine (internal/sqlshim), so
-// nothing here depends on the current database. Jobs keep a session per task
-// key, so a table a job creates is still not in this catalog -- that gap is
-// real and untouched by this constant.
+// nothing here depends on the current database.
+//
+// A JOB'S sql_task RUNS HERE TOO, because on Databricks that kind runs on a
+// SQL warehouse. What stays outside is code: notebook and spark_python tasks,
+// and cluster execution contexts, each keep a session of their own, because
+// those are REPLs whose globals must not mix. A table created by task CODE
+// (`spark.sql("CREATE TABLE …")` inside a Python task) is therefore still not
+// in this catalog -- that one is a real gap, and closing it needs the agent to
+// register tables across sessions rather than a different id here.
 const WarehouseSession = "sql-warehouse"
 
 // Result is what the engine returned.
