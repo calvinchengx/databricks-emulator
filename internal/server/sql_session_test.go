@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 
+	cliservice "github.com/calvinchengx/databricks-emulator/internal/hs2/cliservice"
 	"github.com/calvinchengx/databricks-emulator/internal/spark"
 )
 
@@ -175,4 +177,92 @@ func TestWarehouseStatementStillFailsWhenTheEngineRefuses(t *testing.T) {
 func statementState(out map[string]any) string {
 	status, _ := out["status"].(map[string]any)
 	return str(status["state"])
+}
+
+// dbt reaches the warehouse over HiveServer2, not the statements API, and that
+// is the path the empty-catalog defect was first seen on ("Database not found:
+// hive_metastore.default"). Thrift has a session concept of its own, so this
+// pins that two thrift connections still land in ONE agent session.
+func TestThriftStatementsShareTheWarehouseSession(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	if st := h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "thrift"}, &created); st != 200 {
+		t.Fatalf("create warehouse %d", st)
+	}
+	engine := &catalogPerSession{}
+	h.exec.Hook = engine.run
+
+	ctx := context.Background()
+	exec := func(sql string) *cliservice.TExecuteStatementResp {
+		t.Helper()
+		cli := thriftClient(t, h, "/sql/1.0/endpoints/"+str(created["id"]), pat)
+		opened, err := cli.OpenSession(ctx, &cliservice.TOpenSessionReq{
+			ClientProtocolI64: protoI64(cliservice.TProtocolVersion_SPARK_CLI_SERVICE_PROTOCOL_V7),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out, err := cli.ExecuteStatement(ctx, &cliservice.TExecuteStatementReq{
+			SessionHandle:    opened.SessionHandle,
+			Statement:        sql,
+			GetDirectResults: &cliservice.TSparkGetDirectResults{MaxRows: 1000},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	if out := exec("CREATE TABLE events (id INT)"); out.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
+		t.Fatalf("create over thrift: %+v", out.Status)
+	}
+	// A SECOND connection, the way dbt opens one per operation.
+	out := exec("INSERT INTO events VALUES (1)")
+	if out.Status.StatusCode != cliservice.TStatusCode_SUCCESS_STATUS {
+		t.Fatalf("a second thrift connection could not see the table: %+v", out.Status)
+	}
+	if len(engine.tables) != 1 {
+		t.Fatalf("thrift opened %d catalogs, want 1: %v", len(engine.tables), engine.tables)
+	}
+	for _, call := range h.exec.Calls {
+		if call.Session != spark.WarehouseSession {
+			t.Fatalf("thrift statement ran in session %q", call.Session)
+		}
+	}
+}
+
+// A statement the rewriter refuses never reaches the engine, and the refusal
+// is the caller's error. Shares the session constant's path up to the point
+// the plan is checked, so it belongs with these.
+func TestRefusedRewriteNeverReachesTheEngine(t *testing.T) {
+	h := newHarness(t)
+	pat := h.srv.Store.AdminPAT
+	var created map[string]any
+	if st := h.json("POST", "/api/2.0/sql/warehouses", pat, map[string]any{"name": "starter"}, &created); st != 200 {
+		t.Fatalf("create warehouse %d", st)
+	}
+	h.exec.Hook = func(req spark.Request) (spark.Result, error) {
+		t.Fatalf("an unsafe identifier reached the engine: %q", req.Code)
+		return spark.Result{}, nil
+	}
+	var out map[string]any
+	if st := h.json("POST", "/api/2.0/sql/statements", pat, map[string]any{
+		"warehouse_id": str(created["id"]),
+		// `..` would walk out of the Delta root once interpolated into LOCATION.
+		"statement": "CREATE TABLE `cat`.`..`.`t` USING delta AS SELECT 1 AS id",
+	}, &out); st != 200 {
+		t.Fatalf("execute %d", st)
+	}
+	if state := statementState(out); state != "FAILED" {
+		t.Fatalf("state %s, want FAILED: %+v", state, out)
+	}
+	status, _ := out["status"].(map[string]any)
+	e, _ := status["error"].(map[string]any)
+	if e == nil || !strings.Contains(str(e["message"]), "managed location") {
+		t.Fatalf("refusal did not name the reason: %+v", status)
+	}
+	if len(h.exec.Calls) != 0 {
+		t.Fatalf("engine calls on a refused statement: %d", len(h.exec.Calls))
+	}
 }
