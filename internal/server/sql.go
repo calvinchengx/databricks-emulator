@@ -156,7 +156,7 @@ func (s *Server) runSQLStatement(st *store.Statement, wh *store.Warehouse) {
 		return
 	}
 	engineSQL := plan.SQL
-	res, err := s.Spark.Run(sparkSQLRequest(engineSQL, "sql-"+st.ID))
+	res, err := s.Spark.Run(sparkSQLRequest(engineSQL, spark.WarehouseSession))
 	if err != nil {
 		st.Status = "FAILED"
 		st.Error = err.Error()

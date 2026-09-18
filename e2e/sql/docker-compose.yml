@@ -14,7 +14,7 @@ services:
       retries: 30
 
   spark-agent:
-    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:8983695ef6516fd1a7965335b830a3b69b98c773dfbc1fd3c8122faa76cdd348}
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:04509791f172cf11fd08b5aa7277af64079a8d142e9abdfda222aef9ee347bd9}
     depends_on:
       sail:
         condition: service_healthy

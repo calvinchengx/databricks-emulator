@@ -29,6 +29,32 @@ type Request struct {
 	Kind    string
 }
 
+// WarehouseSession is the agent session every warehouse statement runs in.
+//
+// ONE SESSION, BECAUSE A CATALOG IS NOT SESSION STATE. Warehouse statements
+// used to run as "sql-"+statement id, a fresh session each time. That was
+// harmless only because the agent put every session on one Spark session: the
+// id named a namespace nobody looked at. From fabric-emulator v0.33.0
+// (its PR #352) the agent gives each session its OWN Spark Connect session,
+// and on Sail that session starts with an EMPTY catalog -- measured, and
+// measured here as three red e2e suites: `CREATE TABLE events` then
+// `INSERT INTO events` answered "table does not exist", and dbt could not find
+// `hive_metastore.default`, because each statement was a different catalog.
+//
+// Databricks puts tables in a metastore SHARED by every warehouse, so sharing
+// one session across all of them is the faithful shape, not a workaround --
+// a table created by one statement is visible to the next, and to another
+// warehouse, exactly as it is on the product.
+//
+// WHAT THIS DOES NOT REPRODUCE. Session state is shared along with the
+// catalog, so a temp view or a `USE` from one connection is visible to the
+// next; on Databricks each connection gets its own. Statements are rewritten
+// to qualified names before they reach the engine (internal/sqlshim), so
+// nothing here depends on the current database. Jobs keep a session per task
+// key, so a table a job creates is still not in this catalog -- that gap is
+// real and untouched by this constant.
+const WarehouseSession = "sql-warehouse"
+
 // Result is what the engine returned.
 type Result struct {
 	OK     bool
