@@ -38,19 +38,16 @@ services:
   # Which matters because the tag is ALSO a moving target. fabric-emulator's
   # release.yml publishes one build under two names -- `emulator-spark-agent`
   # and `fabric-emulator-spark-agent` -- with three tags: the dependency
-  # version (4.2.0, below), the release semver (0.32.0), and latest. The
+  # version (4.2.0, below), the release semver (0.36.0), and latest. The
   # dependency tag is REBUILT AND OVERWRITTEN by every release; only the semver
-  # one is stable.
-  #
-  # This suite and the databricks platforms DO NOT run identical bits. The
-  # platforms pin the v0.36.0 agent (sha256:04509791…); this pins v0.32.0,
-  # because the newer agent's per-session empty catalog breaks this emulator's
-  # per-statement sessions -- see e2e/sidecars.env.
+  # one is stable. The databricks platforms pin the same sha256:04509791… in
+  # their versions.env, so this suite and the platforms run identical bits
+  # again -- they diverged for one release while the agent was held at v0.32.0.
   #
   # Within this repo, scripts/check_sidecar_pins.py holds every compose file to
   # e2e/sidecars.env. Across repos, nothing does.
   spark-agent:
-    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:8983695ef6516fd1a7965335b830a3b69b98c773dfbc1fd3c8122faa76cdd348}
+    image: ghcr.io/calvinchengx/emulator-spark-agent:${SPARK_CLIENT_VERSION:-4.2.0}@${SPARK_CLIENT_DIGEST:-sha256:04509791f172cf11fd08b5aa7277af64079a8d142e9abdfda222aef9ee347bd9}
     depends_on:
       sail:
         condition: service_healthy

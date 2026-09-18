@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -89,5 +90,67 @@ func TestPostedBodyCarriesNoInertFields(t *testing.T) {
 		if _, ok := got[k]; !ok {
 			t.Errorf("the body is missing %q", k)
 		}
+	}
+}
+
+// A JSON-shaped answer is the one warehouse statements read: runSQLStatement
+// puts `data["application/json"]` straight into a statement's result, so the
+// rows have to survive being re-marshalled rather than arriving as Go maps.
+func TestAgentRunPrefersJSONData(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "ok",
+			"data": map[string]any{
+				"text/plain":       "ignored when JSON is present",
+				"application/json": []map[string]any{{"id": 1}},
+			},
+		})
+	}))
+	defer srv.Close()
+	res, err := NewAgent(srv.URL).Run(Request{Session: WarehouseSession, Code: "SELECT 1", Kind: "sql"})
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if res.Stdout != `[{"id":1}]` {
+		t.Fatalf("stdout %q", res.Stdout)
+	}
+}
+
+// The agent is a process that can die mid-statement. A transport failure must
+// come back as an error naming the agent, not as an empty success.
+func TestAgentRunUnreachableIsAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close() // nothing is listening now
+	res, err := NewAgent(url).Run(Request{Session: WarehouseSession, Code: "SELECT 1", Kind: "sql"})
+	if err == nil {
+		t.Fatalf("a dead agent reported success: %+v", res)
+	}
+	if !strings.Contains(err.Error(), "spark agent") {
+		t.Fatalf("error does not name the agent: %v", err)
+	}
+	if res.OK {
+		t.Fatalf("OK on a transport failure: %+v", res)
+	}
+}
+
+// 200 with a body that is not the agent's JSON: an HTML error page from a
+// proxy in front of the agent reads as success otherwise.
+func TestAgentRunUndecodableBodyIsAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("<html>502 upstream</html>"))
+	}))
+	defer srv.Close()
+	res, err := NewAgent(srv.URL).Run(Request{Session: WarehouseSession, Code: "SELECT 1", Kind: "sql"})
+	if err == nil || !strings.Contains(err.Error(), "decode") {
+		t.Fatalf("err=%v res=%+v", err, res)
+	}
+}
+
+// The constant is the contract this repo's warehouse layer depends on: a
+// rename that does not also change every caller must not pass silently.
+func TestWarehouseSessionIsStable(t *testing.T) {
+	if WarehouseSession != "sql-warehouse" {
+		t.Fatalf("WarehouseSession = %q", WarehouseSession)
 	}
 }

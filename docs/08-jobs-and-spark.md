@@ -48,11 +48,16 @@ remaining Sail 0.7.0. Reading a tag alone would silently change the engine under
 a stack that had been witnessed against a different build, so the digests here
 are refreshed together rather than drifting apart.
 
-**The agent is held back.** Sail comes from v0.36.0, the agent from v0.32.0.
-From v0.33.0 the agent gives every agent session its own Spark Connect session
-with an empty catalog, and warehouse SQL here sends each statement as its own
-session, so a table created by one statement is missing in the next. The agent
-moves only together with a change to that.
+**One session for every warehouse statement.** From v0.33.0 the agent gives
+each agent session its own Spark Connect session with an empty catalog. Warehouse
+SQL used to send each statement as its own session, so a table created by one
+statement was missing in the next; the agent was held at v0.32.0 for a release
+because of it. Statements now share `spark.WarehouseSession`, which is also the
+shape Databricks has: one metastore behind every warehouse. Session state
+(temp views, `USE`) is shared with it, which Databricks keeps per connection --
+`internal/sqlshim` qualifies names before they reach the engine, so nothing
+here depends on the current database. Jobs still get a session per task key, so
+a table a job creates is not in that catalog.
 
 The digests were not checked at first, and by September 2026 the ten compose
 files had split three ways: Sail from v0.27.0 in six, from v0.30.0 in four, and
