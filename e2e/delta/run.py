@@ -121,6 +121,7 @@ def log_stats(host_table: Path) -> tuple[int, int]:
 
 def main() -> int:
     from databricks.sdk import WorkspaceClient
+    from databricks.sdk.service.workspace import ImportFormat
 
     host_root = Path(tempfile.mkdtemp(prefix="dbx-delta-"))
     host_table = host_root / "e2e" / "events"
@@ -244,6 +245,38 @@ def main() -> int:
         sql(w, wh.id, "INSERT INTO e2e.s.from_shim VALUES (2, 'b')")
         confirm(host_shim, [(1, "a"), (2, "b")], min_version=1)
 
+        # A sql_task writes into the WAREHOUSE catalog, and a warehouse
+        # statement is what proves it. On Databricks a sql_task runs on a SQL
+        # warehouse; here it used to run in a session of its own, so its table
+        # existed for the length of the job and no query could ever reach it.
+        # Job first, warehouse second, delta-rs third: three different
+        # surfaces, and only the last one reads the bytes.
+        from databricks.sdk.service.jobs import SqlTask, SqlTaskFile, Task
+
+        job_table = "file:///data/delta/e2e/from_job"
+        w.workspace.upload(
+            "/from_job.sql",
+            f"CREATE TABLE from_job (id INT, name STRING) USING delta LOCATION '{job_table}'".encode(),
+            format=ImportFormat.RAW,
+            overwrite=True,
+        )
+        job = w.jobs.create(
+            name="e2e-delta-sql-task",
+            tasks=[Task(
+                task_key="make",
+                sql_task=SqlTask(warehouse_id=wh.id, file=SqlTaskFile(path="/from_job.sql")),
+            )],
+        )
+        if job.job_id is None:
+            raise SystemExit("job id missing")
+        job_run = w.jobs.run_now(job_id=job.job_id).result()
+        if job_run.state is None or str(job_run.state.result_state) not in {"RunResultState.SUCCESS", "SUCCESS"}:
+            raise SystemExit(f"sql_task did not succeed: {job_run.state}")
+
+        host_job_table = host_root / "e2e" / "from_job"
+        sql(w, wh.id, "INSERT INTO from_job VALUES (7, 'grace')")
+        confirm(host_job_table, [(7, "grace")], min_version=0)
+
         # OPTIMIZE / VACUUM: Sail has no grammar for these. The family's
         # spark-agent routes them through delta-rs (named shim). Address by
         # path: CREATE TABLE … (cols) USING delta LOCATION is not recorded
@@ -320,7 +353,8 @@ def main() -> int:
 
         print(
             f"e2e/delta: Sail wrote, delta-rs confirmed versions {dml}; "
-            f"UC three-part INSERT {v_uc}; OPTIMIZE {before_n}->{after_n} files "
+            f"UC three-part INSERT {v_uc}; a sql_task's table read back by the "
+            f"warehouse; OPTIMIZE {before_n}->{after_n} files "
             f"v{before_v}->{v_opt}; VACUUM ok; ZORDER refused ({err}); "
             f"concurrent overwrite {outcomes} log {v_seed}->{v_race}"
         )

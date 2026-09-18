@@ -56,8 +56,12 @@ because of it. Statements now share `spark.WarehouseSession`, which is also the
 shape Databricks has: one metastore behind every warehouse. Session state
 (temp views, `USE`) is shared with it, which Databricks keeps per connection --
 `internal/sqlshim` qualifies names before they reach the engine, so nothing
-here depends on the current database. Jobs still get a session per task key, so
-a table a job creates is not in that catalog.
+here depends on the current database. A job's `sql_task` runs in that same session, because on
+Databricks that kind runs on a SQL warehouse -- so a table it creates is one a
+warehouse query reads back (`e2e-delta` witnesses exactly that). Code tasks
+(notebook, `spark_python_task`) and cluster execution contexts keep a session
+each, since those are REPLs whose globals must not mix, so a table created by
+Python task code is still not in the warehouse catalog.
 
 The digests were not checked at first, and by September 2026 the ten compose
 files had split three ways: Sail from v0.27.0 in six, from v0.30.0 in four, and
