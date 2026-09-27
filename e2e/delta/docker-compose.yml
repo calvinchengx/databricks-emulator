@@ -9,7 +9,7 @@
 # https://docs.lakesail.com/sail/latest/guide/catalog/unity.html
 services:
   uc:
-    image: unitycatalog/unitycatalog:${UC_VERSION:-v0.5.0}
+    image: mirror.gcr.io/unitycatalog/unitycatalog:${UC_VERSION:-v0.5.0}
     ports:
       - "18452:8080"
     healthcheck:

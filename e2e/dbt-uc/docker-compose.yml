@@ -5,7 +5,7 @@
 # Sail dials http://uc:8080; the emulator on the host proxies UC REST.
 services:
   uc:
-    image: unitycatalog/unitycatalog:${UC_VERSION:-v0.5.0}
+    image: mirror.gcr.io/unitycatalog/unitycatalog:${UC_VERSION:-v0.5.0}
     ports:
       - "18453:8080"
     healthcheck:
