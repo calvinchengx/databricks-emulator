@@ -1,7 +1,7 @@
 # Opt-in JVM overlay: Apache Spark 3.5.5 + Delta 3.2, not Sail.
 # Fabric Runtime 1.3's public engine baseline. Java 11, not the short
 # apache/spark:3.5.5 tag (that one is Java 17).
-FROM apache/spark:3.5.5-scala2.12-java11-python3-ubuntu
+FROM mirror.gcr.io/apache/spark:3.5.5-scala2.12-java11-python3-ubuntu
 USER root
 COPY agent.py /opt/spark/work-dir/agent.py
 RUN mkdir -p /home/spark/.ivy2/cache /home/spark/.ivy2/jars \
