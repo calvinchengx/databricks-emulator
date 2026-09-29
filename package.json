@@ -10,5 +10,10 @@
     "preinstall": "npx only-allow pnpm",
     "docs:dev": "pnpm --filter databricks-emulator-docs dev",
     "docs:build": "pnpm --filter databricks-emulator-docs build"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici@>=8.0.0 <8.10.2": "^8.10.2"
+    }
   }
 }
