@@ -68,7 +68,11 @@ package = false
 #
 # Re-check when dbt-core relaxes the bound: this override should then be
 # DELETED rather than left to pin the ecosystem quietly.
-override-dependencies = ["sqlparse>=0.6.0"]
+# oauthlib reaches this lock through databricks-sql-connector, which does not
+# cap it. Two advisories (GHSA-xpv3-w29h-x7cv, GHSA-hj66-6f7g-4r5v) name 4.0.0
+# as the first patched version; 3.3.1 is the last affected. A plain
+# `uv lock --upgrade-package oauthlib` keeps 3.3.1, so the floor is forced.
+override-dependencies = ["sqlparse>=0.6.0", "oauthlib>=4.0.0"]
 # 1.12.4 needs databricks-sdk<0.118; the other groups pin 0.129.0.
 conflicts = [
     [
