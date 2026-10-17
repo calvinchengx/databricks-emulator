@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -485,7 +485,7 @@ target = [
 
 [package.metadata.requires-dev]
 dbt = [
-    { name = "dbt-databricks", specifier = "==1.12.6" },
+    { name = "dbt-databricks", specifier = "==1.12.7" },
     { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.6" },
 ]
 delta = [
@@ -667,7 +667,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/f8/38/8a427d213b87eb2f6
 
 [[package]]
 name = "dbt-databricks"
-version = "1.12.6"
+version = "1.12.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -680,9 +680,9 @@ dependencies = [
     { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" } },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/67/26/ec0121fec857c8eea833b2d8fba6b082b115693740f189db1c9b16f93ec0/dbt_databricks-1.12.6.tar.gz", hash = "sha256:a634e3bce34e801e34a72a4d3abb50ad038cd216514499cb594710c4a4199a20", size = 121968, upload-time = "2026-10-01T16:18:42.646Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/c4/1c103dec4aa667ed6ae3d357639824537a73cf297c4fee4823afd23533ee/dbt_databricks-1.12.7.tar.gz", hash = "sha256:5dd39e4118c93d39903a069ad8e02bc196c0411ee982240251f726cb8eb2770d", size = 123737, upload-time = "2026-10-12T10:51:41.088Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/ce/757d7903de02aacd8724bda313ea79a5c0edbd61eed756e2a19b10c3e5fe/dbt_databricks-1.12.6-py3-none-any.whl", hash = "sha256:ea8cb5c17a0fc2ea0dd03c93182ad79e957b039a210a15d9da5c714d796273a9", size = 180055, upload-time = "2026-10-01T16:18:41.273Z" },
+    { url = "https://files.pythonhosted.org/packages/da/86/09fea46d26f32d468b42b0903f56666732f18ef52001bec449736177018b/dbt_databricks-1.12.7-py3-none-any.whl", hash = "sha256:99fa4aa2af1b21215ca376e0b92515391697bfbdaf736aa07480c3dba06d2468", size = 181940, upload-time = "2026-10-12T10:51:39.467Z" },
 ]
 
 [[package]]
