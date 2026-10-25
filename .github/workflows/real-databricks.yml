@@ -35,7 +35,7 @@ jobs:
           if [ "$SECRET_SET" != "true" ]; then
             echo "::warning::DATABRICKS_HOST / DATABRICKS_TOKEN / DATABRICKS_WAREHOUSE are not set. Every step below is skipped, so this run proves NOTHING about real Databricks. A green tick here means 'not configured'."
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.gate.outputs.run == 'true'
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         if: steps.gate.outputs.run == 'true'
