@@ -125,27 +125,8 @@ wheels = [
 
 [[package]]
 name = "certifi"
-version = "2026.10.19"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/bd/1436c50cc46699de0230fbaacc1d1de7bfec413176099949e9d5112e88f2/certifi-2026.10.19.tar.gz", hash = "sha256:035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae", size = 137598, upload-time = "2026-10-20T02:24:16.604Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/51/29046e48f693c54e5b7412216d447a1d8362c9653148d98c02cdf65fa733/certifi-2026.10.19-py3-none-any.whl", hash = "sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b", size = 136464, upload-time = "2026-10-20T02:24:15.072Z" },
-]
-
-[[package]]
-name = "certifi"
 version = "2026.10.23"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/fd/11/b524cbd9bbdaca58608e4cf4053fd463417549e1959fa8d3aa18319f9555/certifi-2026.10.23.tar.gz", hash = "sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd", size = 136225, upload-time = "2026-10-23T11:36:16.478Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl", hash = "sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1", size = 135082, upload-time = "2026-10-23T11:36:14.763Z" },
@@ -504,7 +485,7 @@ target = [
 
 [package.metadata.requires-dev]
 dbt = [
-    { name = "dbt-databricks", specifier = "==1.12.8" },
+    { name = "dbt-databricks", specifier = "==1.13.0" },
     { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.6" },
 ]
 delta = [
@@ -686,10 +667,10 @@ sdist = { url = "https://files.pythonhosted.org/packages/f8/38/8a427d213b87eb2f6
 
 [[package]]
 name = "dbt-databricks"
-version = "1.12.8"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi", version = "2026.10.23", source = { registry = "https://pypi.org/simple" } },
+    { name = "certifi" },
     { name = "click" },
     { name = "databricks-sdk", version = "0.117.0", source = { registry = "https://pypi.org/simple" } },
     { name = "databricks-sql-connector", extra = ["pyarrow"], marker = "extra == 'group-26-databricks-emulator-python-dbt'" },
@@ -700,9 +681,9 @@ dependencies = [
     { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" } },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/78/39/56433aa09bdbae57b4b2638cc54ccd6d3f6289b29ea19cd2c64b785c11ec/dbt_databricks-1.12.8.tar.gz", hash = "sha256:42a177c80cb04ec38ebed8406dca948130c0302918de3d412b8fa304f427e5a2", size = 123759, upload-time = "2026-10-24T11:10:09.97Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/4c/3e9169d416dd78c2a7918676ce7fe7448e08869e2d1b5c596b4a44436aa3/dbt_databricks-1.13.0.tar.gz", hash = "sha256:1fbd18b740fafc462cc165fb24b9f270c598b25cfeb8f7630434f76d2a00daf6", size = 142242, upload-time = "2026-10-29T12:17:43.912Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/f4/6b84a758c78a998c7dc636f79d07f0463c3d371d466eb5ecd36d91eff022/dbt_databricks-1.12.8-py3-none-any.whl", hash = "sha256:f78866844ff2f4f419a5e67be3b6c138331d743390ae08fe574aa5836883e61c", size = 181955, upload-time = "2026-10-24T11:10:08.249Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/22/ac8dde6fabe2d273a1d8d42a86b73e6c2c862f85291b04e21d96388f96cc/dbt_databricks-1.13.0-py3-none-any.whl", hash = "sha256:34b96b3120426f4d6e36b3b5dfe66fe79cfef8b68f6db9621d293e6fdc02c550", size = 204247, upload-time = "2026-10-29T12:17:42.072Z" },
 ]
 
 [[package]]
@@ -1802,8 +1783,7 @@ name = "requests"
 version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "certifi", version = "2026.10.19", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-26-databricks-emulator-python-sdk' or (extra == 'group-26-databricks-emulator-python-dbt' and extra == 'group-26-databricks-emulator-python-delta') or (extra == 'group-26-databricks-emulator-python-dbt' and extra == 'group-26-databricks-emulator-python-engine') or (extra == 'group-26-databricks-emulator-python-dbt' and extra == 'group-26-databricks-emulator-python-sql') or (extra == 'group-26-databricks-emulator-python-dbt' and extra == 'group-26-databricks-emulator-python-target')" },
-    { name = "certifi", version = "2026.10.23", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-26-databricks-emulator-python-dbt' or extra != 'group-26-databricks-emulator-python-sdk'" },
+    { name = "certifi" },
     { name = "charset-normalizer" },
     { name = "idna" },
     { name = "urllib3" },
