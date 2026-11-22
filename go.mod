@@ -1,5 +1,5 @@
 module github.com/calvinchengx/databricks-emulator
 
-go 1.27.3
+go 1.27.4
 
 require github.com/apache/thrift v0.25.0
