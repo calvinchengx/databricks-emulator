@@ -430,15 +430,15 @@ wheels = [
 
 [[package]]
 name = "databricks-connect"
-version = "19.3.0"
+version = "19.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
     { name = "googleapis-common-protos" },
     { name = "grpcio" },
     { name = "grpcio-status" },
     { name = "numpy" },
-    { name = "packaging", version = "26.3", source = { registry = "https://pypi.org/simple" } },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "py4j" },
     { name = "pyarrow" },
@@ -447,7 +447,7 @@ dependencies = [
     { name = "zstandard" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/d0/5844968916c892cda8ee0ee5a77b420c65d39566ee26be36cb93b1088207/databricks_connect-19.3.0-py2.py3-none-any.whl", hash = "sha256:fae901a453c2eb8da0259abcd48d8117c6d552b4907b5058afabe093b8fc1fc4", size = 3253318, upload-time = "2026-10-23T22:39:56.526Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/ee/cd7e04585f40b9ef7e1271d0348860686b218af3b5876d773ceeb36aac35/databricks_connect-19.4.0-py2.py3-none-any.whl", hash = "sha256:42ffe660eabea050a6f5d10c2bc18122e2c2ff2e5eb51416879cc90d8e7aac61", size = 3397236, upload-time = "2026-11-20T21:24:00.38Z" },
 ]
 
 [[package]]
@@ -461,22 +461,22 @@ dbt = [
     { name = "deltalake", extra = ["pyarrow"], marker = "extra == 'group-26-databricks-emulator-python-dbt'" },
 ]
 delta = [
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
     { name = "deltalake", extra = ["pyarrow"], marker = "extra != 'group-26-databricks-emulator-python-dbt' or extra == 'group-26-databricks-emulator-python-delta' or extra == 'group-26-databricks-emulator-python-engine' or extra == 'group-26-databricks-emulator-python-sdk' or extra == 'group-26-databricks-emulator-python-sql' or extra == 'group-26-databricks-emulator-python-target'" },
 ]
 engine = [
     { name = "databricks-connect" },
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
 ]
 sdk = [
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
 ]
 sql = [
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
     { name = "databricks-sql-connector" },
 ]
 target = [
-    { name = "databricks-sdk", version = "0.129.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
     { name = "databricks-target" },
     { name = "pytest" },
 ]
@@ -485,15 +485,15 @@ target = [
 
 [package.metadata.requires-dev]
 dbt = [
-    { name = "dbt-databricks", specifier = "==1.12.8" },
-    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.6" },
+    { name = "dbt-databricks", specifier = "==1.13.1" },
+    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.7.0" },
 ]
 delta = [
     { name = "databricks-sdk", specifier = "==0.129.0" },
-    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.6.6" },
+    { name = "deltalake", extras = ["pyarrow"], specifier = "==1.7.0" },
 ]
 engine = [
-    { name = "databricks-connect", specifier = "==19.3.0" },
+    { name = "databricks-connect", specifier = "==19.4.0" },
     { name = "databricks-sdk", specifier = "==0.129.0" },
 ]
 sdk = [{ name = "databricks-sdk", specifier = "==0.129.0" }]
@@ -509,33 +509,8 @@ target = [
 
 [[package]]
 name = "databricks-sdk"
-version = "0.117.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
-dependencies = [
-    { name = "google-auth" },
-    { name = "protobuf" },
-    { name = "requests" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/95/86/fe149c523a9181deb3a90ae4e83708f54a6ee80c40ca392cf66ffdf425df/databricks_sdk-0.117.0.tar.gz", hash = "sha256:30a6fc21a8f9c4a41830c43332ae63b38c3679a83ac1bda4734ce7ced114faf1", size = 989404, upload-time = "2026-06-11T18:19:29.034Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/4d/3e28a5a1ae9aa42237bd0f4e6b34867b554c046a0f3e7c2ef49fa74800f6/databricks_sdk-0.117.0-py3-none-any.whl", hash = "sha256:bafd588c067ee353c905e56cd2eb37c7eca7a56a4c1b57656621b77208c32f86", size = 936854, upload-time = "2026-06-11T18:19:27.395Z" },
-]
-
-[[package]]
-name = "databricks-sdk"
 version = "0.129.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
 dependencies = [
     { name = "google-auth" },
     { name = "protobuf" },
@@ -642,7 +617,7 @@ dependencies = [
     { name = "mashumaro", extra = ["msgpack"], marker = "extra == 'group-26-databricks-emulator-python-dbt'" },
     { name = "metricflow" },
     { name = "networkx" },
-    { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "packaging" },
     { name = "pathspec" },
     { name = "protobuf" },
     { name = "pydantic" },
@@ -667,23 +642,23 @@ sdist = { url = "https://files.pythonhosted.org/packages/f8/38/8a427d213b87eb2f6
 
 [[package]]
 name = "dbt-databricks"
-version = "1.12.8"
+version = "1.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
     { name = "click" },
-    { name = "databricks-sdk", version = "0.117.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "databricks-sdk" },
     { name = "databricks-sql-connector", extra = ["pyarrow"], marker = "extra == 'group-26-databricks-emulator-python-dbt'" },
     { name = "dbt-adapters" },
     { name = "dbt-common" },
     { name = "dbt-core" },
     { name = "dbt-spark" },
-    { name = "packaging", version = "25.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "packaging" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/78/39/56433aa09bdbae57b4b2638cc54ccd6d3f6289b29ea19cd2c64b785c11ec/dbt_databricks-1.12.8.tar.gz", hash = "sha256:42a177c80cb04ec38ebed8406dca948130c0302918de3d412b8fa304f427e5a2", size = 123759, upload-time = "2026-10-24T11:10:09.97Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/5a/ed1d0677688354df10d8d3edb0c2e7438787aa8c6c0153d6509ba0277060/dbt_databricks-1.13.1.tar.gz", hash = "sha256:39936ec3326e4a0ad8fd4789be42f189c2051e11bc5be3303762391381aec7f5", size = 145556, upload-time = "2026-11-19T12:48:26.557Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/f4/6b84a758c78a998c7dc636f79d07f0463c3d371d466eb5ecd36d91eff022/dbt_databricks-1.12.8-py3-none-any.whl", hash = "sha256:f78866844ff2f4f419a5e67be3b6c138331d743390ae08fe574aa5836883e61c", size = 181955, upload-time = "2026-10-24T11:10:08.249Z" },
+    { url = "https://files.pythonhosted.org/packages/11/ec/8e97e9bc62954519aee634cd52c860737f25424cf7eabc098f4f4ab7eeb1/dbt_databricks-1.13.1-py3-none-any.whl", hash = "sha256:70630eab576771925bd95be8364f2db938392210a7db1d533bdcd41b7d837f24", size = 209146, upload-time = "2026-11-19T12:48:25.217Z" },
 ]
 
 [[package]]
@@ -750,21 +725,22 @@ wheels = [
 
 [[package]]
 name = "deltalake"
-version = "1.6.6"
+version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arro3-core" },
     { name = "deprecated" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/24/7e/817984d82cec757f6f3a3dbb84afcd85027e7ae02e0a354702c2127f6777/deltalake-1.6.6.tar.gz", hash = "sha256:91864d97adb429fa8b8748b4f68d69adab3d0417ffa9f100bdb85805890c997f", size = 5650031, upload-time = "2026-09-24T11:31:48.009Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/b9/7570895c46280c5b1f37398189a0668626111c37277816441c03e0efb611/deltalake-1.7.0.tar.gz", hash = "sha256:d599ed3b835ccd79a56a30eac7bdef6a2308724ed7ef3457ccafe328512fb29a", size = 5932876, upload-time = "2026-11-22T23:26:44.542Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/d5/fee90d565b32a166777a2c39ca7c77e1b8b8240a4ecfc9eeeabc2fb9fd63/deltalake-1.6.6-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:9b9883cc1236a44f62ed360abd1f39e564d892848b8a1aa5483871d12d23f74e", size = 50800766, upload-time = "2026-09-24T13:08:43.437Z" },
-    { url = "https://files.pythonhosted.org/packages/bf/59/83e954337cb28173b5699a46f8350d8f76b15b20c6f055463b4d1ae343c0/deltalake-1.6.6-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:9e97c964ac768e104a58f147c3b41f281e9ed010825e02a3846d4a9c571a5d8a", size = 47072020, upload-time = "2026-09-24T12:58:11.229Z" },
-    { url = "https://files.pythonhosted.org/packages/75/8f/07925ff4f54d8ce35f33961f27e224e3073b7286d9041b95f8e84549fe4a/deltalake-1.6.6-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:802db1ae734295c7b947bddd228b9e6b5df702846b085be91ad593840f72e36c", size = 52017042, upload-time = "2026-09-24T12:04:22.8Z" },
-    { url = "https://files.pythonhosted.org/packages/ce/e0/120f64cc7d3ccf4f28207e3bef566fcfcadab6887f8b18864eca16425d11/deltalake-1.6.6-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:25edf9373e6dd21f5db4792b1176a7b3e1780d2072e52e8d1433ba8f5e356c30", size = 50905121, upload-time = "2026-09-24T11:50:03.525Z" },
-    { url = "https://files.pythonhosted.org/packages/23/46/35a59c6d24de9fdb3b68b41bc458ae9dc561a27b74e19d08137de1c8a695/deltalake-1.6.6-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:018e7b1d6a1098e365480cda810651b5570e38fad2236ea5f4a3e152457d8cc2", size = 50922944, upload-time = "2026-09-24T11:50:48.724Z" },
-    { url = "https://files.pythonhosted.org/packages/bc/ed/fd2cdf5edcea2ee90b75c5891f5a542b8564cf69bc92e174dab26b45819a/deltalake-1.6.6-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:e2829c996dcf32bd6135e2eafe5b807f47ad40e84711c1453ee7b63f4548c034", size = 52029056, upload-time = "2026-09-24T12:03:08.689Z" },
-    { url = "https://files.pythonhosted.org/packages/a4/a0/aa5d6643b85a9509b241e34df3b3e6720653279eb230e6025f7beee8eeb6/deltalake-1.6.6-cp310-abi3-win_amd64.whl", hash = "sha256:9a4d95a2c2ca70ef8b4f21e599850e2c21374bbde0fab3414388e5ef7d3f69e0", size = 55542042, upload-time = "2026-09-24T12:35:30.393Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/80/8c7de9700b6fe9b05ff63a6aa9c961d888aebdef89dfd719fc1523ad5af8/deltalake-1.7.0-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ec006fbb55edf45a681752e10d8d1879cfa5638fcd8882ebc7bda496689862f5", size = 53224375, upload-time = "2026-11-23T01:55:23.294Z" },
+    { url = "https://files.pythonhosted.org/packages/86/dd/469412004ce19a0d04545b86880f82d198179f8a50846cfd28efa126ed5c/deltalake-1.7.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:369bfd2eb0e0d55ea744964cb3c14a61c68eb8bad5455c570794e00d49512247", size = 48767904, upload-time = "2026-11-23T02:20:41.875Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/a3/81ad65adfd9a33cdd486fc986366907b6aa2688fdc3bfd493e727be45247/deltalake-1.7.0-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ff5ec14c420286ec46e3c55081fb3f2acb0fb37e77edf1c1cc00abe4795223e7", size = 54429708, upload-time = "2026-11-23T00:06:19.991Z" },
+    { url = "https://files.pythonhosted.org/packages/82/30/8e2fd84645c2ebdd3a99fac094a56aeb076a5d6422df4fbdb73abc96a46e/deltalake-1.7.0-cp311-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:b84968a144e1cdf779a6584fec2e2936ccb21b531dc65db60ad25be7271bcfcf", size = 53701994, upload-time = "2026-11-22T23:49:40.933Z" },
+    { url = "https://files.pythonhosted.org/packages/16/55/a5631c7e8e72353d5a6b2a650ace8afbefb4545683015c0c7c887d3ebdf3/deltalake-1.7.0-cp311-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:459ddd4e9e333eaa8dce9e277ad6d19d0686343e6956d4d28c0d95eb9b13cba7", size = 53711766, upload-time = "2026-11-22T23:49:59.895Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/4e/a4a2515fa3126d9e682a9e55f2b35969a42d0e31067aa92528e342fea676/deltalake-1.7.0-cp311-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:40837f085f51fe328d64ea547c5691883d5d97bc5088bcbfb5b50587f3b053cb", size = 54432474, upload-time = "2026-11-22T23:59:20.789Z" },
+    { url = "https://files.pythonhosted.org/packages/11/3a/2111fa6481642c7ad4b354746f0cb39dd6f5d6de8153e91934cf3cf77857/deltalake-1.7.0-cp311-abi3-win_amd64.whl", hash = "sha256:cdef29e7e9936745f0ed14322864223f797b1e3f9184c4188239d93250c5f671", size = 57781385, upload-time = "2026-11-23T00:29:30.048Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/4b/edebbe3b56312cfe360b3ef3e5d1d98107a9cd61f9156ae641b70500162b/deltalake-1.7.0-cp311-abi3-win_arm64.whl", hash = "sha256:c4f0a83c7be4067b001526ee536f4736a5fb780c89a7eaf659207a4934825b24", size = 54365507, upload-time = "2026-11-23T00:02:44.068Z" },
 ]
 
 [package.optional-dependencies]
@@ -1303,27 +1279,8 @@ wheels = [
 
 [[package]]
 name = "packaging"
-version = "25.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727, upload-time = "2025-04-19T11:48:59.673Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
-]
-
-[[package]]
-name = "packaging"
 version = "26.3"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.14'",
-    "python_full_version == '3.13.*'",
-    "python_full_version < '3.13'",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
@@ -1620,7 +1577,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "iniconfig" },
-    { name = "packaging", version = "26.3", source = { registry = "https://pypi.org/simple" } },
+    { name = "packaging" },
     { name = "pluggy" },
     { name = "pygments" },
 ]

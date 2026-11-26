@@ -15,7 +15,7 @@ sdk = [
 # databricks-connect 19.1 Requires-Python ==3.12.*
 engine = [
     { include-group = "sdk" },
-    "databricks-connect==19.3.0",
+    "databricks-connect==19.4.0",
 ]
 # Confirmer is delta-rs, not Sail. Same pin family as fabric's delta-rs group.
 #
@@ -26,7 +26,7 @@ engine = [
 # at runtime, which is the shape a version pin without its extra always takes.
 delta = [
     { include-group = "sdk" },
-    "deltalake[pyarrow]==1.6.6",
+    "deltalake[pyarrow]==1.7.0",
 ]
 sql = [
     { include-group = "sdk" },
@@ -43,9 +43,9 @@ target = [
 # dbt-databricks 1.12.4 pins databricks-sdk<0.118 and
 # databricks-sql-connector[pyarrow]<4.4.1. Do not include-group sdk.
 dbt = [
-    "dbt-databricks==1.12.8",
+    "dbt-databricks==1.13.1",
     # `[pyarrow]` for the same reason as the `delta` group above.
-    "deltalake[pyarrow]==1.6.6",
+    "deltalake[pyarrow]==1.7.0",
 ]
 
 [tool.uv]
